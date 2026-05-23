@@ -4,6 +4,7 @@ dist
 out
 build
 .idea
+.claude
 
 # files
 *.log*
