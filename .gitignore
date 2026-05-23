@@ -1,22 +1,12 @@
-<<<<<<< HEAD
-#directories
-bower_components
-node_modules
-dist
-build
-assets
-.idea
-
-#files
-*.tgz
-*.log
-*.apk
-.idea/workspace.xml
-*.xml
-
-=======
+# directories
 node_modules
 dist
 out
+build
+.idea
+
+# files
 *.log*
->>>>>>> origin/v4
+*.tgz
+*.apk
+.idea/workspace.xml
