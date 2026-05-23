@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RotatingLines } from 'react-loader-spinner'
-//import './App.css'
+import './Carplay.css'
 import {
   findDevice,
   requestDevice,
@@ -9,11 +8,10 @@ import {
 import { CarPlayWorker } from './worker/types'
 import useCarplayAudio from './useCarplayAudio'
 import { useCarplayTouch } from './useCarplayTouch'
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { ExtraConfig} from "../../../main/Globals";
 import { useCarplayStore, useStatusStore } from "../store/store";
 import { InitEvent } from './worker/render/RenderEvents'
-import { Typography } from "@mui/material";
 
 const RETRY_DELAY_MS = 15000
 
@@ -222,72 +220,41 @@ function Carplay({ receivingVideo, setReceivingVideo, settings, command, command
   const sendTouchEvent = useCarplayTouch(carplayWorker, width, height)
 
   const isLoading = !isPlugged
+  const active = pathname === '/carplay'
 
   return (
     <div
-      style={pathname === '/carplay' ? { height: '100%', touchAction: 'none' } : { height: '1px' }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: active ? 100 : -1,
+        visibility: active ? 'visible' : 'hidden',
+        pointerEvents: active ? 'auto' : 'none',
+        touchAction: 'none',
+        background: '#001500',
+      }}
       id={'main'}
       className="App"
       ref={mainElem}
     >
-      {/* Floating exit button */}
-      {pathname === '/carplay' && (
-        <button
-          onClick={() => onHostUIRequested?.()}
-          style={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            zIndex: 50,
-            background: 'transparent',
-            border: '1px solid #1aff66',
-            color: '#1aff66',
-            fontFamily: "'Share Tech Mono', monospace",
-            fontSize: '13px',
-            padding: '6px 12px',
-            cursor: 'pointer',
-            borderRadius: '4px',
-            letterSpacing: '0.05em'
-          }}
-        >
+      {active && (
+        <button className="cp-exit-btn" onClick={() => onHostUIRequested?.()}>
           ← EXIT
         </button>
       )}
-      {(deviceFound === false || isLoading) && pathname === '/carplay' && (
-        <div
-          style={{
-            position: 'absolute',
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}
-        >
-          {deviceFound === false && (
-            <div>
-              <Typography>Searching For Dongle</Typography>
-              <RotatingLines
-                strokeColor="grey"
-                strokeWidth="5"
-                animationDuration="0.75"
-                width="96"
-                visible={true}
-              />
+      {active && (deviceFound === false || isLoading) && (
+        <div className="cp-loading">
+          <div className="cp-loading-inner">
+            <div className="cp-loading-title">
+              {deviceFound ? 'Waiting for Phone' : 'Waiting for Dongle'}
             </div>
-          )}
-          {deviceFound && (
-            <div>
-              <Typography>Searching For Phone</Typography>
-              <RotatingLines
-                strokeColor="grey"
-                strokeWidth="5"
-                animationDuration="0.75"
-                width="96"
-                visible={true}
-              />
+            <div className="cp-loading-bar">
+              <div className="cp-loading-bar-fill"/>
             </div>
-          )}
+            <div className="cp-loading-sub">
+              {deviceFound ? 'Connect your phone via USB' : 'Plug in the CarPlay adapter'}
+            </div>
+          </div>
         </div>
       )}
       <div

@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx vite *)",
+      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Bash(node *)",
+      "Bash(npm run *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\src\\\\renderer\\\\src\\\\assets\\\\icons\")",
+      "Bash(cp \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\.idea\\\\Icons\\\\Mobile.png\" \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\src\\\\renderer\\\\src\\\\assets\\\\icons\\\\mobile.png\")",
+      "Bash(cp \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\.idea\\\\Icons\\\\Gauges.png\" \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\src\\\\renderer\\\\src\\\\assets\\\\icons\\\\gauges.png\")",
+      "Bash(cp \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\.idea\\\\Icons\\\\Music Notes.png\" \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\src\\\\renderer\\\\src\\\\assets\\\\icons\\\\music.png\")",
+      "Bash(cp \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\.idea\\\\Icons\\\\Phone.png\" \"C:\\\\Users\\\\stefa\\\\react-carplay\\\\src\\\\renderer\\\\src\\\\assets\\\\icons\\\\phone.png\")",
+      "Bash(python -c \"from PIL import Image; im = Image.open\\('music.png'\\).convert\\('RGBA'\\); pixels = [p for p in im.getdata\\(\\) if p[3] > 200 and \\(p[0]+p[1]+p[2]\\) > 50]; from collections import Counter; c = Counter\\(pixels\\); print\\(c.most_common\\(5\\)\\)\")",
+      "Bash(git -C /c/Users/stefa/react-carplay ls-files src/renderer/src/assets)",
+      "Bash(git -C /c/Users/stefa/react-carplay check-ignore -v src/renderer/src/assets/icons/mobile.png)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ]
+  }
+}

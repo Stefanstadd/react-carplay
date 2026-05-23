@@ -92,7 +92,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-clock-date {
-  font-size: 30px;
+  font-size: 32px;
   color: var(--hu-green-mid);
   letter-spacing: 0.10em;
   text-transform: uppercase;
@@ -113,7 +113,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-phone-name {
-  font-size: 32px;
+  font-size: 36px;
   color: var(--hu-green);
   letter-spacing: 0.06em;
 }
@@ -194,7 +194,8 @@ img.hu-numpad-call-icon {
   border: none;
   color: var(--hu-green);
   font-family: 'VT323', monospace;
-  font-size: 30px;
+  font-size: 34px;
+  font-weight: bold;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -242,7 +243,7 @@ img.hu-numpad-call-icon {
 
 /* ─── Panel label ──────────────────────────────────────────────────────── */
 .hu-panel-label {
-  font-size: 24px;
+  font-size: 28px;
   color: var(--hu-green-mid);
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -421,14 +422,15 @@ img.hu-numpad-call-icon {
 }
 
 .hu-music-via {
-  font-size: 22px;
+  font-size: 26px;
   color: var(--hu-green-mid);
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 
 .hu-music-title {
-  font-size: 42px;
+  font-size: 46px;
+  font-weight: bold;
   color: var(--hu-green);
   letter-spacing: 0.04em;
   line-height: 1.05;
@@ -438,14 +440,14 @@ img.hu-numpad-call-icon {
 }
 
 .hu-music-artist {
-  font-size: 28px;
+  font-size: 32px;
   color: var(--hu-green-mid);
   letter-spacing: 0.04em;
   line-height: 1.1;
 }
 
 .hu-music-album {
-  font-size: 24px;
+  font-size: 28px;
   color: var(--hu-green-deep);
   line-height: 1.1;
 }
@@ -475,7 +477,7 @@ img.hu-numpad-call-icon {
 .hu-progress-times {
   display: flex;
   justify-content: space-between;
-  font-size: 26px;
+  font-size: 28px;
   color: var(--hu-green-mid);
   margin-top: 4px;
   letter-spacing: 0.06em;
@@ -549,7 +551,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-gauge-label {
-  font-size: 24px;
+  font-size: 28px;
   color: var(--hu-green);
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -572,7 +574,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-gauge-text-label {
-  font-size: 22px;
+  font-size: 26px;
   color: var(--hu-green-mid);
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -632,8 +634,11 @@ img.hu-numpad-call-icon {
   color: var(--hu-bg-deep);
 }
 
-.hu-list-row:hover .hu-call-icon-btn { background: var(--hu-bg-deep); color: var(--hu-green); }
-.hu-list-row:hover .hu-call-icon-btn .hu-call-icon-img { filter: none; }
+/* When the whole row is hovered (row bg = green), the call icon must
+   turn dark so it reads against the green row. */
+.hu-list-row:hover .hu-call-icon-img {
+  filter: brightness(0);
+}
 
 .hu-avatar {
   width: 60px;
@@ -647,18 +652,18 @@ img.hu-numpad-call-icon {
   flex-shrink: 0;
 }
 
-.hu-list-name { font-size: 32px; color: var(--hu-green); line-height: 1.1; }
+.hu-list-name { font-size: 36px; color: var(--hu-green); line-height: 1.1; font-weight: bold; }
 
 .hu-list-sub {
-  font-size: 24px;
+  font-size: 28px;
   color: var(--hu-green-mid);
   margin-top: 2px;
 }
 
 .hu-call-icon-btn {
   margin-left: auto;
-  background: var(--hu-green);
-  color: var(--hu-bg-deep);
+  background: transparent;
+  color: var(--hu-green);
   border: none;
   width: 64px;
   height: 64px;
@@ -667,6 +672,17 @@ img.hu-numpad-call-icon {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  transition: background 140ms ease;
+}
+
+.hu-call-icon-btn:hover,
+.hu-call-icon-btn:focus-visible {
+  background: var(--hu-green);
+}
+
+.hu-call-icon-btn:hover .hu-call-icon-img,
+.hu-call-icon-btn:focus-visible .hu-call-icon-img {
+  filter: brightness(0);
 }
 
 .hu-call-icon-img { width: 36px; height: 36px; }
@@ -678,7 +694,7 @@ img.hu-numpad-call-icon {
 
 .hu-call-time {
   margin-left: auto;
-  font-size: 24px;
+  font-size: 28px;
   color: var(--hu-green-mid);
   flex-shrink: 0;
 }

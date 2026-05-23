@@ -52,6 +52,20 @@ function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounte
       className="App"
     >
       {showNav && <Nav receivingVideo={receivingVideo} settings={settings}/>}
+
+      {/* Persistent CarPlay layer — stays mounted across nav changes so that
+          returning to /carplay is seamless and the dongle doesn't re-init.   */}
+      {settings && (
+        <Carplay
+          receivingVideo={receivingVideo}
+          setReceivingVideo={setReceivingVideo}
+          settings={settings}
+          command={keyCommand}
+          commandCounter={commandCounter}
+          onHostUIRequested={() => navigate('/')}
+        />
+      )}
+
       <Routes>
         <Route
           path={"/"}
@@ -63,19 +77,9 @@ function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounte
             />
           }
         />
-        <Route
-          path={"/carplay"}
-          element={settings ? (
-            <Carplay
-              receivingVideo={receivingVideo}
-              setReceivingVideo={setReceivingVideo}
-              settings={settings}
-              command={keyCommand}
-              commandCounter={commandCounter}
-              onHostUIRequested={() => navigate('/')}
-            />
-          ) : null}
-        />
+        {/* /carplay renders nothing here — the persistent Carplay layer above
+            handles its visibility via z-index. */}
+        <Route path={"/carplay"} element={null} />
         <Route path={"/settings"} element={<Settings settings={settings!}/>} />
         <Route path={"/info"} element={<Info />} />
         <Route path={"/camera"} element={<Camera settings={settings!}/>} />
