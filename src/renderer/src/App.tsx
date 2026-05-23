@@ -1,19 +1,16 @@
 import { useEffect, useState } from "react";
-import { HashRouter as Router, Route, Routes } from "react-router-dom";
+import { HashRouter as Router, Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import Settings from "./components/Settings";
 import './App.css'
 import Info from "./components/Info";
-import Home from "./components/Home";
 import Nav from "./components/Nav";
 import Carplay from './components/Carplay'
 import Camera from './components/Camera'
+import HeadUnit, { VehicleData } from './components/HeadUnit'
 import { Box, Modal } from '@mui/material'
 import { useCarplayStore, useStatusStore } from "./store/store";
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
-
-// rm -rf node_modules/.vite; npm run dev
-
 
 const style = {
   position: 'absolute',
@@ -26,11 +23,79 @@ const style = {
   display: "flex"
 };
 
+interface InnerProps {
+  receivingVideo: boolean
+  setReceivingVideo: (v: boolean) => void
+  keyCommand: string
+  commandCounter: number
+}
+
+function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounter }: InnerProps) {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const [reverse, setReverse] = useStatusStore(state => [state.reverse, state.setReverse])
+  const settings = useCarplayStore((state) => state.settings)
+  const [vehicleData, setVehicleData] = useState<VehicleData | undefined>(undefined)
+
+  useEffect(() => {
+    ;(window.api as any)?.onVehicleData?.((data: VehicleData) => {
+      setVehicleData(data)
+    })
+  }, [])
+
+  const showNav = pathname !== '/' && pathname !== '/carplay'
+
+  return (
+    <div
+      style={{ height: '100%', touchAction: 'none' }}
+      id={'main'}
+      className="App"
+    >
+      {showNav && <Nav receivingVideo={receivingVideo} settings={settings}/>}
+      <Routes>
+        <Route
+          path={"/"}
+          element={
+            <HeadUnit
+              onLaunchCarplay={() => navigate('/carplay')}
+              onOpenSettings={() => navigate('/settings')}
+              vehicleData={vehicleData}
+            />
+          }
+        />
+        <Route
+          path={"/carplay"}
+          element={settings ? (
+            <Carplay
+              receivingVideo={receivingVideo}
+              setReceivingVideo={setReceivingVideo}
+              settings={settings}
+              command={keyCommand}
+              commandCounter={commandCounter}
+              onHostUIRequested={() => navigate('/')}
+            />
+          ) : null}
+        />
+        <Route path={"/settings"} element={<Settings settings={settings!}/>} />
+        <Route path={"/info"} element={<Info />} />
+        <Route path={"/camera"} element={<Camera settings={settings!}/>} />
+      </Routes>
+      <Modal
+        open={reverse}
+        onClick={() => setReverse(false)}
+      >
+        <Box sx={style}>
+          <Camera settings={settings}/>
+        </Box>
+      </Modal>
+    </div>
+  )
+}
+
 function App() {
   const [receivingVideo, setReceivingVideo] = useState(false)
   const [commandCounter, setCommandCounter] = useState(0)
   const [keyCommand, setKeyCommand] = useState('')
-  const [reverse, setReverse] = useStatusStore(state => [state.reverse, state.setReverse])
   const settings = useCarplayStore((state) => state.settings)
 
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -43,10 +108,8 @@ function App() {
 
   useEffect(() => {
     document.addEventListener('keydown', onKeyDown)
-
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [settings]);
-
 
   const onKeyDown = (event: KeyboardEvent) => {
     if(Object.values(settings!.bindings).includes(event.code)) {
@@ -56,12 +119,12 @@ function App() {
       console.log(action)
       if(action !== undefined) {
         setKeyCommand(action)
-        setCommandCounter(prev => prev +1)
+        setCommandCounter(prev => prev + 1)
         if(action === 'selectDown') {
           console.log('select down')
           setTimeout(() => {
             setKeyCommand('selectUp')
-            setCommandCounter(prev => prev +1)
+            setCommandCounter(prev => prev + 1)
           }, 200)
         }
       }
@@ -71,29 +134,12 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <Router>
-        <div
-          style={{ height: '100%', touchAction: 'none' }}
-          id={'main'}
-          className="App"
-
-        >
-          <Nav receivingVideo={receivingVideo} settings={settings}/>
-          {settings ? <Carplay  receivingVideo={receivingVideo} setReceivingVideo={setReceivingVideo} settings={settings} command={keyCommand} commandCounter={commandCounter}/> : null}
-          <Routes>
-            <Route path={"/"} element={<Home />} />
-            <Route path={"/settings"} element={<Settings settings={settings!}/>} />
-            <Route path={"/info"} element={<Info />} />
-            <Route path={"/camera"} element={<Camera settings={settings!}/>} />
-          </Routes>
-          <Modal
-            open={reverse}
-            onClick={()=> setReverse(false)}
-          >
-            <Box sx={style}>
-              <Camera settings={settings}/>
-            </Box>
-          </Modal>
-        </div>
+        <AppInner
+          receivingVideo={receivingVideo}
+          setReceivingVideo={setReceivingVideo}
+          keyCommand={keyCommand}
+          commandCounter={commandCounter}
+        />
       </Router>
     </ThemeProvider>
   )

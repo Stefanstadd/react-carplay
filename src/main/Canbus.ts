@@ -1,5 +1,10 @@
 // import {Message} from "*can.node";
-import * as can from "socketcan";
+let can: any = null
+try {
+  can = require('socketcan')
+} catch (e) {
+  console.warn('socketcan niet beschikbaar (alleen Linux) — CAN-bus uitgeschakeld')
+}
 import EventEmitter from 'events'
 import { CanConfig } from "./Globals";
 import { Socket } from "./Socket";

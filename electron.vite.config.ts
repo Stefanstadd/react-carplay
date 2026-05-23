@@ -5,8 +5,13 @@ import { NodeGlobalsPolyfillPlugin } from '@esbuild-plugins/node-globals-polyfil
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({exclude: ['node-carplay']})]
-  },
+  plugins: [externalizeDepsPlugin({ exclude: ['node-carplay'] })],
+  build: {
+    rollupOptions: {
+      external: ['socketcan', 'socketmost']
+    }
+  }
+},
   preload: {
     plugins: [externalizeDepsPlugin()]
   },

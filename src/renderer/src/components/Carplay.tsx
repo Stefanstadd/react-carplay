@@ -15,12 +15,6 @@ import { useCarplayStore, useStatusStore } from "../store/store";
 import { InitEvent } from './worker/render/RenderEvents'
 import { Typography } from "@mui/material";
 
-const width = window.innerWidth
-const height = window.innerHeight
-
-const videoChannel = new MessageChannel()
-const micChannel = new MessageChannel()
-
 const RETRY_DELAY_MS = 15000
 
 
@@ -30,14 +24,22 @@ interface CarplayProps {
   setReceivingVideo: (receivingVideo: boolean) => void
   settings: ExtraConfig,
   command: string,
-  commandCounter: number
+  commandCounter: number,
+  onHostUIRequested?: () => void
 }
 
-function Carplay({ receivingVideo, setReceivingVideo, settings, command, commandCounter }: CarplayProps) {
+function Carplay({ receivingVideo, setReceivingVideo, settings, command, commandCounter, onHostUIRequested }: CarplayProps) {
   const [isPlugged, setPlugged] = useStatusStore(state => [state.isPlugged, state.setPlugged])
   const [deviceFound, setDeviceFound] = useState(false)
-  const navigate = useNavigate()
   const { pathname } = useLocation()
+
+  const width = window.innerWidth
+  const height = window.innerHeight
+
+  // Channels must be per-instance: module-level channels get their ports neutered
+  // after the first mount and can't be reused on re-entry to the /carplay route.
+  const videoChannel = useMemo(() => new MessageChannel(), [])
+  const micChannel = useMemo(() => new MessageChannel(), [])
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(
@@ -139,7 +141,7 @@ function Carplay({ receivingVideo, setReceivingVideo, settings, command, command
               stopRecording()
               break
             case CommandMapping.requestHostUI:
-              navigate('/settings')
+              onHostUIRequested?.()
           }
           break
         case 'failure':
@@ -188,6 +190,14 @@ function Carplay({ receivingVideo, setReceivingVideo, settings, command, command
     [carplayWorker]
   )
 
+  // Start device check on mount; stop worker on unmount
+  useEffect(() => {
+    checkDevice()
+    return () => {
+      carplayWorker.postMessage({ type: 'stop' })
+    }
+  }, [checkDevice, carplayWorker])
+
   // usb connect/disconnect handling and device check
   useEffect(() => {
     navigator.usb.onconnect = async () => {
@@ -215,12 +225,35 @@ function Carplay({ receivingVideo, setReceivingVideo, settings, command, command
 
   return (
     <div
-      style={pathname === '/' ? { height: '100%', touchAction: 'none' } : { height: '1px' }}
+      style={pathname === '/carplay' ? { height: '100%', touchAction: 'none' } : { height: '1px' }}
       id={'main'}
       className="App"
       ref={mainElem}
     >
-      {(deviceFound === false || isLoading) && pathname === '/' && (
+      {/* Floating exit button */}
+      {pathname === '/carplay' && (
+        <button
+          onClick={() => onHostUIRequested?.()}
+          style={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            zIndex: 50,
+            background: 'transparent',
+            border: '1px solid #1aff66',
+            color: '#1aff66',
+            fontFamily: "'Share Tech Mono', monospace",
+            fontSize: '13px',
+            padding: '6px 12px',
+            cursor: 'pointer',
+            borderRadius: '4px',
+            letterSpacing: '0.05em'
+          }}
+        >
+          ← EXIT
+        </button>
+      )}
+      {(deviceFound === false || isLoading) && pathname === '/carplay' && (
         <div
           style={{
             position: 'absolute',
