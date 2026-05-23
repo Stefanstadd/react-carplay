@@ -1,0 +1,800 @@
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+/* ─── Color tokens ────────────────────────────────────────────────────────── */
+:root {
+  --hu-bg-deep:      #001500;
+  --hu-bg-panel:     #000d00;
+  --hu-green:        #00ff0a;   /* matches icon PNG color exactly */
+  --hu-green-mid:    #008a06;   /* mid-tone label color (same hue, ~54%) */
+  --hu-green-dim:    #005c04;   /* dim, less than mid (~36%) */
+  --hu-green-deep:   #003a02;   /* deep accent */
+  --hu-divider:      #0a1f0a;   /* very subtle row divider */
+  --hu-warn:         #ff6b1a;
+  --hu-miss:         #ff4444;
+}
+
+/* ─── Viewport / scaling wrapper ────────────────────────────────────────── */
+.hu-viewport {
+  width: 100%;
+  height: 100%;
+  background: var(--hu-bg-deep);
+  overflow: hidden;
+  position: relative;
+}
+
+.hu-canvas {
+  width: 1920px;
+  height: 1080px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}
+
+/* ─── Root ──────────────────────────────────────────────────────────────── */
+.hu-root {
+  width: 1920px;
+  height: 1080px;
+  background: var(--hu-bg-deep);
+  color: var(--hu-green);
+  font-family: 'VT323', monospace;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* CRT scanline overlay */
+.hu-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 200;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0, 0, 0, 0.09) 3px,
+    rgba(0, 0, 0, 0.09) 4px
+  );
+}
+
+img.hu-nav-icon,
+img.hu-quick-btn-img,
+img.hu-list-btn-icon,
+img.hu-call-icon-img,
+img.hu-numpad-call-icon {
+  display: block;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────── */
+.hu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 48px;
+  height: 90px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--hu-green-mid);
+  background: var(--hu-bg-deep);
+}
+
+.hu-header-clock {
+  display: flex;
+  flex-direction: column;
+}
+
+.hu-clock-date {
+  font-size: 30px;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.hu-clock-time {
+  font-size: 62px;
+  color: var(--hu-green);
+  letter-spacing: 0.10em;
+  line-height: 1;
+}
+
+.hu-header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.hu-phone-name {
+  font-size: 32px;
+  color: var(--hu-green);
+  letter-spacing: 0.06em;
+}
+
+/* ─── Content area / screen stack ──────────────────────────────────────── */
+.hu-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.hu-screen-stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.hu-screen-slot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Slide animations ─────────────────────────────────────────────────── */
+@keyframes hu-slide-out-left  { from { transform: translateX(0);    } to { transform: translateX(-100%); } }
+@keyframes hu-slide-out-right { from { transform: translateX(0);    } to { transform: translateX(100%);  } }
+@keyframes hu-slide-in-left   { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+@keyframes hu-slide-in-right  { from { transform: translateX(100%);  } to { transform: translateX(0); } }
+
+.hu-slide-out-left  { animation: hu-slide-out-left  340ms ease-in-out forwards; }
+.hu-slide-out-right { animation: hu-slide-out-right 340ms ease-in-out forwards; }
+.hu-slide-in-left   { animation: hu-slide-in-left   340ms ease-in-out forwards; }
+.hu-slide-in-right  { animation: hu-slide-in-right  340ms ease-in-out forwards; }
+
+/* ─── Screen layout: left sidebar + right main ─────────────────────────── */
+.hu-screen {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+
+.hu-sidebar {
+  width: 460px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--hu-green-mid);
+  display: flex;
+  flex-direction: column;
+  padding: 28px 32px;
+  gap: 14px;
+  overflow: hidden;
+  background: var(--hu-bg-panel);
+}
+
+.hu-sidebar-slim {
+  width: 320px;
+  padding: 28px 26px;
+}
+
+.hu-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 44px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ─── Generic list / option button (inverted on hover / active) ────────── */
+.hu-list-btn {
+  background: transparent;
+  border: none;
+  color: var(--hu-green);
+  font-family: 'VT323', monospace;
+  font-size: 30px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-align: left;
+  width: 100%;
+  transition: background 120ms ease, color 120ms ease, filter 120ms ease;
+}
+
+.hu-list-btn:disabled,
+.hu-list-btn-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.hu-list-btn:hover,
+.hu-list-btn-active,
+.hu-list-btn:focus-visible {
+  background: var(--hu-green);
+  color: var(--hu-bg-deep);
+}
+
+/* When a button is "lit" (hover/active), make the icons read as dark too. */
+.hu-list-btn:hover    .hu-list-btn-icon,
+.hu-list-btn-active   .hu-list-btn-icon,
+.hu-list-btn:focus-visible .hu-list-btn-icon {
+  filter: brightness(0);
+}
+
+.hu-list-btn-icon {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.hu-opt-tag {
+  margin-left: auto;
+  font-size: 26px;
+  color: inherit;
+  letter-spacing: 0.08em;
+}
+
+/* ─── Panel label ──────────────────────────────────────────────────────── */
+.hu-panel-label {
+  font-size: 24px;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--hu-green-mid);
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+}
+
+/* ─── Music view ────────────────────────────────────────────────────────
+   Visualizer fills the free vertical space (flex:1, full width).
+   The quick-access bar is absolutely positioned in the top-left
+   corner (20% × 20%) and sits on top of the bars behind it.
+   Album-art / track-info / progress / transport stack at the bottom.    */
+.hu-music-screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 22px 44px 28px;
+}
+
+.hu-viz-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 80%;
+  align-self: flex-end;
+}
+
+.hu-quick-area {
+  position: absolute;
+  top: 22px;
+  left: 44px;
+  width: 20%;
+  height: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0;
+  background: transparent;
+  z-index: 5;
+}
+
+.hu-info-area {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 0;
+}
+
+.hu-controls-area {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hu-quick-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  min-width: 0;
+  transition: background 140ms ease;
+}
+
+.hu-quick-btn:hover:not(:disabled),
+.hu-quick-btn:focus-visible:not(:disabled) {
+  background: var(--hu-green);
+}
+
+.hu-quick-btn:hover:not(:disabled) .hu-quick-btn-img,
+.hu-quick-btn:focus-visible:not(:disabled) .hu-quick-btn-img {
+  filter: brightness(0);
+}
+
+.hu-quick-btn-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.hu-quick-btn-img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+}
+
+/* Visualizer container (top) — bars row above, labels row below */
+.hu-music-viz {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hu-eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.hu-eq-bar {
+  flex: 1;
+  /* background is set inline via color-mix(...) so it blends smoothly
+     between --hu-green-dim and --hu-green across the 70%–85% range. */
+  height: var(--bar-h, 20%);
+  min-height: 3px;
+  min-width: 0;
+  transition: background 120ms linear;
+}
+
+.hu-eq-labels {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  height: 22px;
+}
+
+.hu-eq-label {
+  flex: 1;
+  font-size: 18px;
+  text-align: center;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Track info row (middle) — square album art + text */
+.hu-music-info {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding-top: 8px;
+}
+
+.hu-music-art {
+  width: 140px;
+  height: 140px;
+  border: 2px solid var(--hu-green);
+  background: var(--hu-bg-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.hu-art-pulse { animation: hu-pulse 1.6s ease-in-out infinite; }
+
+@keyframes hu-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgba(0,255,10,0); }
+  50%      { box-shadow: inset 0 0 0 4px rgba(0,255,10,0.25); }
+}
+
+.hu-art-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hu-music-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hu-music-via {
+  font-size: 22px;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.hu-music-title {
+  font-size: 42px;
+  color: var(--hu-green);
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hu-music-artist {
+  font-size: 28px;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+
+.hu-music-album {
+  font-size: 24px;
+  color: var(--hu-green-deep);
+  line-height: 1.1;
+}
+
+/* Bottom row — progress bar + transport */
+.hu-music-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hu-progress-wrap { width: 100%; }
+
+.hu-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--hu-green-mid);
+  overflow: hidden;
+}
+
+.hu-progress-fill {
+  height: 100%;
+  background: var(--hu-green);
+  transition: width 0.5s linear;
+}
+
+.hu-progress-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 26px;
+  color: var(--hu-green-mid);
+  margin-top: 4px;
+  letter-spacing: 0.06em;
+}
+
+.hu-music-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+}
+
+.hu-transport-btn {
+  background: transparent;
+  border: none;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--hu-green);
+  padding: 0;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.hu-transport-btn:hover,
+.hu-transport-btn:focus-visible,
+.hu-transport-btn:active {
+  background: var(--hu-green);
+  color: var(--hu-bg-deep);
+}
+
+.hu-play-btn { width: 110px; height: 110px; }
+
+/* ─── Devices view ─────────────────────────────────────────────────────── */
+.hu-device-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 4px;
+  border-bottom: 1px solid var(--hu-divider);
+  font-size: 30px;
+  color: var(--hu-green);
+}
+
+.hu-device-tag {
+  margin-left: auto;
+  font-size: 22px;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.16em;
+}
+
+/* ─── Gauges view ──────────────────────────────────────────────────────── */
+.hu-gauges {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 24px 28px;
+  padding: 12px 0;
+  align-content: center;
+}
+
+.hu-gauge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hu-gauge-label {
+  font-size: 24px;
+  color: var(--hu-green);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.hu-gauge-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 8px;
+}
+
+.hu-gauge-text-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid var(--hu-divider);
+  padding-bottom: 14px;
+}
+
+.hu-gauge-text-label {
+  font-size: 22px;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.hu-gauge-text-value {
+  font-size: 50px;
+  color: var(--hu-green);
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.hu-gauge-text-unit {
+  font-size: 0.45em;
+  color: var(--hu-green-mid);
+  margin-left: 8px;
+  letter-spacing: 0.08em;
+}
+
+/* ─── Phone view ───────────────────────────────────────────────────────── */
+.hu-phone-sidebar-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hu-phone-content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.hu-phone-content::-webkit-scrollbar { width: 4px; }
+.hu-phone-content::-webkit-scrollbar-track { background: transparent; }
+.hu-phone-content::-webkit-scrollbar-thumb { background: var(--hu-green-mid); }
+
+.hu-list { display: flex; flex-direction: column; }
+
+.hu-list-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 8px;
+  border-bottom: 1px solid var(--hu-divider);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.hu-list-row:hover {
+  background: var(--hu-green);
+  color: var(--hu-bg-deep);
+}
+
+.hu-list-row:hover .hu-list-name,
+.hu-list-row:hover .hu-list-sub,
+.hu-list-row:hover .hu-call-time {
+  color: var(--hu-bg-deep);
+}
+
+.hu-list-row:hover .hu-call-icon-btn { background: var(--hu-bg-deep); color: var(--hu-green); }
+.hu-list-row:hover .hu-call-icon-btn .hu-call-icon-img { filter: none; }
+
+.hu-avatar {
+  width: 60px;
+  height: 60px;
+  background: var(--hu-green-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--hu-green);
+  flex-shrink: 0;
+}
+
+.hu-list-name { font-size: 32px; color: var(--hu-green); line-height: 1.1; }
+
+.hu-list-sub {
+  font-size: 24px;
+  color: var(--hu-green-mid);
+  margin-top: 2px;
+}
+
+.hu-call-icon-btn {
+  margin-left: auto;
+  background: var(--hu-green);
+  color: var(--hu-bg-deep);
+  border: none;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hu-call-icon-img { width: 36px; height: 36px; }
+
+.hu-call-dir { font-size: 32px; width: 36px; text-align: center; flex-shrink: 0; }
+.hu-call-in   { color: var(--hu-green);     }
+.hu-call-out  { color: var(--hu-green-mid); }
+.hu-call-miss { color: var(--hu-miss);      }
+
+.hu-call-time {
+  margin-left: auto;
+  font-size: 24px;
+  color: var(--hu-green-mid);
+  flex-shrink: 0;
+}
+
+/* Numpad */
+.hu-numpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-top: 20px;
+}
+
+.hu-dial-display {
+  width: 420px;
+  height: 76px;
+  border-bottom: 2px solid var(--hu-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  color: var(--hu-green);
+  letter-spacing: 0.22em;
+  margin-bottom: 6px;
+}
+
+.hu-dial-placeholder { font-size: 28px; color: var(--hu-green-mid); letter-spacing: 0.10em; }
+
+.hu-numpad-row { display: flex; gap: 16px; justify-content: center; }
+
+.hu-numpad-key {
+  width: 100px;
+  height: 100px;
+  border: none;
+  background: transparent;
+  color: var(--hu-green);
+  font-family: 'VT323', monospace;
+  font-size: 44px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.hu-numpad-key:hover,
+.hu-numpad-key:focus-visible,
+.hu-numpad-key:active {
+  background: var(--hu-green);
+  color: var(--hu-bg-deep);
+}
+
+.hu-call-green {
+  background: var(--hu-green) !important;
+  color: var(--hu-bg-deep) !important;
+}
+
+.hu-numpad-call-icon { width: 44px; height: 44px; filter: brightness(0); }
+
+/* ─── NavBar ───────────────────────────────────────────────────────────── */
+/* All buttons sit in a fixed-width flex row; the whole row translates
+   horizontally so the active button ends up at the navbar center.
+   No wrap-around — icons just slide left or right as a block.            */
+.hu-navbar {
+  position: relative;
+  height: 130px;
+  flex-shrink: 0;
+  background: var(--hu-bg-deep);
+  border-top: 1px solid var(--hu-green-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.hu-navbar-row {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  /* 5 slots * 220 px = 1100 px wide */
+  transition: transform 320ms cubic-bezier(0.4, 0.0, 0.2, 1);
+  will-change: transform;
+}
+
+.hu-nav-btn {
+  width: 220px;
+  height: 110px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--hu-green);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 180ms ease;
+}
+
+.hu-nav-btn:hover {
+  background: rgba(0, 255, 10, 0.10);
+}
+
+.hu-nav-active {
+  background: var(--hu-green) !important;
+}
+
+.hu-nav-icon {
+  width: 64px;
+  height: 64px;
+  transition: width 220ms ease, height 220ms ease, filter 180ms ease;
+}
+
+.hu-nav-active .hu-nav-icon {
+  width: 92px;
+  height: 92px;
+  filter: brightness(0);
+}
