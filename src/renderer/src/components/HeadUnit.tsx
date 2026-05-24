@@ -206,7 +206,10 @@ function NavBar({
 
 // ─── Music View ───────────────────────────────────────────────────────────────
 
-const NUM_BARS = 24
+// Number of EQ bars across the visualizer.  Bars stay log-spaced from
+// F_MIN_HZ → F_MAX_HZ no matter how many you pick.  More bars = thinner,
+// finer detail; fewer = wider/chunkier.  Tested up to 64.
+const NUM_BARS = 32
 const BAR_MIX_LO = 0.6
 const BAR_MIX_HI = 0.9
 
@@ -555,11 +558,18 @@ function MusicView({
           })}
         </div>
         <div className="hu-eq-labels">
-          {BAR_FREQS.slice(0, NUM_BARS).map((f, i) => (
-            <span key={i} className="hu-eq-label">
-              {i % 2 === 0 ? f : ''}
-            </span>
-          ))}
+          {BAR_FREQS.slice(0, NUM_BARS).map((f, i) => {
+            // Thin labels as bar count grows so they don't overlap on
+            // the 5.5" screen.  Always show the first and last bar's label.
+            const step =
+              NUM_BARS <= 24 ? 2 : NUM_BARS <= 32 ? 3 : NUM_BARS <= 48 ? 4 : 6
+            const show = i === 0 || i === NUM_BARS - 1 || i % step === 0
+            return (
+              <span key={i} className="hu-eq-label">
+                {show ? f : ''}
+              </span>
+            )
+          })}
         </div>
       </div>
 
