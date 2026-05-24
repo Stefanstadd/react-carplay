@@ -1,16 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './HeadUnit.css'
-import iconMobile   from '../assets/icons/mobile.png'
-import iconGauges   from '../assets/icons/gauges.png'
-import iconMusic    from '../assets/icons/music.png'
-import iconPhone    from '../assets/icons/phone.png'
+import iconMobile from '../assets/icons/mobile.png'
+import iconGauges from '../assets/icons/gauges.png'
+import iconMusic from '../assets/icons/music.png'
+import iconPhone from '../assets/icons/phone.png'
 import iconSettings from '../assets/icons/settings.png'
 import iconContacts from '../assets/icons/contacts.png'
-import iconRecent   from '../assets/icons/recent.png'
-import iconCarplay  from '../assets/icons/carplay.png'
+import iconRecent from '../assets/icons/recent.png'
+import iconCarplay from '../assets/icons/carplay.png'
 import {
-  useBluetooth, filterContactsByDial, formatDuration,
-  type Contact, type PhoneState, type CallState, type BtDevice,
+  useBluetooth,
+  filterContactsByDial,
+  formatDuration,
+  type Contact,
+  type PhoneState,
+  type CallState,
+  type BtDevice
 } from './bluetooth'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -34,9 +39,9 @@ const CYCLE: ViewName[] = ['devices', 'gauges', 'music', 'phone']
 
 const VIEW_ICONS: Record<ViewName, string> = {
   devices: iconMobile,
-  gauges:  iconGauges,
-  music:   iconMusic,
-  phone:   iconPhone,
+  gauges: iconGauges,
+  music: iconMusic,
+  phone: iconPhone
 }
 
 // ─── Scaling ──────────────────────────────────────────────────────────────────
@@ -46,8 +51,8 @@ function getScaleState() {
   const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080)
   return {
     scale: s,
-    ox: (window.innerWidth  - 1920 * s) / 2,
-    oy: (window.innerHeight - 1080 * s) / 2,
+    ox: (window.innerWidth - 1920 * s) / 2,
+    oy: (window.innerHeight - 1080 * s) / 2
   }
 }
 
@@ -66,7 +71,9 @@ function gaugeArc(cx: number, cy: number, r: number, startDeg: number, sweepDeg:
   const s = polarToCartesian(cx, cy, r, startDeg)
   const e = polarToCartesian(cx, cy, r, startDeg + sweepDeg)
   const large = sweepDeg > 180 ? 1 : 0
-  return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)}`
+  return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${e.x.toFixed(
+    2
+  )} ${e.y.toFixed(2)}`
 }
 
 // ─── Clock ────────────────────────────────────────────────────────────────────
@@ -80,26 +87,26 @@ function useClock() {
   return now
 }
 
-const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 function formatClock(d: Date) {
   return {
     dayDate: `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`,
-    time: `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,
+    time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
 }
 
 function formatTime(s: number) {
   const m = Math.floor(s / 60)
-  return `${m}:${String(Math.floor(s % 60)).padStart(2,'0')}`
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
 function HUHeader({ phone }: { phone: PhoneState }) {
   const { dayDate, time } = formatClock(useClock())
-  const battery = phone.connected ? (phone.batteryPct ?? 0) : 0
+  const battery = phone.connected ? phone.batteryPct ?? 0 : 0
   const fillW = Math.max(0, (battery / 100) * 19).toFixed(1)
   return (
     <header className="hu-header">
@@ -112,17 +119,35 @@ function HUHeader({ phone }: { phone: PhoneState }) {
           <>
             <span className="hu-phone-name">{phone.name ?? 'Phone'}</span>
             <svg viewBox="0 0 30 14" width="56" height="26" className="hu-batt-svg">
-              <rect x="0.75" y="0.75" width="25.5" height="12.5" rx="0" fill="none" stroke="#00ff0a" strokeWidth="1.5"/>
-              <rect x="26.25" y="4" width="3" height="6" rx="0" fill="#00ff0a"/>
-              <rect x="2" y="2" width={fillW} height="10" rx="0" fill="#00ff0a"/>
+              <rect
+                x="0.75"
+                y="0.75"
+                width="25.5"
+                height="12.5"
+                rx="0"
+                fill="none"
+                stroke="#00ff0a"
+                strokeWidth="1.5"
+              />
+              <rect x="26.25" y="4" width="3" height="6" rx="0" fill="#00ff0a" />
+              <rect x="2" y="2" width={fillW} height="10" rx="0" fill="#00ff0a" />
               {phone.charging && (
-                <polygon points="14,3 9,8 13,8 11,12 16,7 12,7" fill="#001500" stroke="#001500" strokeWidth="0.4"/>
+                <polygon
+                  points="14,3 9,8 13,8 11,12 16,7 12,7"
+                  fill="#001500"
+                  stroke="#001500"
+                  strokeWidth="0.4"
+                />
               )}
             </svg>
             {phone.batteryPct !== undefined && (
               <span className="hu-phone-batt">
                 {Math.round(phone.batteryPct)}%
-                {phone.charging && <span className="hu-phone-charging" aria-label="charging">⚡</span>}
+                {phone.charging && (
+                  <span className="hu-phone-charging" aria-label="charging">
+                    ⚡
+                  </span>
+                )}
               </span>
             )}
           </>
@@ -140,13 +165,13 @@ type NavId = ViewName | 'settings'
 const NAV_ORDER: NavId[] = ['devices', 'gauges', 'music', 'phone', 'settings']
 const NAV_ICONS: Record<NavId, string> = { ...VIEW_ICONS, settings: iconSettings }
 
-const NAV_CENTER = 2     // visual center is slot index 2
-const NAV_SLOT_W = 220   // px per slot
+const NAV_CENTER = 2 // visual center is slot index 2
+const NAV_SLOT_W = 220 // px per slot
 
 function NavBar({
   active,
   onSelect,
-  onSettings,
+  onSettings
 }: {
   active: ViewName
   onSelect: (v: ViewName) => void
@@ -170,7 +195,7 @@ function NavBar({
               onClick={onClick}
               aria-label={id}
             >
-              <img src={NAV_ICONS[id]} alt="" className="hu-nav-icon" draggable={false}/>
+              <img src={NAV_ICONS[id]} alt="" className="hu-nav-icon" draggable={false} />
             </button>
           )
         })}
@@ -182,11 +207,33 @@ function NavBar({
 // ─── Music View ───────────────────────────────────────────────────────────────
 
 const NUM_BARS = 24
-const BAR_MIX_LO = 0.70
-const BAR_MIX_HI = 0.85
+const BAR_MIX_LO = 0.85
+const BAR_MIX_HI = 0.95
 const BAR_FREQS = [
-  '60','100','160','250','400','630','1k','1.6k','2.5k','4k','6k','8k',
-  '10k','12k','13k','14k','15k','16k','17k','18k','19k','20k','21k','22k',
+  '60',
+  '100',
+  '160',
+  '250',
+  '400',
+  '630',
+  '1k',
+  '1.6k',
+  '2.5k',
+  '4k',
+  '6k',
+  '8k',
+  '10k',
+  '12k',
+  '13k',
+  '14k',
+  '15k',
+  '16k',
+  '17k',
+  '18k',
+  '19k',
+  '20k',
+  '21k',
+  '22k'
 ]
 
 // Album art fallback via iTunes Search API.  AVRCP rarely carries cover art
@@ -197,26 +244,43 @@ const artCache = new Map<string, string | null>()
 function useITunesArt(title?: string, artist?: string, embedded?: string): string | undefined {
   const [art, setArt] = useState<string | undefined>(embedded)
   useEffect(() => {
-    if (embedded) { setArt(embedded); return }
-    if (!title || !artist || title === 'No Track') { setArt(undefined); return }
+    if (embedded) {
+      setArt(embedded)
+      return
+    }
+    if (!title || !artist || title === 'No Track') {
+      setArt(undefined)
+      return
+    }
     const key = `${artist}|${title}`
-    if (artCache.has(key)) { setArt(artCache.get(key) ?? undefined); return }
+    if (artCache.has(key)) {
+      setArt(artCache.get(key) ?? undefined)
+      return
+    }
     let cancelled = false
     const term = encodeURIComponent(`${artist} ${title}`)
     console.log('[art] iTunes lookup:', artist, '—', title)
     fetch(`https://itunes.apple.com/search?term=${term}&limit=1&media=music`)
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         const url100 = data?.results?.[0]?.artworkUrl100 as string | undefined
         const big = url100?.replace(/100x100bb/, '600x600bb') ?? null
         console.log('[art] iTunes result:', big ?? '(no hit)')
-        if (!cancelled) { artCache.set(key, big); setArt(big ?? undefined) }
+        if (!cancelled) {
+          artCache.set(key, big)
+          setArt(big ?? undefined)
+        }
       })
       .catch((err) => {
         console.warn('[art] iTunes fetch failed', err)
-        if (!cancelled) { artCache.set(key, null); setArt(undefined) }
+        if (!cancelled) {
+          artCache.set(key, null)
+          setArt(undefined)
+        }
       })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [title, artist, embedded])
   return art
 }
@@ -224,20 +288,23 @@ function useITunesArt(title?: string, artist?: string, embedded?: string): strin
 function MusicView({
   onLaunchCarplay,
   onSelectView,
-  bt,
+  bt
 }: {
   onLaunchCarplay: () => void
   onSelectView: (v: ViewName) => void
   bt: ReturnType<typeof useBluetooth>
 }) {
   const targetRef = useRef<number[]>(
-    Array.from({ length: NUM_BARS }, (_, i) => (i < 6 ? 0.6 : i < 14 ? 0.4 : 0.25) + Math.random() * 0.2)
+    Array.from(
+      { length: NUM_BARS },
+      (_, i) => (i < 6 ? 0.6 : i < 14 ? 0.4 : 0.25) + Math.random() * 0.2
+    )
   )
   const [eqBars, setEqBars] = useState<number[]>(targetRef.current.slice())
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const ctxRef      = useRef<AudioContext | null>(null)
-  const dataRef     = useRef<Uint8Array | null>(null)
-  const frameRef    = useRef(0)
+  const ctxRef = useRef<AudioContext | null>(null)
+  const dataRef = useRef<Uint8Array | null>(null)
+  const frameRef = useRef(0)
 
   const phoneConnected = bt.phone.connected
   const media = bt.media
@@ -247,7 +314,9 @@ function MusicView({
   // isPlaying via a ref so the simulation fallback can react to play/pause
   // without retearing the analyser on every state change.
   const isPlayingRef = useRef(isPlaying)
-  useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
+  useEffect(() => {
+    isPlayingRef.current = isPlaying
+  }, [isPlaying])
 
   // EQ analyser — capture audio from a PulseAudio monitor source (the
   // standard way to expose what's being played out the BT/HDMI/jack sink).
@@ -258,7 +327,10 @@ function MusicView({
     let cancelled = false
     let tick = 0
     const attach = (stream: MediaStream) => {
-      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+      if (cancelled) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
       const ctx = new AudioContext()
       ctxRef.current = ctx
       if (ctx.state === 'suspended') ctx.resume().catch(() => undefined)
@@ -268,24 +340,32 @@ function MusicView({
       dataRef.current = new Uint8Array(analyser.frequencyBinCount)
       analyserRef.current = analyser
       ctx.createMediaStreamSource(stream).connect(analyser)
-      console.log('[eq] analyser attached, tracks:', stream.getAudioTracks().map(t => t.label))
+      console.log(
+        '[eq] analyser attached, tracks:',
+        stream.getAudioTracks().map((t) => t.label)
+      )
     }
     const tryAudio = async () => {
       try {
         const probe = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const devs  = await navigator.mediaDevices.enumerateDevices()
-        const inputs = devs.filter(d => d.kind === 'audioinput')
-        console.log('[eq] audio inputs:', inputs.map(d => ({ label: d.label, id: d.deviceId.slice(0, 8) })))
-        const monitor = inputs.find(d => /monitor|bluez|bluetooth/i.test(d.label))
+        const devs = await navigator.mediaDevices.enumerateDevices()
+        const inputs = devs.filter((d) => d.kind === 'audioinput')
+        console.log(
+          '[eq] audio inputs:',
+          inputs.map((d) => ({ label: d.label, id: d.deviceId.slice(0, 8) }))
+        )
+        const monitor = inputs.find((d) => /monitor|bluez|bluetooth/i.test(d.label))
         if (monitor && monitor.deviceId) {
           console.log('[eq] using monitor source:', monitor.label)
-          probe.getTracks().forEach(t => t.stop())
+          probe.getTracks().forEach((t) => t.stop())
           const stream = await navigator.mediaDevices.getUserMedia({
-            audio: { deviceId: { exact: monitor.deviceId } } as MediaTrackConstraints,
+            audio: { deviceId: { exact: monitor.deviceId } } as MediaTrackConstraints
           })
           attach(stream)
         } else {
-          console.log('[eq] no monitor source labelled — using default input (set PA default-source to capture speaker output)')
+          console.log(
+            '[eq] no monitor source labelled — using default input (set PA default-source to capture speaker output)'
+          )
           attach(probe)
         }
       } catch (err) {
@@ -301,18 +381,24 @@ function MusicView({
           if (analyserRef.current && dataRef.current) {
             analyserRef.current.getByteFrequencyData(dataRef.current)
             const len = dataRef.current.length
-            setEqBars(Array.from({ length: NUM_BARS }, (_, i) =>
-              dataRef.current![Math.floor((i / NUM_BARS) * len)] / 255))
+            setEqBars(
+              Array.from(
+                { length: NUM_BARS },
+                (_, i) => dataRef.current![Math.floor((i / NUM_BARS) * len)] / 255
+              )
+            )
           } else {
             const playing = isPlayingRef.current
-            setEqBars(prev => prev.map((v, i) => {
-              const isBass = i < 4
-              const speed  = isBass ? 0.05 : i < 12 ? 0.08 : 0.12
-              const ceiling = playing ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
-              if (Math.random() < 0.04)
-                targetRef.current[i] = Math.random() * ceiling + (playing ? 0.08 : 0.02)
-              return v + (targetRef.current[i] - v) * speed
-            }))
+            setEqBars((prev) =>
+              prev.map((v, i) => {
+                const isBass = i < 4
+                const speed = isBass ? 0.05 : i < 12 ? 0.08 : 0.12
+                const ceiling = playing ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
+                if (Math.random() < 0.04)
+                  targetRef.current[i] = Math.random() * ceiling + (playing ? 0.08 : 0.02)
+                return v + (targetRef.current[i] - v) * speed
+              })
+            )
           }
         }
         frameRef.current = requestAnimationFrame(loop)
@@ -324,16 +410,17 @@ function MusicView({
       cancelled = true
       cancelAnimationFrame(frameRef.current)
       ctxRef.current?.close()
-      ctxRef.current = null; analyserRef.current = null; dataRef.current = null
+      ctxRef.current = null
+      analyserRef.current = null
+      dataRef.current = null
     }
   }, [])
 
-  const progress = media.durationSec > 0
-    ? Math.min(1, media.positionSec / media.durationSec) : 0
+  const progress = media.durationSec > 0 ? Math.min(1, media.positionSec / media.durationSec) : 0
 
-  const title  = phoneConnected ? (media.title  ?? 'No Track') : 'No Phone'
-  const artist = phoneConnected ? (media.artist ?? '—')        : 'Connect a phone via Bluetooth'
-  const album  = phoneConnected ? (media.album  ?? '—')        : '—'
+  const title = phoneConnected ? media.title ?? 'No Track' : 'No Phone'
+  const artist = phoneConnected ? media.artist ?? '—' : 'Connect a phone via Bluetooth'
+  const album = phoneConnected ? media.album ?? '—' : '—'
 
   const onSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!media.durationSec) return
@@ -348,63 +435,89 @@ function MusicView({
         <div className="hu-eq-bars">
           {eqBars.map((h, i) => {
             const t = Math.max(0, Math.min(1, (h - BAR_MIX_LO) / (BAR_MIX_HI - BAR_MIX_LO)))
-            const dimPct  = ((1 - t) * 100).toFixed(0)
+            const dimPct = ((1 - t) * 100).toFixed(0)
             const brigPct = (t * 100).toFixed(0)
             return (
               <div
                 key={i}
                 className="hu-eq-bar"
-                style={{
-                  '--bar-h': `${Math.max(3, Math.round(h * 100))}%`,
-                  background: `color-mix(in srgb, var(--hu-green-dim) ${dimPct}%, var(--hu-green) ${brigPct}%)`,
-                } as React.CSSProperties}
+                style={
+                  {
+                    '--bar-h': `${Math.max(3, Math.round(h * 100))}%`,
+                    background: `color-mix(in srgb, var(--hu-green-dim) ${dimPct}%, var(--hu-green) ${brigPct}%)`
+                  } as React.CSSProperties
+                }
               />
             )
           })}
         </div>
         <div className="hu-eq-labels">
           {BAR_FREQS.slice(0, NUM_BARS).map((f, i) => (
-            <span key={i} className="hu-eq-label">{i % 2 === 0 ? f : ''}</span>
+            <span key={i} className="hu-eq-label">
+              {i % 2 === 0 ? f : ''}
+            </span>
           ))}
         </div>
       </div>
 
       <div className="hu-quick-area">
         <button className="hu-quick-btn" onClick={onLaunchCarplay} aria-label="CarPlay">
-          <img src={iconCarplay} alt="" className="hu-quick-btn-img"/>
+          <img src={iconCarplay} alt="" className="hu-quick-btn-img" />
         </button>
         <button className="hu-quick-btn hu-quick-btn-disabled" disabled aria-label="Android Auto">
-          <img src={iconMobile} alt="" className="hu-quick-btn-img"/>
+          <img src={iconMobile} alt="" className="hu-quick-btn-img" />
         </button>
-        <button className="hu-quick-btn" onClick={() => onSelectView('phone')} aria-label="Recent Calls">
-          <img src={iconRecent} alt="" className="hu-quick-btn-img"/>
+        <button
+          className="hu-quick-btn"
+          onClick={() => onSelectView('phone')}
+          aria-label="Recent Calls"
+        >
+          <img src={iconRecent} alt="" className="hu-quick-btn-img" />
         </button>
       </div>
 
       <div className="hu-info-area">
         <div className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}>
-          {artworkSrc
-            ? <img
-                src={artworkSrc}
-                alt=""
-                crossOrigin="anonymous"
-                className="hu-art-img"
-                onError={(e) => {
-                  // Image was returned but failed to load (network, CORS, CORP).
-                  // Hide so the SVG fallback shows instead of broken alt text.
-                  (e.currentTarget as HTMLImageElement).style.display = 'none'
-                  console.warn('[art] image failed to load', artworkSrc)
-                }}
+          {artworkSrc ? (
+            <img
+              src={artworkSrc}
+              alt=""
+              crossOrigin="anonymous"
+              className="hu-art-img"
+              onError={(e) => {
+                // Image was returned but failed to load (network, CORS, CORP).
+                // Hide so the SVG fallback shows instead of broken alt text.
+                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                console.warn('[art] image failed to load', artworkSrc)
+              }}
+            />
+          ) : (
+            <svg
+              viewBox="0 0 80 80"
+              width="100%"
+              height="100%"
+              opacity="0.6"
+              shapeRendering="crispEdges"
+              preserveAspectRatio="xMidYMid meet"
+            >
+              <rect
+                x="14"
+                y="14"
+                width="52"
+                height="52"
+                fill="none"
+                stroke="#00ff0a"
+                strokeWidth="3"
               />
-            : <svg viewBox="0 0 80 80" width="100%" height="100%" opacity="0.6" shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
-                <rect x="14" y="14" width="52" height="52" fill="none" stroke="#00ff0a" strokeWidth="3"/>
-                <rect x="36" y="34" width="8" height="14" fill="#00ff0a"/>
-                <rect x="44" y="32" width="2" height="14" fill="#00ff0a"/>
-              </svg>
-          }
+              <rect x="36" y="34" width="8" height="14" fill="#00ff0a" />
+              <rect x="44" y="32" width="2" height="14" fill="#00ff0a" />
+            </svg>
+          )}
         </div>
         <div className="hu-music-text">
-          <div className="hu-music-via">{phoneConnected ? 'via Bluetooth' : 'Bluetooth Disconnected'}</div>
+          <div className="hu-music-via">
+            {phoneConnected ? 'via Bluetooth' : 'Bluetooth Disconnected'}
+          </div>
           <div className="hu-music-title">{title}</div>
           <div className="hu-music-artist">{artist}</div>
           <div className="hu-music-album">{album}</div>
@@ -414,7 +527,7 @@ function MusicView({
       <div className="hu-controls-area">
         <div className="hu-progress-wrap">
           <div className="hu-progress-track" onClick={onSeek}>
-            <div className="hu-progress-fill" style={{ width: `${progress * 100}%` }}/>
+            <div className="hu-progress-fill" style={{ width: `${progress * 100}%` }} />
           </div>
           <div className="hu-progress-times">
             <span>{formatTime(media.positionSec)}</span>
@@ -423,27 +536,43 @@ function MusicView({
         </div>
 
         <div className="hu-music-controls">
-          <button className="hu-transport-btn" onClick={bt.mediaPrev} disabled={!phoneConnected} aria-label="Previous">
+          <button
+            className="hu-transport-btn"
+            onClick={bt.mediaPrev}
+            disabled={!phoneConnected}
+            aria-label="Previous"
+          >
             <svg viewBox="0 0 32 32" width="46" height="46">
-              <polygon points="28,5 10,16 28,27" fill="currentColor"/>
-              <rect x="4" y="5" width="5" height="22" fill="currentColor"/>
+              <polygon points="28,5 10,16 28,27" fill="currentColor" />
+              <rect x="4" y="5" width="5" height="22" fill="currentColor" />
             </svg>
           </button>
-          <button className="hu-transport-btn hu-play-btn" onClick={bt.mediaToggle} disabled={!phoneConnected} aria-label="Play/Pause">
-            {isPlaying
-              ? <svg viewBox="0 0 32 32" width="56" height="56">
-                  <rect x="5"  y="4" width="9" height="24" fill="currentColor"/>
-                  <rect x="18" y="4" width="9" height="24" fill="currentColor"/>
-                </svg>
-              : <svg viewBox="0 0 32 32" width="56" height="56">
-                  <polygon points="6,3 28,16 6,29" fill="currentColor"/>
-                </svg>
-            }
+          <button
+            className="hu-transport-btn hu-play-btn"
+            onClick={bt.mediaToggle}
+            disabled={!phoneConnected}
+            aria-label="Play/Pause"
+          >
+            {isPlaying ? (
+              <svg viewBox="0 0 32 32" width="56" height="56">
+                <rect x="5" y="4" width="9" height="24" fill="currentColor" />
+                <rect x="18" y="4" width="9" height="24" fill="currentColor" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 32 32" width="56" height="56">
+                <polygon points="6,3 28,16 6,29" fill="currentColor" />
+              </svg>
+            )}
           </button>
-          <button className="hu-transport-btn" onClick={bt.mediaNext} disabled={!phoneConnected} aria-label="Next">
+          <button
+            className="hu-transport-btn"
+            onClick={bt.mediaNext}
+            disabled={!phoneConnected}
+            aria-label="Next"
+          >
             <svg viewBox="0 0 32 32" width="46" height="46">
-              <polygon points="4,5 22,16 4,27" fill="currentColor"/>
-              <rect x="23" y="5" width="5" height="22" fill="currentColor"/>
+              <polygon points="4,5 22,16 4,27" fill="currentColor" />
+              <rect x="23" y="5" width="5" height="22" fill="currentColor" />
             </svg>
           </button>
         </div>
@@ -455,7 +584,8 @@ function MusicView({
 // ─── Devices View ─────────────────────────────────────────────────────────────
 
 function DevicesView({
-  onLaunchCarplay, bt,
+  onLaunchCarplay,
+  bt
 }: {
   onLaunchCarplay: () => void
   bt: ReturnType<typeof useBluetooth>
@@ -474,25 +604,28 @@ function DevicesView({
         <div className="hu-panel-label">CONNECT VIA</div>
 
         <button className="hu-list-btn">
-          <img src={iconMobile} alt="" className="hu-list-btn-icon"/>
+          <img src={iconMobile} alt="" className="hu-list-btn-icon" />
           <span>Phone</span>
         </button>
 
         <button className="hu-list-btn hu-list-btn-disabled" disabled>
-          <img src={iconMobile} alt="" className="hu-list-btn-icon" style={{ opacity: 0.4 }}/>
+          <img src={iconMobile} alt="" className="hu-list-btn-icon" style={{ opacity: 0.4 }} />
           <span>Android Auto</span>
           <span className="hu-opt-tag">—</span>
         </button>
 
         <button className="hu-list-btn" onClick={onLaunchCarplay}>
-          <img src={iconCarplay} alt="" className="hu-list-btn-icon"/>
+          <img src={iconCarplay} alt="" className="hu-list-btn-icon" />
           <span>Apple CarPlay</span>
           <span className="hu-opt-tag">▶</span>
         </button>
 
-        <div style={{ flex: 1 }}/>
+        <div style={{ flex: 1 }} />
 
-        <button className={`hu-list-btn${scanning ? ' hu-list-btn-active' : ''}`} onClick={toggleScan}>
+        <button
+          className={`hu-list-btn${scanning ? ' hu-list-btn-active' : ''}`}
+          onClick={toggleScan}
+        >
           <span>{scanning ? 'STOP SCAN' : 'SCAN'}</span>
         </button>
       </div>
@@ -506,23 +639,21 @@ function DevicesView({
               {scanning ? 'Scanning…' : 'Tap SCAN to discover phones nearby.'}
             </div>
           </div>
-        ) : bt.devices.map(d => (
-          <DeviceRow key={d.address} d={d} bt={bt}/>
-        ))}
+        ) : (
+          bt.devices.map((d) => <DeviceRow key={d.address} d={d} bt={bt} />)
+        )}
       </div>
     </div>
   )
 }
 
 function DeviceRow({ d, bt }: { d: BtDevice; bt: ReturnType<typeof useBluetooth> }) {
-  const action = d.connected
-    ? () => bt.disconnect(d.address)
-    : () => bt.connect(d.address)
-  const label  = d.connected ? 'CONN' : d.paired ? 'PAIRED' : 'NEW'
+  const action = d.connected ? () => bt.disconnect(d.address) : () => bt.connect(d.address)
+  const label = d.connected ? 'CONN' : d.paired ? 'PAIRED' : 'NEW'
   return (
     <div className="hu-device-row">
       <svg viewBox="0 0 24 24" width="28" height="28" fill="#00ff0a" shapeRendering="crispEdges">
-        <path d="M12 2l5 5-4 4 4 4-5 5V14l-3 3-1.5-1.5L11 12 7.5 8.5 9 7l3 3V2z"/>
+        <path d="M12 2l5 5-4 4 4 4-5 5V14l-3 3-1.5-1.5L11 12 7.5 8.5 9 7l3 3V2z" />
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <span>{d.name || d.address}</span>
@@ -544,22 +675,28 @@ const G_START = 120
 const G_SWEEP = 300
 
 interface GaugeWidgetProps {
-  label: string; value: number; min: number; max: number; unit: string
+  label: string
+  value: number
+  min: number
+  max: number
+  unit: string
   warnAbove?: number
 }
 
 function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetProps) {
-  const pct  = Math.min(1, Math.max(0, (value - min) / (max - min)))
+  const pct = Math.min(1, Math.max(0, (value - min) / (max - min)))
   const fill = pct * G_SWEEP
-  const cx = 60, cy = 60, r = 42
-  const warn  = warnAbove !== undefined && value > warnAbove
+  const cx = 60,
+    cy = 60,
+    r = 42
+  const warn = warnAbove !== undefined && value > warnAbove
   const green = warn ? '#ff6b1a' : '#00ff0a'
-  const dim   = warn ? '#8a3a0f' : '#008a06'
+  const dim = warn ? '#8a3a0f' : '#008a06'
 
   const nDeg = G_START + pct * G_SWEEP
   const nTip = polarToCartesian(cx, cy, r - 6, nDeg)
-  const nL   = polarToCartesian(cx, cy, 7, nDeg + 90)
-  const nR   = polarToCartesian(cx, cy, 7, nDeg - 90)
+  const nL = polarToCartesian(cx, cy, 7, nDeg + 90)
+  const nR = polarToCartesian(cx, cy, 7, nDeg - 90)
 
   const ticks = Array.from({ length: 6 }, (_, i) => {
     const deg = G_START + (i / 5) * G_SWEEP
@@ -571,22 +708,53 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
   return (
     <div className="hu-gauge-wrap">
       <svg viewBox="0 0 120 112" width="260" height="243" shapeRendering="crispEdges">
-        <path d={gaugeArc(cx, cy, r, G_START, G_SWEEP)} fill="none" stroke={dim}   strokeWidth={4.5} strokeLinecap="butt"/>
+        <path
+          d={gaugeArc(cx, cy, r, G_START, G_SWEEP)}
+          fill="none"
+          stroke={dim}
+          strokeWidth={4.5}
+          strokeLinecap="butt"
+        />
         {fill > 0 && (
-          <path d={gaugeArc(cx, cy, r, G_START, fill)} fill="none" stroke={green} strokeWidth={4.5} strokeLinecap="butt"/>
+          <path
+            d={gaugeArc(cx, cy, r, G_START, fill)}
+            fill="none"
+            stroke={green}
+            strokeWidth={4.5}
+            strokeLinecap="butt"
+          />
         )}
         {ticks.map((t, i) => (
-          <line key={i} x1={t.o.x} y1={t.o.y} x2={t.i.x} y2={t.i.y} stroke={dim} strokeWidth="1.5"/>
+          <line
+            key={i}
+            x1={t.o.x}
+            y1={t.o.y}
+            x2={t.i.x}
+            y2={t.i.y}
+            stroke={dim}
+            strokeWidth="1.5"
+          />
         ))}
         <polygon
-          points={`${nTip.x.toFixed(1)},${nTip.y.toFixed(1)} ${nL.x.toFixed(1)},${nL.y.toFixed(1)} ${nR.x.toFixed(1)},${nR.y.toFixed(1)}`}
+          points={`${nTip.x.toFixed(1)},${nTip.y.toFixed(1)} ${nL.x.toFixed(1)},${nL.y.toFixed(
+            1
+          )} ${nR.x.toFixed(1)},${nR.y.toFixed(1)}`}
           fill={green}
         />
-        <rect x={cx - 4} y={cy - 4} width="8" height="8" fill={green}/>
-        <text x={cx} y={cy + 20} textAnchor="middle" fill={green} fontSize={13}
-          fontFamily="'VT323'">{displayVal}</text>
-        <text x={cx} y={cy + 31} textAnchor="middle" fill={dim} fontSize={8.5}
-          fontFamily="'VT323'">{unit}</text>
+        <rect x={cx - 4} y={cy - 4} width="8" height="8" fill={green} />
+        <text
+          x={cx}
+          y={cy + 20}
+          textAnchor="middle"
+          fill={green}
+          fontSize={13}
+          fontFamily="'VT323'"
+        >
+          {displayVal}
+        </text>
+        <text x={cx} y={cy + 31} textAnchor="middle" fill={dim} fontSize={8.5} fontFamily="'VT323'">
+          {unit}
+        </text>
       </svg>
       <div className="hu-gauge-label" style={{ color: warn ? '#ff6b1a' : undefined }}>
         {label}
@@ -621,9 +789,23 @@ function GaugesView({ vehicleData }: { vehicleData?: VehicleData }) {
 
       <div className="hu-main-area">
         <div className="hu-gauges">
-          <GaugeWidget label="OIL TEMP" value={vd.oilTempC ?? 90}  min={40} max={150}  unit="°C"   warnAbove={120}/>
-          <GaugeWidget label="SPEED"    value={vd.speedKmh ?? 0}   min={0}  max={260}  unit="km/h"/>
-          <GaugeWidget label="RPM"      value={vd.rpm      ?? 800} min={0}  max={8000} unit="RPM"  warnAbove={6500}/>
+          <GaugeWidget
+            label="OIL TEMP"
+            value={vd.oilTempC ?? 90}
+            min={40}
+            max={150}
+            unit="°C"
+            warnAbove={120}
+          />
+          <GaugeWidget label="SPEED" value={vd.speedKmh ?? 0} min={0} max={260} unit="km/h" />
+          <GaugeWidget
+            label="RPM"
+            value={vd.rpm ?? 800}
+            min={0}
+            max={8000}
+            unit="RPM"
+            warnAbove={6500}
+          />
         </div>
       </div>
     </div>
@@ -636,44 +818,60 @@ type PhoneTab = 'contacts' | 'recent' | 'call'
 
 const PHONE_TAB_ICONS: Record<PhoneTab, string> = {
   contacts: iconContacts,
-  recent:   iconRecent,
-  call:     iconPhone,
+  recent: iconRecent,
+  call: iconPhone
 }
 const PHONE_TAB_LABEL: Record<PhoneTab, string> = {
   contacts: 'CONTACTS',
-  recent:   'RECENT',
-  call:     'CALL',
+  recent: 'RECENT',
+  call: 'CALL'
 }
 
 // Recent-calls store lives entirely on the renderer for now — every outgoing
 // dial we push and every incoming/missed event we record.  Persisting via
 // localStorage so the list survives across reloads.
-interface RecentEntry { name?: string; number: string; time: number; dir: 'in' | 'out' | 'miss' }
+interface RecentEntry {
+  name?: string
+  number: string
+  time: number
+  dir: 'in' | 'out' | 'miss'
+}
 
 function loadRecents(): RecentEntry[] {
-  try { return JSON.parse(localStorage.getItem('hu.recents') || '[]') } catch { return [] }
+  try {
+    return JSON.parse(localStorage.getItem('hu.recents') || '[]')
+  } catch {
+    return []
+  }
 }
 function saveRecents(r: RecentEntry[]) {
-  try { localStorage.setItem('hu.recents', JSON.stringify(r.slice(0, 50))) } catch { /* ignore */ }
+  try {
+    localStorage.setItem('hu.recents', JSON.stringify(r.slice(0, 50)))
+  } catch {
+    /* ignore */
+  }
 }
 
 function formatRecentTime(ts: number): string {
   const d = new Date(ts)
   const now = new Date()
   const sameDay = d.toDateString() === now.toDateString()
-  if (sameDay) return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
-  const yesterday = new Date(); yesterday.setDate(now.getDate() - 1)
+  if (sameDay)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const yesterday = new Date()
+  yesterday.setDate(now.getDate() - 1)
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`
 }
 
 function PhoneView({
-  bt, recents,
+  bt,
+  recents
 }: {
   bt: ReturnType<typeof useBluetooth>
   recents: RecentEntry[]
 }) {
-  const [tab,  setTab]  = useState<PhoneTab>('contacts')
+  const [tab, setTab] = useState<PhoneTab>('contacts')
   const [dial, setDial] = useState('')
   // Currently-selected contact / recent — tap to select, tap CALL to dial.
   // Switching tabs clears the selection so it doesn't bleed across screens.
@@ -705,19 +903,19 @@ function PhoneView({
       <div className="hu-sidebar">
         <div className="hu-panel-label">PHONE</div>
         <div className="hu-phone-sidebar-tabs">
-          {(['contacts','recent','call'] as PhoneTab[]).map(t => (
+          {(['contacts', 'recent', 'call'] as PhoneTab[]).map((t) => (
             <button
               key={t}
               className={`hu-list-btn${tab === t ? ' hu-list-btn-active' : ''}`}
               onClick={() => setTab(t)}
             >
-              <img src={PHONE_TAB_ICONS[t]} alt="" className="hu-list-btn-icon"/>
+              <img src={PHONE_TAB_ICONS[t]} alt="" className="hu-list-btn-icon" />
               <span>{PHONE_TAB_LABEL[t]}</span>
             </button>
           ))}
         </div>
 
-        <div style={{ flex: 1 }}/>
+        <div style={{ flex: 1 }} />
 
         {tab === 'contacts' && bt.phone.connected && (
           <button className="hu-list-btn" onClick={bt.syncContacts}>
@@ -731,7 +929,9 @@ function PhoneView({
           {!bt.phone.connected && (
             <div className="hu-empty-state">
               <div className="hu-empty-title">NO PHONE CONNECTED</div>
-              <div className="hu-empty-sub">Pair a phone in the Devices screen to use contacts and calling.</div>
+              <div className="hu-empty-sub">
+                Pair a phone in the Devices screen to use contacts and calling.
+              </div>
             </div>
           )}
 
@@ -742,7 +942,7 @@ function PhoneView({
               syncing={bt.contacts.syncing}
               lastError={bt.contacts.lastError}
               selectedId={selectedContactId}
-              onSelect={(id) => setSelectedContactId(prev => prev === id ? null : id)}
+              onSelect={(id) => setSelectedContactId((prev) => (prev === id ? null : id))}
               onCall={onCallContact}
             />
           )}
@@ -751,14 +951,15 @@ function PhoneView({
             <RecentsList
               recents={recents}
               selectedIdx={selectedRecentIdx}
-              onSelect={(i) => setSelectedRecentIdx(prev => prev === i ? null : i)}
+              onSelect={(i) => setSelectedRecentIdx((prev) => (prev === i ? null : i))}
               onCall={(n) => bt.dial(n)}
             />
           )}
 
           {bt.phone.connected && tab === 'call' && (
             <DialerView
-              dial={dial} setDial={setDial}
+              dial={dial}
+              setDial={setDial}
               matches={dialMatches}
               onCall={onCallDial}
               onCallContact={onCallContact}
@@ -771,9 +972,17 @@ function PhoneView({
 }
 
 function ContactsList({
-  contacts, synced, syncing, lastError, selectedId, onSelect, onCall,
+  contacts,
+  synced,
+  syncing,
+  lastError,
+  selectedId,
+  onSelect,
+  onCall
 }: {
-  contacts: Contact[]; synced: boolean; syncing: boolean
+  contacts: Contact[]
+  synced: boolean
+  syncing: boolean
   lastError?: string
   selectedId: string | null
   onSelect: (id: string) => void
@@ -795,15 +1004,25 @@ function ContactsList({
     return (
       <div className="hu-empty-state">
         <div className="hu-empty-title">CONTACTS NOT SYNCED</div>
-        <div className="hu-empty-sub">Tap SYNC in the sidebar to import contacts from your phone (PBAP).</div>
+        <div className="hu-empty-sub">
+          Tap SYNC in the sidebar to import contacts from your phone (PBAP).
+        </div>
       </div>
     )
   }
   if (syncing && contacts.length === 0) {
-    return <div className="hu-empty-state"><div className="hu-empty-title">SYNCING…</div></div>
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">SYNCING…</div>
+      </div>
+    )
   }
   if (contacts.length === 0) {
-    return <div className="hu-empty-state"><div className="hu-empty-title">NO CONTACTS</div></div>
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">NO CONTACTS</div>
+      </div>
+    )
   }
 
   // Group by first letter (A-Z, then '#' for everything else).
@@ -821,10 +1040,10 @@ function ContactsList({
 
   return (
     <div className="hu-list">
-      {sections.map(letter => (
+      {sections.map((letter) => (
         <div key={letter}>
           <div className="hu-list-section">{letter}</div>
-          {grouped[letter].map(c => (
+          {grouped[letter].map((c) => (
             <ContactRow
               key={c.id}
               contact={c}
@@ -840,7 +1059,10 @@ function ContactsList({
 }
 
 function ContactRow({
-  contact, selected, onSelect, onCall,
+  contact,
+  selected,
+  onSelect,
+  onCall
 }: {
   contact: Contact
   selected: boolean
@@ -848,12 +1070,13 @@ function ContactRow({
   onCall: () => void
 }) {
   return (
-    <div
-      className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
-      onClick={onSelect}
-    >
+    <div className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`} onClick={onSelect}>
       <div className="hu-avatar">
-        {contact.photo ? <img src={contact.photo} alt="" className="hu-avatar-img"/> : contact.name[0]}
+        {contact.photo ? (
+          <img src={contact.photo} alt="" className="hu-avatar-img" />
+        ) : (
+          contact.name[0]
+        )}
       </div>
       <div className="hu-list-info">
         <div className="hu-list-name">{contact.name}</div>
@@ -862,10 +1085,13 @@ function ContactRow({
       {selected && (
         <button
           className="hu-call-icon-btn"
-          onClick={(e) => { e.stopPropagation(); onCall() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onCall()
+          }}
           aria-label="Call"
         >
-          <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
+          <img src={iconPhone} alt="call" className="hu-call-icon-img" />
         </button>
       )}
     </div>
@@ -873,7 +1099,10 @@ function ContactRow({
 }
 
 function RecentsList({
-  recents, selectedIdx, onSelect, onCall,
+  recents,
+  selectedIdx,
+  onSelect,
+  onCall
 }: {
   recents: RecentEntry[]
   selectedIdx: number | null
@@ -909,10 +1138,13 @@ function RecentsList({
             {selected && (
               <button
                 className="hu-call-icon-btn"
-                onClick={(e) => { e.stopPropagation(); onCall(r.number) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCall(r.number)
+                }}
                 aria-label="Call"
               >
-                <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
+                <img src={iconPhone} alt="call" className="hu-call-icon-img" />
               </button>
             )}
           </div>
@@ -926,14 +1158,26 @@ function RecentsList({
 // used by the contact filter (see filterContactsByDial) so typing "262"
 // matches both phone numbers containing 262 and names like "Bob".
 const KEY_LETTERS: Record<string, string> = {
-  '1': '',    '2': 'ABC', '3': 'DEF',
-  '4': 'GHI', '5': 'JKL', '6': 'MNO',
-  '7': 'PQRS','8': 'TUV', '9': 'WXYZ',
-  '*': '',    '0': '+',   '#': '',
+  '1': '',
+  '2': 'ABC',
+  '3': 'DEF',
+  '4': 'GHI',
+  '5': 'JKL',
+  '6': 'MNO',
+  '7': 'PQRS',
+  '8': 'TUV',
+  '9': 'WXYZ',
+  '*': '',
+  '0': '+',
+  '#': ''
 }
 
 function DialerView({
-  dial, setDial, matches, onCall, onCallContact,
+  dial,
+  setDial,
+  matches,
+  onCall,
+  onCallContact
 }: {
   dial: string
   setDial: (v: string | ((p: string) => string)) => void
@@ -949,10 +1193,15 @@ function DialerView({
         <div className="hu-dial-display">
           {dial || <span className="hu-dial-placeholder">Enter number</span>}
         </div>
-        {[['1','2','3'],['4','5','6'],['7','8','9'],['*','0','#']].map((row, ri) => (
+        {[
+          ['1', '2', '3'],
+          ['4', '5', '6'],
+          ['7', '8', '9'],
+          ['*', '0', '#']
+        ].map((row, ri) => (
           <div key={ri} className="hu-numpad-row">
-            {row.map(k => (
-              <button key={k} className="hu-numpad-key" onClick={() => setDial(p => p + k)}>
+            {row.map((k) => (
+              <button key={k} className="hu-numpad-key" onClick={() => setDial((p) => p + k)}>
                 <span className="hu-numpad-digit">{k}</span>
                 {KEY_LETTERS[k] && <span className="hu-numpad-letters">{KEY_LETTERS[k]}</span>}
               </button>
@@ -960,10 +1209,15 @@ function DialerView({
           </div>
         ))}
         <div className="hu-numpad-row">
-          <button className="hu-numpad-key hu-call-green" onClick={onCall} disabled={!dial} aria-label="Call">
-            <img src={iconPhone} alt="call" className="hu-numpad-call-icon"/>
+          <button
+            className="hu-numpad-key hu-call-green"
+            onClick={onCall}
+            disabled={!dial}
+            aria-label="Call"
+          >
+            <img src={iconPhone} alt="call" className="hu-numpad-call-icon" />
           </button>
-          <button className="hu-numpad-key" onClick={() => setDial(p => p.slice(0, -1))}>
+          <button className="hu-numpad-key" onClick={() => setDial((p) => p.slice(0, -1))}>
             <span className="hu-numpad-digit">⌫</span>
           </button>
         </div>
@@ -974,32 +1228,39 @@ function DialerView({
           {dial ? `MATCHES (${matches.length})` : 'CONTACTS'}
         </div>
         {matches.length === 0 ? (
-          <div className="hu-empty-sub" style={{ paddingTop: 16 }}>No matches</div>
-        ) : matches.map(c => {
-          const selected = c.id === matchSelected
-          return (
-            <div
-              key={c.id}
-              className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
-              onClick={() => setMatchSelected(prev => prev === c.id ? null : c.id)}
-            >
-              <div className="hu-avatar">{c.name[0]}</div>
-              <div className="hu-list-info">
-                <div className="hu-list-name">{c.name}</div>
-                <div className="hu-list-sub">{c.numbers[0]?.number}</div>
+          <div className="hu-empty-sub" style={{ paddingTop: 16 }}>
+            No matches
+          </div>
+        ) : (
+          matches.map((c) => {
+            const selected = c.id === matchSelected
+            return (
+              <div
+                key={c.id}
+                className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
+                onClick={() => setMatchSelected((prev) => (prev === c.id ? null : c.id))}
+              >
+                <div className="hu-avatar">{c.name[0]}</div>
+                <div className="hu-list-info">
+                  <div className="hu-list-name">{c.name}</div>
+                  <div className="hu-list-sub">{c.numbers[0]?.number}</div>
+                </div>
+                {selected && (
+                  <button
+                    className="hu-call-icon-btn"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onCallContact(c)
+                    }}
+                    aria-label="Call"
+                  >
+                    <img src={iconPhone} alt="call" className="hu-call-icon-img" />
+                  </button>
+                )}
               </div>
-              {selected && (
-                <button
-                  className="hu-call-icon-btn"
-                  onClick={(e) => { e.stopPropagation(); onCallContact(c) }}
-                  aria-label="Call"
-                >
-                  <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
-                </button>
-              )}
-            </div>
-          )
-        })}
+            )
+          })
+        )}
       </div>
     </div>
   )
@@ -1008,19 +1269,25 @@ function DialerView({
 // ─── In-call screen (full overlay) ───────────────────────────────────────────
 
 function InCallScreen({
-  call, bt, onMinimise,
+  call,
+  bt,
+  onMinimise
 }: {
   call: CallState
   bt: ReturnType<typeof useBluetooth>
   onMinimise: () => void
 }) {
   const name = call.contact?.name ?? 'Unknown'
-  const num  = call.contact?.number ?? ''
+  const num = call.contact?.number ?? ''
   return (
     <div className="hu-incall">
       <div className="hu-incall-top">
         <div className="hu-incall-status">
-          {call.status === 'dialing' ? 'DIALING' : call.status === 'incoming' ? 'INCOMING' : 'IN CALL'}
+          {call.status === 'dialing'
+            ? 'DIALING'
+            : call.status === 'incoming'
+            ? 'INCOMING'
+            : 'IN CALL'}
         </div>
         <div className="hu-incall-duration">
           {call.status === 'active' ? formatDuration(call.durationSec) : ''}
@@ -1028,21 +1295,25 @@ function InCallScreen({
       </div>
 
       <div className="hu-incall-photo">
-        {call.contact?.photo
-          ? <img src={call.contact.photo} alt="" className="hu-incall-photo-img"/>
-          : <div className="hu-incall-photo-fallback">{(name[0] || '?').toUpperCase()}</div>
-        }
+        {call.contact?.photo ? (
+          <img src={call.contact.photo} alt="" className="hu-incall-photo-img" />
+        ) : (
+          <div className="hu-incall-photo-fallback">{(name[0] || '?').toUpperCase()}</div>
+        )}
       </div>
 
       <div className="hu-incall-name">{name}</div>
       <div className="hu-incall-num">{num}</div>
 
       <div className="hu-incall-buttons">
-        <button className={`hu-incall-btn${call.muted ? ' hu-incall-btn-on' : ''}`} onClick={bt.toggleMute}>
+        <button
+          className={`hu-incall-btn${call.muted ? ' hu-incall-btn-on' : ''}`}
+          onClick={bt.toggleMute}
+        >
           <span className="hu-incall-btn-glyph">{call.muted ? 'UN-MUTE' : 'MUTE'}</span>
         </button>
         <button className="hu-incall-btn hu-incall-hangup" onClick={bt.hangup}>
-          <img src={iconPhone} alt="" className="hu-incall-btn-img hu-incall-hangup-icon"/>
+          <img src={iconPhone} alt="" className="hu-incall-btn-img hu-incall-hangup-icon" />
         </button>
         <button className="hu-incall-btn" onClick={onMinimise}>
           <span className="hu-incall-btn-glyph">SCREENS</span>
@@ -1055,22 +1326,26 @@ function InCallScreen({
 // ─── Incoming call + in-call popup (floats over any screen) ──────────────────
 
 function CallPopup({
-  call, bt, onOpen,
+  call,
+  bt,
+  onOpen
 }: {
   call: CallState
   bt: ReturnType<typeof useBluetooth>
   onOpen: () => void
 }) {
   const name = call.contact?.name ?? 'Unknown'
-  const num  = call.contact?.number ?? ''
+  const num = call.contact?.number ?? ''
 
   if (call.status === 'incoming') {
     return (
       <div className="hu-call-popup hu-call-popup-incoming">
         <div className="hu-call-popup-photo">
-          {call.contact?.photo
-            ? <img src={call.contact.photo} alt="" className="hu-call-popup-photo-img"/>
-            : <div className="hu-call-popup-photo-fallback">{(name[0] || '?').toUpperCase()}</div>}
+          {call.contact?.photo ? (
+            <img src={call.contact.photo} alt="" className="hu-call-popup-photo-img" />
+          ) : (
+            <div className="hu-call-popup-photo-fallback">{(name[0] || '?').toUpperCase()}</div>
+          )}
         </div>
         <div className="hu-call-popup-body">
           <div className="hu-call-popup-status">INCOMING CALL</div>
@@ -1078,9 +1353,11 @@ function CallPopup({
           <div className="hu-call-popup-num">{num}</div>
         </div>
         <div className="hu-call-popup-actions">
-          <button className="hu-call-popup-btn hu-call-popup-reject" onClick={bt.reject}>✕</button>
+          <button className="hu-call-popup-btn hu-call-popup-reject" onClick={bt.reject}>
+            ✕
+          </button>
           <button className="hu-call-popup-btn hu-call-popup-accept" onClick={bt.answer}>
-            <img src={iconPhone} alt="" className="hu-call-popup-icon"/>
+            <img src={iconPhone} alt="" className="hu-call-popup-icon" />
           </button>
         </div>
       </div>
@@ -1091,9 +1368,11 @@ function CallPopup({
   return (
     <div className="hu-call-popup hu-call-popup-active" onClick={onOpen}>
       <div className="hu-call-popup-photo">
-        {call.contact?.photo
-          ? <img src={call.contact.photo} alt="" className="hu-call-popup-photo-img"/>
-          : <div className="hu-call-popup-photo-fallback">{(name[0] || '?').toUpperCase()}</div>}
+        {call.contact?.photo ? (
+          <img src={call.contact.photo} alt="" className="hu-call-popup-photo-img" />
+        ) : (
+          <div className="hu-call-popup-photo-fallback">{(name[0] || '?').toUpperCase()}</div>
+        )}
       </div>
       <div className="hu-call-popup-body">
         <div className="hu-call-popup-status">
@@ -1101,7 +1380,13 @@ function CallPopup({
         </div>
         <div className="hu-call-popup-name">{name}</div>
       </div>
-      <button className="hu-call-popup-btn hu-call-popup-reject" onClick={(e) => { e.stopPropagation(); bt.hangup() }}>
+      <button
+        className="hu-call-popup-btn hu-call-popup-reject"
+        onClick={(e) => {
+          e.stopPropagation()
+          bt.hangup()
+        }}
+      >
         ✕
       </button>
     </div>
@@ -1113,8 +1398,8 @@ function CallPopup({
 export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData }: HeadUnitProps) {
   const bt = useBluetooth()
   const [activeView, setActiveView] = useState<ViewName>('music')
-  const [prevView,   setPrevView]   = useState<ViewName | null>(null)
-  const [slideDir,   setSlideDir]   = useState<'left' | 'right'>('right')
+  const [prevView, setPrevView] = useState<ViewName | null>(null)
+  const [slideDir, setSlideDir] = useState<'left' | 'right'>('right')
   const [ss, setSS] = useState(getScaleState)
   const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
   // Whether the in-call full screen is showing (vs. the small popup).
@@ -1134,7 +1419,13 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   // incoming, missed incoming, AND outgoing-never-answered (which the
   // earlier dialing→active-only logic dropped).
   const lastCallRef = useRef<CallState>(bt.call)
-  const sessionRef  = useRef<{ dir: 'in' | 'out'; name?: string; number: string; started: number; answered: boolean } | null>(null)
+  const sessionRef = useRef<{
+    dir: 'in' | 'out'
+    name?: string
+    number: string
+    started: number
+    answered: boolean
+  } | null>(null)
 
   useEffect(() => {
     const prev = lastCallRef.current
@@ -1143,11 +1434,11 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
     // Open a session when a call appears.
     if (prev.status === 'idle' && curr.status !== 'idle' && curr.contact?.number) {
       sessionRef.current = {
-        dir:    curr.status === 'incoming' ? 'in' : 'out',
-        name:   curr.contact.name,
+        dir: curr.status === 'incoming' ? 'in' : 'out',
+        name: curr.contact.name,
         number: curr.contact.number,
         started: Date.now(),
-        answered: curr.status === 'active',
+        answered: curr.status === 'active'
       }
     }
     // Mark answered the moment we see active.
@@ -1159,7 +1450,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
     // Close the session on idle.
     if (prev.status !== 'idle' && curr.status === 'idle' && sessionRef.current) {
       const s = sessionRef.current
-      const dir: RecentEntry['dir'] = (s.dir === 'in' && !s.answered) ? 'miss' : s.dir
+      const dir: RecentEntry['dir'] = s.dir === 'in' && !s.answered ? 'miss' : s.dir
       pushRecent({ name: s.name, number: s.number, time: s.started, dir })
       sessionRef.current = null
     }
@@ -1168,7 +1459,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   }, [bt.call])
 
   const pushRecent = (entry: RecentEntry) => {
-    setRecents(prev => {
+    setRecents((prev) => {
       const next = [entry, ...prev].slice(0, 50)
       saveRecents(next)
       return next
@@ -1182,7 +1473,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   }, [])
 
   const handleSelect = useCallback((v: ViewName) => {
-    setActiveView(curr => {
+    setActiveView((curr) => {
       if (v === curr) return curr
       const ci = CYCLE.indexOf(curr)
       const ni = CYCLE.indexOf(v)
@@ -1200,18 +1491,22 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
 
   const renderView = (v: ViewName) => {
     switch (v) {
-      case 'music':   return <MusicView   onLaunchCarplay={onLaunchCarplay} onSelectView={handleSelect} bt={bt}/>
-      case 'devices': return <DevicesView onLaunchCarplay={onLaunchCarplay} bt={bt}/>
-      case 'gauges':  return <GaugesView  vehicleData={vehicleData}/>
-      case 'phone':   return <PhoneView   bt={bt} recents={recents}/>
+      case 'music':
+        return <MusicView onLaunchCarplay={onLaunchCarplay} onSelectView={handleSelect} bt={bt} />
+      case 'devices':
+        return <DevicesView onLaunchCarplay={onLaunchCarplay} bt={bt} />
+      case 'gauges':
+        return <GaugesView vehicleData={vehicleData} />
+      case 'phone':
+        return <PhoneView bt={bt} recents={recents} />
     }
   }
 
-  const outClass = slideDir === 'left'  ? 'hu-slide-out-left'  : 'hu-slide-out-right'
-  const inClass  = slideDir === 'left'  ? 'hu-slide-in-right'  : 'hu-slide-in-left'
+  const outClass = slideDir === 'left' ? 'hu-slide-out-left' : 'hu-slide-out-right'
+  const inClass = slideDir === 'left' ? 'hu-slide-in-right' : 'hu-slide-in-left'
 
   const showFullCall = callFull && (bt.call.status === 'active' || bt.call.status === 'dialing')
-  const showPopup    = !showFullCall && bt.call.status !== 'idle'
+  const showPopup = !showFullCall && bt.call.status !== 'idle'
 
   return (
     <div className="hu-viewport">
@@ -1220,8 +1515,8 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
         style={{ transform: `translate(${ss.ox}px, ${ss.oy}px) scale(${ss.scale})` }}
       >
         <div className="hu-root">
-          <div className="hu-scanlines" aria-hidden="true"/>
-          <HUHeader phone={bt.phone}/>
+          <div className="hu-scanlines" aria-hidden="true" />
+          <HUHeader phone={bt.phone} />
           <main className="hu-content">
             <div className="hu-screen-stack">
               {prevView && (
@@ -1234,16 +1529,14 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
               </div>
             </div>
           </main>
-          <NavBar active={activeView} onSelect={handleSelect} onSettings={onOpenSettings}/>
+          <NavBar active={activeView} onSelect={handleSelect} onSettings={onOpenSettings} />
 
           {showFullCall && (
             <div className="hu-incall-overlay">
-              <InCallScreen call={bt.call} bt={bt} onMinimise={() => setCallFull(false)}/>
+              <InCallScreen call={bt.call} bt={bt} onMinimise={() => setCallFull(false)} />
             </div>
           )}
-          {showPopup && (
-            <CallPopup call={bt.call} bt={bt} onOpen={() => setCallFull(true)}/>
-          )}
+          {showPopup && <CallPopup call={bt.call} bt={bt} onOpen={() => setCallFull(true)} />}
         </div>
       </div>
     </div>
