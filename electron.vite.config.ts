@@ -8,7 +8,10 @@ export default defineConfig({
   plugins: [externalizeDepsPlugin({ exclude: ['node-carplay'] })],
   build: {
     rollupOptions: {
-      external: ['socketcan', 'socketmost']
+      // dbus-next is optional + Linux-only.  It contains a try/catch require
+      // for 'x11' (rarely-used auth) that rollup eagerly resolves when
+      // bundled — externalizing both lets the runtime try/catch do its job.
+      external: ['socketcan', 'socketmost', 'dbus-next', 'x11']
     }
   }
 },
