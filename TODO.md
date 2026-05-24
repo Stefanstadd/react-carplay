@@ -5,6 +5,32 @@ Legend: `[x]` done · `[ ]` pending · `[~]` in progress · `[!]` user action ne
 ---
 
 ## Done (most recent first)
+- [x] **Functional Bluetooth integration** — main-process `BluetoothManager` talks
+       to BlueZ (devices, battery, AVRCP metadata + transport), ofono (HFP calls,
+       mute), and obex/PBAP (contact sync) over D-Bus on Linux; stub mode on
+       Windows/macOS so dev still works.  See `BLUETOOTH.md` for Pi setup.
+- [x] Phone name + battery % in the header — pulled from the connected device,
+       falls back to "NO PHONE" when nothing is paired
+- [x] Music view: live track title/artist/album/duration/position from AVRCP;
+       transport buttons (play/pause/next/prev) drive `org.bluez.MediaPlayer1`;
+       seek by tapping the progress bar; "Bluetooth disconnected" state when no
+       phone; EQ idle animation goes quiet when no audio playing
+- [x] Devices screen: real BlueZ device list with connect / disconnect / scan,
+       per-device battery readout, replaces the hardcoded "iPhone 14 Pro"
+- [x] Phone view → CONTACTS: SYNC button kicks off PBAP fetch from the phone,
+       contacts are shown with photo (if vCard includes PHOTO) and tap-to-call
+- [x] Phone view → CALL (dialer): live filter against synced contacts as the
+       user types digits (last-N-digits match), in a 2-column dialer + matches
+       layout
+- [x] Phone view → RECENT: real outgoing/incoming/missed log, persisted to
+       localStorage, tap to redial
+- [x] In-call screen: full-screen overlay with photo, name, number, live
+       duration, MUTE + HANG-UP + SCREENS buttons; SCREENS minimises to a
+       persistent floating popup so the user can still use other screens
+       during the call
+- [x] Incoming-call popup: pulsing green strip with photo/name/number and
+       ACCEPT + REJECT, floats over whatever screen the user is on
+- [x] Empty states for every phone-data area when no phone is connected
 - [x] Navbar redesign #2: removed curved line, 5 PNG icons (Mobile/Gauges/Music/Phone/Settings),
        selected icon animates to the center slot with the others shifting around it; selected
        button uses inverted style (bright green bg, dark icon)
@@ -51,16 +77,23 @@ Legend: `[x]` done · `[ ]` pending · `[~]` in progress · `[!]` user action ne
        (green animated ring or scan-line wipe effect)
 - [ ] OBD-II / CAN live data wired into GaugesView
        (currently shows static mock values; Canbus.ts already exists in main)
-- [ ] Devices screen — show real connected BT device name instead of hardcoded "iPhone 14 Pro"
-- [ ] Music screen — wire real playback position/duration from MediaSession when available
-- [ ] Phone screen — integrate with OS telephony or BT HFP instead of mock contacts
 - [ ] Settings screen — restyle to match ICM2 theme (currently uses MUI default)
 - [ ] Camera view — restyle overlay to match ICM2 theme
 - [ ] Reverse camera modal — ICM2 border/overlay styling
+- [ ] EQ visualiser hookup to the actual BT-routed PulseAudio sink (currently
+       falls back to a tasteful idle animation when getDisplayMedia is denied)
 
 ---
 
 ## User's Work Queue
+- [!] **Run the Pi Bluetooth setup steps** — see `BLUETOOTH.md`.  Tldr:
+       `sudo apt install bluez bluez-obexd bluez-tools ofono pulseaudio pulseaudio-module-bluetooth`,
+       enable the services, edit `/etc/bluetooth/main.conf`, run the
+       `bluetoothctl` commands once, then pair your phone.
+- [!] After `npm install` on the Pi, confirm `dbus-next` is in `node_modules/`
+       (it's an optionalDependency — should install on Linux automatically)
+- [!] First time you tap SYNC contacts, accept the PBAP prompt on the phone
+       and tick "always allow"
 - [!] Verify CarPlay re-entry fix on real hardware (plug in, launch CarPlay, exit, re-enter)
 - [!] Check 1920×1080 layout on the physical 5.5-inch screen — confirm font sizes feel right
        at dashboard viewing distance; report anything too small or too large

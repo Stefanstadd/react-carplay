@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './HeadUnit.css'
 import iconMobile   from '../assets/icons/mobile.png'
 import iconGauges   from '../assets/icons/gauges.png'
@@ -8,6 +8,10 @@ import iconSettings from '../assets/icons/settings.png'
 import iconContacts from '../assets/icons/contacts.png'
 import iconRecent   from '../assets/icons/recent.png'
 import iconCarplay  from '../assets/icons/carplay.png'
+import {
+  useBluetooth, filterContactsByDial, formatDuration,
+  type Contact, type PhoneState, type CallState, type BtDevice,
+} from './bluetooth'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -93,9 +97,10 @@ function formatTime(s: number) {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 
-function HUHeader({ phoneName, batteryPct }: { phoneName: string; batteryPct: number }) {
+function HUHeader({ phone }: { phone: PhoneState }) {
   const { dayDate, time } = formatClock(useClock())
-  const fillW = Math.max(0, (batteryPct / 100) * 19).toFixed(1)
+  const battery = phone.connected ? (phone.batteryPct ?? 0) : 0
+  const fillW = Math.max(0, (battery / 100) * 19).toFixed(1)
   return (
     <header className="hu-header">
       <div className="hu-header-clock">
@@ -103,20 +108,27 @@ function HUHeader({ phoneName, batteryPct }: { phoneName: string; batteryPct: nu
         <span className="hu-clock-time">{time}</span>
       </div>
       <div className="hu-header-right">
-        <span className="hu-phone-name">{phoneName}</span>
-        <svg viewBox="0 0 30 14" width="56" height="26">
-          <rect x="0.75" y="0.75" width="25.5" height="12.5" rx="0" fill="none" stroke="#00ff0a" strokeWidth="1.5"/>
-          <rect x="26.25" y="4" width="3" height="6" rx="0" fill="#00ff0a"/>
-          <rect x="2" y="2" width={fillW} height="10" rx="0" fill="#00ff0a"/>
-        </svg>
+        {phone.connected ? (
+          <>
+            <span className="hu-phone-name">{phone.name ?? 'Phone'}</span>
+            <svg viewBox="0 0 30 14" width="56" height="26">
+              <rect x="0.75" y="0.75" width="25.5" height="12.5" rx="0" fill="none" stroke="#00ff0a" strokeWidth="1.5"/>
+              <rect x="26.25" y="4" width="3" height="6" rx="0" fill="#00ff0a"/>
+              <rect x="2" y="2" width={fillW} height="10" rx="0" fill="#00ff0a"/>
+            </svg>
+            {phone.batteryPct !== undefined && (
+              <span className="hu-phone-batt">{Math.round(phone.batteryPct)}%</span>
+            )}
+          </>
+        ) : (
+          <span className="hu-phone-name hu-phone-name-dim">NO PHONE</span>
+        )}
       </div>
     </header>
   )
 }
 
 // ─── NavBar ───────────────────────────────────────────────────────────────────
-// Five icons (Mobile, Gauges, Music, Phone, Settings) — selected one
-// animates to the center slot, others shift around it.
 
 type NavId = ViewName | 'settings'
 const NAV_ORDER: NavId[] = ['devices', 'gauges', 'music', 'phone', 'settings']
@@ -135,15 +147,10 @@ function NavBar({
   onSettings?: () => void
 }) {
   const activeIdx = NAV_ORDER.indexOf(active)
-  // shift the whole row so the active button ends up at the navbar center.
-  // icons keep their natural order — no wrap-around.
   const shift = (NAV_CENTER - activeIdx) * NAV_SLOT_W
   return (
     <nav className="hu-navbar">
-      <div
-        className="hu-navbar-row"
-        style={{ transform: `translateX(${shift}px)` }}
-      >
+      <div className="hu-navbar-row" style={{ transform: `translateX(${shift}px)` }}>
         {NAV_ORDER.map((id) => {
           const isActive = id === active
           const onClick = () => {
@@ -157,12 +164,7 @@ function NavBar({
               onClick={onClick}
               aria-label={id}
             >
-              <img
-                src={NAV_ICONS[id]}
-                alt=""
-                className="hu-nav-icon"
-                draggable={false}
-              />
+              <img src={NAV_ICONS[id]} alt="" className="hu-nav-icon" draggable={false}/>
             </button>
           )
         })}
@@ -174,69 +176,37 @@ function NavBar({
 // ─── Music View ───────────────────────────────────────────────────────────────
 
 const NUM_BARS = 24
-// Smoothly blend from --hu-green-dim → --hu-green as a bar's height
-// crosses from BAR_MIX_LO (cool) up to BAR_MIX_HI (fully bright).
 const BAR_MIX_LO = 0.70
 const BAR_MIX_HI = 0.85
-
-// Approximate frequency labels for ~24 bars across audible range.
-// (Display under every other bar so labels don't overlap on the 5.5" screen.)
 const BAR_FREQS = [
   '60','100','160','250','400','630','1k','1.6k','2.5k','4k','6k','8k',
   '10k','12k','13k','14k','15k','16k','17k','18k','19k','20k','21k','22k',
 ]
 
-interface TrackInfo {
-  title: string; artist: string; album: string
-  artworkSrc?: string; duration: number; position: number
-}
-
-function MusicView({ onLaunchCarplay, onSelectView }: {
+function MusicView({
+  onLaunchCarplay,
+  onSelectView,
+  bt,
+}: {
   onLaunchCarplay: () => void
   onSelectView: (v: ViewName) => void
+  bt: ReturnType<typeof useBluetooth>
 }) {
   const targetRef = useRef<number[]>(
     Array.from({ length: NUM_BARS }, (_, i) => (i < 6 ? 0.6 : i < 14 ? 0.4 : 0.25) + Math.random() * 0.2)
   )
-  const [eqBars, setEqBars]   = useState<number[]>(targetRef.current.slice())
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [track, setTrack] = useState<TrackInfo>({
-    title: 'No Track', artist: '—', album: '—', duration: 0, position: 0,
-  })
+  const [eqBars, setEqBars] = useState<number[]>(targetRef.current.slice())
   const analyserRef = useRef<AnalyserNode | null>(null)
   const ctxRef      = useRef<AudioContext | null>(null)
   const dataRef     = useRef<Uint8Array | null>(null)
   const frameRef    = useRef(0)
 
-  useEffect(() => {
-    const poll = setInterval(() => {
-      const meta = navigator.mediaSession?.metadata
-      if (meta) {
-        setTrack(prev => {
-          const newTitle = meta.title || 'No Track'
-          if (newTitle !== prev.title)
-            return { title: newTitle, artist: meta.artist || '—', album: meta.album || '—',
-              artworkSrc: meta.artwork?.[0]?.src, duration: 240, position: 0 }
-          return { ...prev, artist: meta.artist || prev.artist, album: meta.album || prev.album,
-            artworkSrc: meta.artwork?.[0]?.src ?? prev.artworkSrc }
-        })
-      }
-      const state = navigator.mediaSession?.playbackState
-      if (state === 'playing') setIsPlaying(true)
-      else if (state === 'paused' || state === 'none') setIsPlaying(false)
-    }, 2000)
-    return () => clearInterval(poll)
-  }, [])
+  const phoneConnected = bt.phone.connected
+  const media = bt.media
+  const isPlaying = media.playing && phoneConnected
 
-  useEffect(() => {
-    if (!isPlaying) return
-    const id = setInterval(() => {
-      setTrack(prev => prev.duration > 0
-        ? { ...prev, position: Math.min(prev.position + 1, prev.duration) } : prev)
-    }, 1000)
-    return () => clearInterval(id)
-  }, [isPlaying])
-
+  // EQ analyser — tries to attach to system audio.  If unavailable, falls
+  // back to a tasteful idle animation that's heavier when audio is playing.
   useEffect(() => {
     let cancelled = false
     let tick = 0
@@ -272,8 +242,9 @@ function MusicView({ onLaunchCarplay, onSelectView }: {
             setEqBars(prev => prev.map((v, i) => {
               const isBass = i < 4
               const speed  = isBass ? 0.05 : i < 12 ? 0.08 : 0.12
+              const ceiling = isPlaying ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
               if (Math.random() < 0.04)
-                targetRef.current[i] = Math.random() * (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) + 0.08
+                targetRef.current[i] = Math.random() * ceiling + (isPlaying ? 0.08 : 0.02)
               return v + (targetRef.current[i] - v) * speed
             }))
           }
@@ -289,18 +260,24 @@ function MusicView({ onLaunchCarplay, onSelectView }: {
       ctxRef.current?.close()
       ctxRef.current = null; analyserRef.current = null; dataRef.current = null
     }
-  }, [])
+  }, [isPlaying])
 
-  const sendMediaKey = useCallback((key: string) => {
-    document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
-    document.dispatchEvent(new KeyboardEvent('keyup',   { key, bubbles: true }))
-  }, [])
+  const progress = media.durationSec > 0
+    ? Math.min(1, media.positionSec / media.durationSec) : 0
 
-  const progress = track.duration > 0 ? Math.min(1, track.position / track.duration) : 0
+  const title  = phoneConnected ? (media.title  ?? 'No Track') : 'No Phone'
+  const artist = phoneConnected ? (media.artist ?? '—')        : 'Connect a phone via Bluetooth'
+  const album  = phoneConnected ? (media.album  ?? '—')        : '—'
+
+  const onSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!media.durationSec) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const pct = (e.clientX - rect.left) / rect.width
+    bt.mediaSeek(pct * media.durationSec)
+  }
 
   return (
     <div className="hu-screen hu-music-screen">
-      {/* Visualizer fills the free vertical space (full width, flex:1) */}
       <div className="hu-viz-area">
         <div className="hu-eq-bars">
           {eqBars.map((h, i) => {
@@ -326,7 +303,6 @@ function MusicView({ onLaunchCarplay, onSelectView }: {
         </div>
       </div>
 
-      {/* Quick-access overlay (top-left, 20% × 20%, covers the bars behind it) */}
       <div className="hu-quick-area">
         <button className="hu-quick-btn" onClick={onLaunchCarplay} aria-label="CarPlay">
           <img src={iconCarplay} alt="" className="hu-quick-btn-img"/>
@@ -339,11 +315,10 @@ function MusicView({ onLaunchCarplay, onSelectView }: {
         </button>
       </div>
 
-      {/* Album art + track info — pushed down by the tall visualizer */}
       <div className="hu-info-area">
         <div className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}>
-          {track.artworkSrc
-            ? <img src={track.artworkSrc} alt="album art" className="hu-art-img"/>
+          {media.artworkSrc
+            ? <img src={media.artworkSrc} alt="album art" className="hu-art-img"/>
             : <svg viewBox="0 0 80 80" width="100" height="100" opacity="0.6" shapeRendering="crispEdges">
                 <rect x="14" y="14" width="52" height="52" fill="none" stroke="#00ff0a" strokeWidth="3"/>
                 <rect x="36" y="34" width="8" height="14" fill="#00ff0a"/>
@@ -352,50 +327,49 @@ function MusicView({ onLaunchCarplay, onSelectView }: {
           }
         </div>
         <div className="hu-music-text">
-          <div className="hu-music-via">via Bluetooth</div>
-          <div className="hu-music-title">{track.title}</div>
-          <div className="hu-music-artist">{track.artist}</div>
-          <div className="hu-music-album">{track.album}</div>
+          <div className="hu-music-via">{phoneConnected ? 'via Bluetooth' : 'Bluetooth Disconnected'}</div>
+          <div className="hu-music-title">{title}</div>
+          <div className="hu-music-artist">{artist}</div>
+          <div className="hu-music-album">{album}</div>
         </div>
       </div>
 
-      {/* Bottom — progress + transport, full width */}
       <div className="hu-controls-area">
-          <div className="hu-progress-wrap">
-            <div className="hu-progress-track">
-              <div className="hu-progress-fill" style={{ width: `${progress * 100}%` }}/>
-            </div>
-            <div className="hu-progress-times">
-              <span>{formatTime(track.position)}</span>
-              <span>{track.duration > 0 ? formatTime(track.duration) : '--:--'}</span>
-            </div>
+        <div className="hu-progress-wrap">
+          <div className="hu-progress-track" onClick={onSeek}>
+            <div className="hu-progress-fill" style={{ width: `${progress * 100}%` }}/>
           </div>
+          <div className="hu-progress-times">
+            <span>{formatTime(media.positionSec)}</span>
+            <span>{media.durationSec > 0 ? formatTime(media.durationSec) : '--:--'}</span>
+          </div>
+        </div>
 
-          <div className="hu-music-controls">
-            <button className="hu-transport-btn" onClick={() => sendMediaKey('MediaTrackPrevious')} aria-label="Previous">
-              <svg viewBox="0 0 32 32" width="46" height="46">
-                <polygon points="28,5 10,16 28,27" fill="currentColor"/>
-                <rect x="4" y="5" width="5" height="22" fill="currentColor"/>
-              </svg>
-            </button>
-            <button className="hu-transport-btn hu-play-btn" onClick={() => sendMediaKey('MediaPlayPause')} aria-label="Play/Pause">
-              {isPlaying
-                ? <svg viewBox="0 0 32 32" width="56" height="56">
-                    <rect x="5"  y="4" width="9" height="24" fill="currentColor"/>
-                    <rect x="18" y="4" width="9" height="24" fill="currentColor"/>
-                  </svg>
-                : <svg viewBox="0 0 32 32" width="56" height="56">
-                    <polygon points="6,3 28,16 6,29" fill="currentColor"/>
-                  </svg>
-              }
-            </button>
-            <button className="hu-transport-btn" onClick={() => sendMediaKey('MediaTrackNext')} aria-label="Next">
-              <svg viewBox="0 0 32 32" width="46" height="46">
-                <polygon points="4,5 22,16 4,27" fill="currentColor"/>
-                <rect x="23" y="5" width="5" height="22" fill="currentColor"/>
-              </svg>
-            </button>
-          </div>
+        <div className="hu-music-controls">
+          <button className="hu-transport-btn" onClick={bt.mediaPrev} disabled={!phoneConnected} aria-label="Previous">
+            <svg viewBox="0 0 32 32" width="46" height="46">
+              <polygon points="28,5 10,16 28,27" fill="currentColor"/>
+              <rect x="4" y="5" width="5" height="22" fill="currentColor"/>
+            </svg>
+          </button>
+          <button className="hu-transport-btn hu-play-btn" onClick={bt.mediaToggle} disabled={!phoneConnected} aria-label="Play/Pause">
+            {isPlaying
+              ? <svg viewBox="0 0 32 32" width="56" height="56">
+                  <rect x="5"  y="4" width="9" height="24" fill="currentColor"/>
+                  <rect x="18" y="4" width="9" height="24" fill="currentColor"/>
+                </svg>
+              : <svg viewBox="0 0 32 32" width="56" height="56">
+                  <polygon points="6,3 28,16 6,29" fill="currentColor"/>
+                </svg>
+            }
+          </button>
+          <button className="hu-transport-btn" onClick={bt.mediaNext} disabled={!phoneConnected} aria-label="Next">
+            <svg viewBox="0 0 32 32" width="46" height="46">
+              <polygon points="4,5 22,16 4,27" fill="currentColor"/>
+              <rect x="23" y="5" width="5" height="22" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -403,12 +377,22 @@ function MusicView({ onLaunchCarplay, onSelectView }: {
 
 // ─── Devices View ─────────────────────────────────────────────────────────────
 
-const MOCK_PAIRED = ['iPhone 14 Pro', 'AirPods Pro']
+function DevicesView({
+  onLaunchCarplay, bt,
+}: {
+  onLaunchCarplay: () => void
+  bt: ReturnType<typeof useBluetooth>
+}) {
+  const [scanning, setScanning] = useState(false)
 
-function DevicesView({ onLaunchCarplay }: { onLaunchCarplay: () => void }) {
+  const toggleScan = () => {
+    const next = !scanning
+    setScanning(next)
+    bt.scan(next)
+  }
+
   return (
     <div className="hu-screen">
-      {/* LEFT: connection options */}
       <div className="hu-sidebar">
         <div className="hu-panel-label">CONNECT VIA</div>
 
@@ -428,21 +412,51 @@ function DevicesView({ onLaunchCarplay }: { onLaunchCarplay: () => void }) {
           <span>Apple CarPlay</span>
           <span className="hu-opt-tag">▶</span>
         </button>
+
+        <div style={{ flex: 1 }}/>
+
+        <button className={`hu-list-btn${scanning ? ' hu-list-btn-active' : ''}`} onClick={toggleScan}>
+          <span>{scanning ? 'STOP SCAN' : 'SCAN'}</span>
+        </button>
       </div>
 
-      {/* RIGHT: paired devices */}
       <div className="hu-main-area">
-        <div className="hu-panel-label">PAIRED DEVICES</div>
-        {MOCK_PAIRED.map(d => (
-          <div key={d} className="hu-device-row">
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="#00ff0a" shapeRendering="crispEdges">
-              <path d="M12 2l5 5-4 4 4 4-5 5V14l-3 3-1.5-1.5L11 12 7.5 8.5 9 7l3 3V2z"/>
-            </svg>
-            <span>{d}</span>
-            <span className="hu-device-tag">BT</span>
+        <div className="hu-panel-label">DEVICES</div>
+        {bt.devices.length === 0 ? (
+          <div className="hu-empty-state">
+            <div className="hu-empty-title">NO DEVICES</div>
+            <div className="hu-empty-sub">
+              {scanning ? 'Scanning…' : 'Tap SCAN to discover phones nearby.'}
+            </div>
           </div>
+        ) : bt.devices.map(d => (
+          <DeviceRow key={d.address} d={d} bt={bt}/>
         ))}
       </div>
+    </div>
+  )
+}
+
+function DeviceRow({ d, bt }: { d: BtDevice; bt: ReturnType<typeof useBluetooth> }) {
+  const action = d.connected
+    ? () => bt.disconnect(d.address)
+    : () => bt.connect(d.address)
+  const label  = d.connected ? 'CONN' : d.paired ? 'PAIRED' : 'NEW'
+  return (
+    <div className="hu-device-row">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="#00ff0a" shapeRendering="crispEdges">
+        <path d="M12 2l5 5-4 4 4 4-5 5V14l-3 3-1.5-1.5L11 12 7.5 8.5 9 7l3 3V2z"/>
+      </svg>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <span>{d.name || d.address}</span>
+        {d.batteryPct !== undefined && (
+          <span className="hu-device-sub">{Math.round(d.batteryPct)}% battery</span>
+        )}
+      </div>
+      <span className="hu-device-tag">{label}</span>
+      <button className="hu-list-btn hu-device-action" onClick={action}>
+        {d.connected ? '✕' : '⟶'}
+      </button>
     </div>
   )
 }
@@ -508,7 +522,6 @@ function GaugesView({ vehicleData }: { vehicleData?: VehicleData }) {
   const vd = vehicleData ?? {}
   return (
     <div className="hu-screen">
-      {/* LEFT: slim sidebar with numeric readouts */}
       <div className="hu-sidebar hu-sidebar-slim">
         <div className="hu-panel-label">SENSORS</div>
         <div className="hu-gauge-sidebar">
@@ -529,7 +542,6 @@ function GaugesView({ vehicleData }: { vehicleData?: VehicleData }) {
         </div>
       </div>
 
-      {/* RIGHT: gauges in a flex-wrap grid (handles more gauges later) */}
       <div className="hu-main-area">
         <div className="hu-gauges">
           <GaugeWidget label="OIL TEMP" value={vd.oilTempC ?? 90}  min={40} max={150}  unit="°C"   warnAbove={120}/>
@@ -556,25 +568,54 @@ const PHONE_TAB_LABEL: Record<PhoneTab, string> = {
   call:     'CALL',
 }
 
-const CONTACTS = [
-  { name: 'Alice',   num: '+31 6 1234 5678' },
-  { name: 'Bob',     num: '+31 6 8765 4321' },
-  { name: 'Charlie', num: '+31 6 1122 3344' },
-  { name: 'Diane',   num: '+31 6 9988 7766' },
-]
-const RECENTS = [
-  { name: 'Bob',     num: '+31 6 8765 4321', time: '14:23',     dir: 'out'  },
-  { name: 'Unknown', num: '+31 6 5555 6666', time: 'Yesterday', dir: 'in'   },
-  { name: 'Alice',   num: '+31 6 1234 5678', time: 'Yesterday', dir: 'miss' },
-]
+// Recent-calls store lives entirely on the renderer for now — every outgoing
+// dial we push and every incoming/missed event we record.  Persisting via
+// localStorage so the list survives across reloads.
+interface RecentEntry { name?: string; number: string; time: number; dir: 'in' | 'out' | 'miss' }
 
-function PhoneView() {
+function loadRecents(): RecentEntry[] {
+  try { return JSON.parse(localStorage.getItem('hu.recents') || '[]') } catch { return [] }
+}
+function saveRecents(r: RecentEntry[]) {
+  try { localStorage.setItem('hu.recents', JSON.stringify(r.slice(0, 50))) } catch { /* ignore */ }
+}
+
+function formatRecentTime(ts: number): string {
+  const d = new Date(ts)
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  const yesterday = new Date(); yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`
+}
+
+function PhoneView({
+  bt, recents,
+}: {
+  bt: ReturnType<typeof useBluetooth>
+  recents: RecentEntry[]
+}) {
   const [tab,  setTab]  = useState<PhoneTab>('contacts')
   const [dial, setDial] = useState('')
 
+  const dialMatches = useMemo(
+    () => filterContactsByDial(bt.contacts.contacts, dial).slice(0, 8),
+    [bt.contacts.contacts, dial]
+  )
+
+  const onCallContact = (c: Contact) => {
+    const num = c.numbers[0]?.number
+    if (num) bt.dial(num)
+  }
+
+  const onCallDial = () => {
+    if (!dial) return
+    bt.dial(dial)
+  }
+
   return (
     <div className="hu-screen">
-      {/* LEFT: vertical tab buttons with icons */}
       <div className="hu-sidebar">
         <div className="hu-panel-label">PHONE</div>
         <div className="hu-phone-sidebar-tabs">
@@ -589,64 +630,45 @@ function PhoneView() {
             </button>
           ))}
         </div>
+
+        <div style={{ flex: 1 }}/>
+
+        {tab === 'contacts' && bt.phone.connected && (
+          <button className="hu-list-btn" onClick={bt.syncContacts}>
+            <span>{bt.contacts.syncing ? 'SYNCING…' : 'SYNC'}</span>
+          </button>
+        )}
       </div>
 
-      {/* RIGHT: content */}
       <div className="hu-main-area">
         <div className="hu-phone-content">
-          {tab === 'contacts' && (
-            <div className="hu-list">
-              {CONTACTS.map(c => (
-                <div key={c.name} className="hu-list-row">
-                  <div className="hu-avatar">{c.name[0]}</div>
-                  <div>
-                    <div className="hu-list-name">{c.name}</div>
-                    <div className="hu-list-sub">{c.num}</div>
-                  </div>
-                  <button className="hu-call-icon-btn">
-                    <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
-                  </button>
-                </div>
-              ))}
+          {!bt.phone.connected && (
+            <div className="hu-empty-state">
+              <div className="hu-empty-title">NO PHONE CONNECTED</div>
+              <div className="hu-empty-sub">Pair a phone in the Devices screen to use contacts and calling.</div>
             </div>
           )}
 
-          {tab === 'recent' && (
-            <div className="hu-list">
-              {RECENTS.map((r, i) => (
-                <div key={i} className="hu-list-row">
-                  <span className={`hu-call-dir hu-call-${r.dir}`}>
-                    {r.dir === 'miss' ? '↘' : r.dir === 'in' ? '↙' : '↗'}
-                  </span>
-                  <div>
-                    <div className="hu-list-name">{r.name}</div>
-                    <div className="hu-list-sub">{r.num}</div>
-                  </div>
-                  <span className="hu-call-time">{r.time}</span>
-                </div>
-              ))}
-            </div>
+          {bt.phone.connected && tab === 'contacts' && (
+            <ContactsList
+              contacts={bt.contacts.contacts}
+              synced={bt.contacts.synced}
+              syncing={bt.contacts.syncing}
+              onCall={onCallContact}
+            />
           )}
 
-          {tab === 'call' && (
-            <div className="hu-numpad">
-              <div className="hu-dial-display">
-                {dial || <span className="hu-dial-placeholder">Enter number</span>}
-              </div>
-              {[['1','2','3'],['4','5','6'],['7','8','9'],['*','0','#']].map((row, ri) => (
-                <div key={ri} className="hu-numpad-row">
-                  {row.map(k => (
-                    <button key={k} className="hu-numpad-key" onClick={() => setDial(p => p + k)}>{k}</button>
-                  ))}
-                </div>
-              ))}
-              <div className="hu-numpad-row">
-                <button className="hu-numpad-key hu-call-green">
-                  <img src={iconPhone} alt="call" className="hu-numpad-call-icon"/>
-                </button>
-                <button className="hu-numpad-key" onClick={() => setDial(p => p.slice(0, -1))}>⌫</button>
-              </div>
-            </div>
+          {bt.phone.connected && tab === 'recent' && (
+            <RecentsList recents={recents} onCall={(n) => bt.dial(n)}/>
+          )}
+
+          {bt.phone.connected && tab === 'call' && (
+            <DialerView
+              dial={dial} setDial={setDial}
+              matches={dialMatches}
+              onCall={onCallDial}
+              onCallContact={onCallContact}
+            />
           )}
         </div>
       </div>
@@ -654,13 +676,270 @@ function PhoneView() {
   )
 }
 
+function ContactsList({
+  contacts, synced, syncing, onCall,
+}: {
+  contacts: Contact[]; synced: boolean; syncing: boolean
+  onCall: (c: Contact) => void
+}) {
+  if (!synced && !syncing && contacts.length === 0) {
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">CONTACTS NOT SYNCED</div>
+        <div className="hu-empty-sub">Tap SYNC in the sidebar to import contacts from your phone (PBAP).</div>
+      </div>
+    )
+  }
+  if (syncing && contacts.length === 0) {
+    return <div className="hu-empty-state"><div className="hu-empty-title">SYNCING…</div></div>
+  }
+  if (contacts.length === 0) {
+    return <div className="hu-empty-state"><div className="hu-empty-title">NO CONTACTS</div></div>
+  }
+  return (
+    <div className="hu-list">
+      {contacts.map(c => (
+        <div key={c.id} className="hu-list-row">
+          <div className="hu-avatar">
+            {c.photo ? <img src={c.photo} alt="" className="hu-avatar-img"/> : c.name[0]}
+          </div>
+          <div>
+            <div className="hu-list-name">{c.name}</div>
+            <div className="hu-list-sub">{c.numbers[0]?.number ?? ''}</div>
+          </div>
+          <button className="hu-call-icon-btn" onClick={() => onCall(c)} aria-label="Call">
+            <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function RecentsList({ recents, onCall }: { recents: RecentEntry[]; onCall: (n: string) => void }) {
+  if (recents.length === 0) {
+    return <div className="hu-empty-state"><div className="hu-empty-title">NO RECENT CALLS</div></div>
+  }
+  return (
+    <div className="hu-list">
+      {recents.map((r, i) => (
+        <div key={i} className="hu-list-row" onClick={() => onCall(r.number)}>
+          <span className={`hu-call-dir hu-call-${r.dir}`}>
+            {r.dir === 'miss' ? '↘' : r.dir === 'in' ? '↙' : '↗'}
+          </span>
+          <div>
+            <div className="hu-list-name">{r.name ?? 'Unknown'}</div>
+            <div className="hu-list-sub">{r.number}</div>
+          </div>
+          <span className="hu-call-time">{formatRecentTime(r.time)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function DialerView({
+  dial, setDial, matches, onCall, onCallContact,
+}: {
+  dial: string
+  setDial: (v: string | ((p: string) => string)) => void
+  matches: Contact[]
+  onCall: () => void
+  onCallContact: (c: Contact) => void
+}) {
+  return (
+    <div className="hu-dialer">
+      <div className="hu-numpad">
+        <div className="hu-dial-display">
+          {dial || <span className="hu-dial-placeholder">Enter number</span>}
+        </div>
+        {[['1','2','3'],['4','5','6'],['7','8','9'],['*','0','#']].map((row, ri) => (
+          <div key={ri} className="hu-numpad-row">
+            {row.map(k => (
+              <button key={k} className="hu-numpad-key" onClick={() => setDial(p => p + k)}>{k}</button>
+            ))}
+          </div>
+        ))}
+        <div className="hu-numpad-row">
+          <button className="hu-numpad-key hu-call-green" onClick={onCall} disabled={!dial} aria-label="Call">
+            <img src={iconPhone} alt="call" className="hu-numpad-call-icon"/>
+          </button>
+          <button className="hu-numpad-key" onClick={() => setDial(p => p.slice(0, -1))}>⌫</button>
+        </div>
+      </div>
+
+      <div className="hu-dial-matches">
+        <div className="hu-panel-label" style={{ marginBottom: 12 }}>
+          {dial ? `MATCHES (${matches.length})` : 'CONTACTS'}
+        </div>
+        {matches.length === 0 ? (
+          <div className="hu-empty-sub" style={{ paddingTop: 16 }}>No matches</div>
+        ) : matches.map(c => (
+          <div key={c.id} className="hu-list-row" onClick={() => onCallContact(c)}>
+            <div className="hu-avatar">{c.name[0]}</div>
+            <div>
+              <div className="hu-list-name">{c.name}</div>
+              <div className="hu-list-sub">{c.numbers[0]?.number}</div>
+            </div>
+            <button className="hu-call-icon-btn" onClick={(e) => { e.stopPropagation(); onCallContact(c) }} aria-label="Call">
+              <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── In-call screen (full overlay) ───────────────────────────────────────────
+
+function InCallScreen({
+  call, bt, onMinimise,
+}: {
+  call: CallState
+  bt: ReturnType<typeof useBluetooth>
+  onMinimise: () => void
+}) {
+  const name = call.contact?.name ?? 'Unknown'
+  const num  = call.contact?.number ?? ''
+  return (
+    <div className="hu-incall">
+      <div className="hu-incall-top">
+        <div className="hu-incall-status">
+          {call.status === 'dialing' ? 'DIALING' : call.status === 'incoming' ? 'INCOMING' : 'IN CALL'}
+        </div>
+        <div className="hu-incall-duration">
+          {call.status === 'active' ? formatDuration(call.durationSec) : ''}
+        </div>
+      </div>
+
+      <div className="hu-incall-photo">
+        {call.contact?.photo
+          ? <img src={call.contact.photo} alt="" className="hu-incall-photo-img"/>
+          : <div className="hu-incall-photo-fallback">{(name[0] || '?').toUpperCase()}</div>
+        }
+      </div>
+
+      <div className="hu-incall-name">{name}</div>
+      <div className="hu-incall-num">{num}</div>
+
+      <div className="hu-incall-buttons">
+        <button className={`hu-incall-btn${call.muted ? ' hu-incall-btn-on' : ''}`} onClick={bt.toggleMute}>
+          <span className="hu-incall-btn-glyph">{call.muted ? 'UN-MUTE' : 'MUTE'}</span>
+        </button>
+        <button className="hu-incall-btn hu-incall-hangup" onClick={bt.hangup}>
+          <img src={iconPhone} alt="" className="hu-incall-btn-img hu-incall-hangup-icon"/>
+        </button>
+        <button className="hu-incall-btn" onClick={onMinimise}>
+          <span className="hu-incall-btn-glyph">SCREENS</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Incoming call + in-call popup (floats over any screen) ──────────────────
+
+function CallPopup({
+  call, bt, onOpen,
+}: {
+  call: CallState
+  bt: ReturnType<typeof useBluetooth>
+  onOpen: () => void
+}) {
+  const name = call.contact?.name ?? 'Unknown'
+  const num  = call.contact?.number ?? ''
+
+  if (call.status === 'incoming') {
+    return (
+      <div className="hu-call-popup hu-call-popup-incoming">
+        <div className="hu-call-popup-photo">
+          {call.contact?.photo
+            ? <img src={call.contact.photo} alt="" className="hu-call-popup-photo-img"/>
+            : <div className="hu-call-popup-photo-fallback">{(name[0] || '?').toUpperCase()}</div>}
+        </div>
+        <div className="hu-call-popup-body">
+          <div className="hu-call-popup-status">INCOMING CALL</div>
+          <div className="hu-call-popup-name">{name}</div>
+          <div className="hu-call-popup-num">{num}</div>
+        </div>
+        <div className="hu-call-popup-actions">
+          <button className="hu-call-popup-btn hu-call-popup-reject" onClick={bt.reject}>✕</button>
+          <button className="hu-call-popup-btn hu-call-popup-accept" onClick={bt.answer}>
+            <img src={iconPhone} alt="" className="hu-call-popup-icon"/>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // active / dialing — small persistent strip with the call info, click to open
+  return (
+    <div className="hu-call-popup hu-call-popup-active" onClick={onOpen}>
+      <div className="hu-call-popup-photo">
+        {call.contact?.photo
+          ? <img src={call.contact.photo} alt="" className="hu-call-popup-photo-img"/>
+          : <div className="hu-call-popup-photo-fallback">{(name[0] || '?').toUpperCase()}</div>}
+      </div>
+      <div className="hu-call-popup-body">
+        <div className="hu-call-popup-status">
+          {call.status === 'dialing' ? 'DIALING' : 'IN CALL'} · {formatDuration(call.durationSec)}
+        </div>
+        <div className="hu-call-popup-name">{name}</div>
+      </div>
+      <button className="hu-call-popup-btn hu-call-popup-reject" onClick={(e) => { e.stopPropagation(); bt.hangup() }}>
+        ✕
+      </button>
+    </div>
+  )
+}
+
 // ─── HeadUnit root ────────────────────────────────────────────────────────────
 
 export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData }: HeadUnitProps) {
+  const bt = useBluetooth()
   const [activeView, setActiveView] = useState<ViewName>('music')
   const [prevView,   setPrevView]   = useState<ViewName | null>(null)
   const [slideDir,   setSlideDir]   = useState<'left' | 'right'>('right')
   const [ss, setSS] = useState(getScaleState)
+  const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
+  // Whether the in-call full screen is showing (vs. the small popup).
+  // Auto-opens when a call becomes active, can be minimised back.
+  const [callFull, setCallFull] = useState(false)
+
+  // Open the full call screen when an active call appears; reset when idle.
+  useEffect(() => {
+    if (bt.call.status === 'active' || bt.call.status === 'dialing') setCallFull(true)
+    if (bt.call.status === 'idle') setCallFull(false)
+  }, [bt.call.status])
+
+  // Log call transitions into the recent-calls list.
+  const lastCallRef = useRef<CallState>(bt.call)
+  useEffect(() => {
+    const prev = lastCallRef.current
+    const curr = bt.call
+    // Outgoing answered: dialing → active
+    if (prev.status === 'dialing' && curr.status === 'active' && curr.contact?.number) {
+      pushRecent({ name: curr.contact.name, number: curr.contact.number, time: Date.now(), dir: 'out' })
+    }
+    // Incoming answered: incoming → active
+    if (prev.status === 'incoming' && curr.status === 'active' && curr.contact?.number) {
+      pushRecent({ name: curr.contact.name, number: curr.contact.number, time: Date.now(), dir: 'in' })
+    }
+    // Missed: incoming → idle (rejected/timeout)
+    if (prev.status === 'incoming' && curr.status === 'idle' && prev.contact?.number) {
+      pushRecent({ name: prev.contact.name, number: prev.contact.number, time: Date.now(), dir: 'miss' })
+    }
+    lastCallRef.current = curr
+  }, [bt.call])
+
+  const pushRecent = (entry: RecentEntry) => {
+    setRecents(prev => {
+      const next = [entry, ...prev].slice(0, 50)
+      saveRecents(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     const onResize = () => setSS(getScaleState())
@@ -673,15 +952,12 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
       if (v === curr) return curr
       const ci = CYCLE.indexOf(curr)
       const ni = CYCLE.indexOf(v)
-      // If new view is to the right of current → slide left (current goes left, new comes from right)
-      // If new view is to the left of current → slide right (current goes right, new comes from left)
       setSlideDir(ni > ci ? 'left' : 'right')
       setPrevView(curr)
       return v
     })
   }, [])
 
-  // Clear the outgoing screen once its slide-out animation finishes.
   useEffect(() => {
     if (prevView === null) return
     const t = setTimeout(() => setPrevView(null), 360)
@@ -690,18 +966,18 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
 
   const renderView = (v: ViewName) => {
     switch (v) {
-      case 'music':   return <MusicView   onLaunchCarplay={onLaunchCarplay} onSelectView={handleSelect}/>
-      case 'devices': return <DevicesView onLaunchCarplay={onLaunchCarplay}/>
+      case 'music':   return <MusicView   onLaunchCarplay={onLaunchCarplay} onSelectView={handleSelect} bt={bt}/>
+      case 'devices': return <DevicesView onLaunchCarplay={onLaunchCarplay} bt={bt}/>
       case 'gauges':  return <GaugesView  vehicleData={vehicleData}/>
-      case 'phone':   return <PhoneView/>
+      case 'phone':   return <PhoneView   bt={bt} recents={recents}/>
     }
   }
 
-  // outgoing slide direction matches the user's request:
-  //  - user clicks a screen LEFT of current → current slides RIGHT, new comes from LEFT
-  //  - user clicks a screen RIGHT of current → current slides LEFT, new comes from RIGHT
   const outClass = slideDir === 'left'  ? 'hu-slide-out-left'  : 'hu-slide-out-right'
   const inClass  = slideDir === 'left'  ? 'hu-slide-in-right'  : 'hu-slide-in-left'
+
+  const showFullCall = callFull && (bt.call.status === 'active' || bt.call.status === 'dialing')
+  const showPopup    = !showFullCall && bt.call.status !== 'idle'
 
   return (
     <div className="hu-viewport">
@@ -711,7 +987,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
       >
         <div className="hu-root">
           <div className="hu-scanlines" aria-hidden="true"/>
-          <HUHeader phoneName="iPhone 14 Pro" batteryPct={78}/>
+          <HUHeader phone={bt.phone}/>
           <main className="hu-content">
             <div className="hu-screen-stack">
               {prevView && (
@@ -725,6 +1001,15 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
             </div>
           </main>
           <NavBar active={activeView} onSelect={handleSelect} onSettings={onOpenSettings}/>
+
+          {showFullCall && (
+            <div className="hu-incall-overlay">
+              <InCallScreen call={bt.call} bt={bt} onMinimise={() => setCallFull(false)}/>
+            </div>
+          )}
+          {showPopup && (
+            <CallPopup call={bt.call} bt={bt} onOpen={() => setCallFull(true)}/>
+          )}
         </div>
       </div>
     </div>

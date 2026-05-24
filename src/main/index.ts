@@ -9,9 +9,11 @@ import * as fs from 'fs';
 import {Canbus} from "./Canbus"
 
 import { ExtraConfig, KeyBindings } from "./Globals";
+import { BluetoothManager } from "./Bluetooth";
 // import CarplayNode, {DEFAULT_CONFIG, CarplayMessage} from "node-carplay/node";
 
 let mainWindow: BrowserWindow
+let bluetooth: BluetoothManager | null = null
 const appPath: string = app.getPath('userData')
 const configPath: string = appPath + '/config.json'
 console.log(configPath)
@@ -203,6 +205,9 @@ app.whenReady().then(() => {
   // ipcMain.on('startStream', startMostStream)
 
   ipcMain.on('quit', quit)
+
+  bluetooth = new BluetoothManager(() => mainWindow)
+  bluetooth.start().catch(err => console.warn('[bt] start failed', err))
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

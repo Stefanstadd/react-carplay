@@ -1,0 +1,764 @@
+// BluetoothManager — runs in the main process and bridges BlueZ / ofono / obex
+// over D-Bus to the renderer.  Linux only at runtime; on other platforms it
+// runs in stub mode (just emits a disconnected state) so dev on Windows/macOS
+// works.  See BLUETOOTH.md for Raspberry Pi setup.
+//
+// Why this design: every Bluetooth datum the UI cares about (phone connected,
+// battery, music metadata, transport state, call state, contacts) lives in
+// a small set of well-known BlueZ / ofono / obex D-Bus interfaces.  We use
+// ObjectManager + PropertiesChanged to receive push updates, and methods to
+// drive things from the user (Connect, Dial, MediaPlayer1.Play, etc.).
+
+import { ipcMain, BrowserWindow } from 'electron'
+
+// ─── Types pushed to renderer ────────────────────────────────────────────────
+
+export interface BtDevice {
+  address: string
+  name: string
+  paired: boolean
+  connected: boolean
+  trusted: boolean
+  batteryPct?: number
+  isPhone?: boolean
+}
+
+export interface PhoneState {
+  connected: boolean
+  address?: string
+  name?: string
+  batteryPct?: number
+}
+
+export interface MediaState {
+  hasMetadata: boolean
+  title?: string
+  artist?: string
+  album?: string
+  artworkSrc?: string
+  durationSec: number
+  positionSec: number
+  playing: boolean
+}
+
+export type CallStatus = 'idle' | 'incoming' | 'dialing' | 'active' | 'held'
+
+export interface CallContact { name?: string; number: string; photo?: string }
+
+export interface CallState {
+  status: CallStatus
+  contact?: CallContact
+  durationSec: number
+  muted: boolean
+}
+
+export interface Contact {
+  id: string
+  name: string
+  numbers: { type?: string; number: string }[]
+  photo?: string
+}
+
+export interface ContactsState {
+  synced: boolean
+  syncing: boolean
+  contacts: Contact[]
+  lastError?: string
+}
+
+// ─── D-Bus constants ─────────────────────────────────────────────────────────
+
+const BLUEZ_BUS         = 'org.bluez'
+const BLUEZ_ROOT        = '/'
+const IFACE_OBJMGR      = 'org.freedesktop.DBus.ObjectManager'
+const IFACE_PROPS       = 'org.freedesktop.DBus.Properties'
+const IFACE_ADAPTER     = 'org.bluez.Adapter1'
+const IFACE_DEVICE      = 'org.bluez.Device1'
+const IFACE_BATTERY     = 'org.bluez.Battery1'
+const IFACE_PLAYER      = 'org.bluez.MediaPlayer1'
+
+const OFONO_BUS         = 'org.ofono'
+const IFACE_OFONO_MGR   = 'org.ofono.Manager'
+const IFACE_VCM         = 'org.ofono.VoiceCallManager'
+const IFACE_VOICECALL   = 'org.ofono.VoiceCall'
+const IFACE_CALLVOL     = 'org.ofono.CallVolume'
+
+const OBEX_BUS          = 'org.bluez.obex'
+const IFACE_OBEX_MGR    = 'org.bluez.obex.Client1'
+const IFACE_PBAP        = 'org.bluez.obex.PhonebookAccess1'
+
+// ─── Manager ─────────────────────────────────────────────────────────────────
+
+export class BluetoothManager {
+  private getWindow: () => BrowserWindow | undefined
+
+  private dbus: any = null
+  private systemBus: any = null
+  private sessionBus: any = null
+
+  // Tracked state, keyed by D-Bus object path
+  private devicePaths = new Map<string, BtDevice>()
+  private activePhonePath: string | null = null
+  private activePlayerPath: string | null = null
+
+  // ofono
+  private activeModemPath: string | null = null
+  private activeCallPath: string | null = null
+
+  // outbound state
+  private media: MediaState = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
+  private call:  CallState  = { status: 'idle', durationSec: 0, muted: false }
+  private contacts: ContactsState = { synced: false, syncing: false, contacts: [] }
+
+  // periodic media-position refresh from the player
+  private positionTimer: NodeJS.Timeout | null = null
+
+  constructor(getWindow: () => BrowserWindow | undefined) {
+    this.getWindow = getWindow
+  }
+
+  // ─── Lifecycle ─────────────────────────────────────────────────────────────
+
+  async start() {
+    this.registerIpc()
+
+    if (process.platform !== 'linux') {
+      console.log('[bt] non-linux platform — running in stub mode (no real Bluetooth)')
+      this.pushAll()
+      return
+    }
+
+    try {
+      // dbus-next is in optionalDependencies — only present on Linux installs.
+      // @ts-ignore — module may not be installed in this environment
+      const mod = await import('dbus-next')
+      this.dbus = (mod as any).default ?? mod
+    } catch (err) {
+      console.warn('[bt] dbus-next not installed — Bluetooth disabled. apt-get install + npm install on the Pi.', err)
+      this.pushAll()
+      return
+    }
+
+    try {
+      this.systemBus = this.dbus.systemBus()
+    } catch (err) {
+      console.warn('[bt] cannot connect to system D-Bus — Bluetooth disabled', err)
+      this.pushAll()
+      return
+    }
+    try {
+      this.sessionBus = this.dbus.sessionBus()
+    } catch (err) {
+      console.warn('[bt] cannot connect to session D-Bus (obex / PBAP will not work)', err)
+    }
+
+    await this.initBlueZ()
+    await this.initOFono()
+
+    // Start a slow timer to refresh player Position (BlueZ does not push every tick)
+    this.positionTimer = setInterval(() => this.refreshPlayerPosition().catch(() => undefined), 1000)
+
+    this.pushAll()
+  }
+
+  stop() {
+    if (this.positionTimer) clearInterval(this.positionTimer)
+    this.positionTimer = null
+    try { this.systemBus?.disconnect?.() } catch { /* */ }
+    try { this.sessionBus?.disconnect?.() } catch { /* */ }
+  }
+
+  // ─── IPC wiring (renderer → main) ──────────────────────────────────────────
+
+  private registerIpc() {
+    ipcMain.on('bt:requestState', () => this.pushAll())
+    ipcMain.on('bt:mediaCmd', (_e, cmd: string) => this.mediaCmd(cmd))
+    ipcMain.on('bt:dial',     (_e, num: string) => this.dial(num))
+    ipcMain.on('bt:answer',   ()                => this.answer())
+    ipcMain.on('bt:reject',   ()                => this.reject())
+    ipcMain.on('bt:hangup',   ()                => this.hangup())
+    ipcMain.on('bt:mute',     (_e, on: boolean) => this.setMuted(on))
+    ipcMain.on('bt:syncContacts', () => this.syncContacts())
+    ipcMain.on('bt:scan',     (_e, on: boolean) => this.scan(on))
+    ipcMain.on('bt:connect',    (_e, a: string) => this.connectDevice(a))
+    ipcMain.on('bt:disconnect', (_e, a: string) => this.disconnectDevice(a))
+    ipcMain.on('bt:forget',     (_e, a: string) => this.forgetDevice(a))
+  }
+
+  // ─── State push ────────────────────────────────────────────────────────────
+
+  private pushAll() {
+    const w = this.getWindow()
+    if (!w?.webContents) return
+    try {
+      w.webContents.send('bt:phone',    this.phoneState())
+      w.webContents.send('bt:media',    this.media)
+      w.webContents.send('bt:call',     this.call)
+      w.webContents.send('bt:contacts', this.contacts)
+      w.webContents.send('bt:devices',  this.deviceList())
+    } catch (err) {
+      // window may be closing — ignore
+    }
+  }
+
+  private pushPhone()    { this.getWindow()?.webContents?.send('bt:phone',    this.phoneState()) }
+  private pushMedia()    { this.getWindow()?.webContents?.send('bt:media',    this.media) }
+  private pushCall()     { this.getWindow()?.webContents?.send('bt:call',     this.call) }
+  private pushContacts() { this.getWindow()?.webContents?.send('bt:contacts', this.contacts) }
+  private pushDevices()  { this.getWindow()?.webContents?.send('bt:devices',  this.deviceList()) }
+
+  private phoneState(): PhoneState {
+    if (!this.activePhonePath) return { connected: false }
+    const d = this.devicePaths.get(this.activePhonePath)
+    if (!d) return { connected: false }
+    return { connected: d.connected, address: d.address, name: d.name, batteryPct: d.batteryPct }
+  }
+
+  private deviceList(): BtDevice[] {
+    return Array.from(this.devicePaths.values())
+      .sort((a, b) => Number(b.connected) - Number(a.connected) || a.name.localeCompare(b.name))
+  }
+
+  // ─── BlueZ init ────────────────────────────────────────────────────────────
+
+  private async initBlueZ() {
+    try {
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, BLUEZ_ROOT)
+      const om  = obj.getInterface(IFACE_OBJMGR)
+
+      const managed = await om.GetManagedObjects()
+      for (const [path, interfaces] of Object.entries(managed)) {
+        this.onObjectAdded(path, interfaces as any)
+      }
+
+      om.on('InterfacesAdded',   (path: string, ifaces: any) => this.onObjectAdded(path, ifaces))
+      om.on('InterfacesRemoved', (path: string, ifaces: string[]) => this.onObjectRemoved(path, ifaces))
+
+      console.log('[bt] BlueZ initialised — tracking', this.devicePaths.size, 'devices')
+    } catch (err) {
+      console.warn('[bt] BlueZ init failed — bluetoothd running?', err)
+    }
+  }
+
+  private async onObjectAdded(path: string, interfaces: any) {
+    if (interfaces[IFACE_DEVICE]) {
+      const props = unwrapVariants(interfaces[IFACE_DEVICE])
+      const dev: BtDevice = {
+        address:   String(props.Address ?? ''),
+        name:      String(props.Name ?? props.Alias ?? props.Address ?? 'Device'),
+        paired:    !!props.Paired,
+        connected: !!props.Connected,
+        trusted:   !!props.Trusted,
+        isPhone:   isPhone(props),
+      }
+      if (interfaces[IFACE_BATTERY]) {
+        const b = unwrapVariants(interfaces[IFACE_BATTERY])
+        if (typeof b.Percentage === 'number') dev.batteryPct = b.Percentage
+      }
+      this.devicePaths.set(path, dev)
+      await this.subscribeDeviceProps(path)
+      await this.subscribeBatteryProps(path)
+      this.maybePromoteToActivePhone(path)
+      this.pushDevices(); this.pushPhone()
+    }
+    if (interfaces[IFACE_PLAYER]) {
+      const props = unwrapVariants(interfaces[IFACE_PLAYER])
+      this.activePlayerPath = path
+      this.applyPlayerProps(props)
+      await this.subscribePlayerProps(path)
+      this.pushMedia()
+    }
+    if (interfaces[IFACE_BATTERY] && !interfaces[IFACE_DEVICE] && this.devicePaths.has(path)) {
+      const b = unwrapVariants(interfaces[IFACE_BATTERY])
+      const d = this.devicePaths.get(path)!
+      if (typeof b.Percentage === 'number') d.batteryPct = b.Percentage
+      this.pushDevices(); if (path === this.activePhonePath) this.pushPhone()
+    }
+  }
+
+  private onObjectRemoved(path: string, ifaces: string[]) {
+    if (ifaces.includes(IFACE_DEVICE)) {
+      this.devicePaths.delete(path)
+      if (path === this.activePhonePath) {
+        this.activePhonePath = null
+        this.pushPhone()
+      }
+      this.pushDevices()
+    }
+    if (ifaces.includes(IFACE_PLAYER) && this.activePlayerPath === path) {
+      this.activePlayerPath = null
+      this.media = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
+      this.pushMedia()
+    }
+  }
+
+  private async subscribeDeviceProps(path: string) {
+    try {
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
+      const p   = obj.getInterface(IFACE_PROPS)
+      p.on('PropertiesChanged', (iface: string, changed: any) => {
+        if (iface !== IFACE_DEVICE) return
+        const d = this.devicePaths.get(path); if (!d) return
+        const c = unwrapVariants(changed)
+        if ('Name'      in c) d.name      = String(c.Name)
+        if ('Alias'     in c) d.name      = d.name || String(c.Alias)
+        if ('Connected' in c) d.connected = !!c.Connected
+        if ('Paired'    in c) d.paired    = !!c.Paired
+        if ('Trusted'   in c) d.trusted   = !!c.Trusted
+        this.maybePromoteToActivePhone(path)
+        this.pushDevices()
+        if (path === this.activePhonePath) this.pushPhone()
+      })
+    } catch (err) { /* device gone */ }
+  }
+
+  private async subscribeBatteryProps(path: string) {
+    try {
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
+      try { obj.getInterface(IFACE_BATTERY) } catch { return } // no battery1 on this object
+      const p = obj.getInterface(IFACE_PROPS)
+      p.on('PropertiesChanged', (iface: string, changed: any) => {
+        if (iface !== IFACE_BATTERY) return
+        const d = this.devicePaths.get(path); if (!d) return
+        const c = unwrapVariants(changed)
+        if ('Percentage' in c) d.batteryPct = Number(c.Percentage)
+        this.pushDevices()
+        if (path === this.activePhonePath) this.pushPhone()
+      })
+    } catch { /* */ }
+  }
+
+  private async subscribePlayerProps(path: string) {
+    try {
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
+      const p   = obj.getInterface(IFACE_PROPS)
+      p.on('PropertiesChanged', (iface: string, changed: any) => {
+        if (iface !== IFACE_PLAYER) return
+        const c = unwrapVariants(changed)
+        this.applyPlayerProps(c)
+        this.pushMedia()
+      })
+    } catch { /* */ }
+  }
+
+  private applyPlayerProps(props: Record<string, any>) {
+    if ('Status' in props) this.media.playing = String(props.Status) === 'playing'
+    if ('Position' in props) this.media.positionSec = Math.floor(Number(props.Position) / 1000)
+    if ('Track' in props) {
+      const t = unwrapVariants(props.Track)
+      this.media.title    = t.Title    !== undefined ? String(t.Title)    : this.media.title
+      this.media.artist   = t.Artist   !== undefined ? String(t.Artist)   : this.media.artist
+      this.media.album    = t.Album    !== undefined ? String(t.Album)    : this.media.album
+      const dur = t.Duration !== undefined ? Math.floor(Number(t.Duration) / 1000) : 0
+      if (dur > 0) this.media.durationSec = dur
+      this.media.hasMetadata = !!(this.media.title || this.media.artist || this.media.album)
+    }
+  }
+
+  private async refreshPlayerPosition() {
+    if (!this.activePlayerPath || !this.systemBus) return
+    try {
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, this.activePlayerPath)
+      const p   = obj.getInterface(IFACE_PROPS)
+      const v   = await p.Get(IFACE_PLAYER, 'Position')
+      const pos = Math.floor(Number(unwrapVariant(v)) / 1000)
+      if (pos !== this.media.positionSec) {
+        this.media.positionSec = pos
+        this.pushMedia()
+      }
+    } catch { /* player gone or no Position prop */ }
+  }
+
+  /**
+   * Pick the most-recently-connected phone-like device as "the phone".
+   * Updates this.activePhonePath and pushes if it changed.
+   */
+  private maybePromoteToActivePhone(path: string) {
+    const d = this.devicePaths.get(path); if (!d) return
+    if (!d.connected) {
+      if (this.activePhonePath === path) {
+        // pick another connected phone if any
+        const alt = Array.from(this.devicePaths.entries()).find(([_, dv]) => dv.connected && dv.isPhone)
+        this.activePhonePath = alt ? alt[0] : null
+      }
+      return
+    }
+    if (!d.isPhone) return
+    if (this.activePhonePath === path) return
+    this.activePhonePath = path
+    console.log('[bt] active phone:', d.name, d.address)
+  }
+
+  // ─── BlueZ commands ────────────────────────────────────────────────────────
+
+  private async mediaCmd(cmd: string) {
+    if (!this.activePlayerPath || !this.systemBus) return
+    try {
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, this.activePlayerPath)
+      const mp  = obj.getInterface(IFACE_PLAYER)
+      if      (cmd === 'play')     await mp.Play()
+      else if (cmd === 'pause')    await mp.Pause()
+      else if (cmd === 'next')     await mp.Next()
+      else if (cmd === 'previous') await mp.Previous()
+      else if (cmd.startsWith('seek:')) {
+        // BlueZ MediaPlayer1 has no absolute seek; relative seek is rarely
+        // supported.  Best-effort: try FastForward / Rewind, or noop.
+        const tgt = Number(cmd.slice('seek:'.length))
+        const cur = this.media.positionSec
+        if (tgt > cur && typeof mp.FastForward === 'function') await mp.FastForward()
+        if (tgt < cur && typeof mp.Rewind      === 'function') await mp.Rewind()
+      }
+    } catch (err) { console.warn('[bt] media cmd failed', cmd, err) }
+  }
+
+  private async scan(on: boolean) {
+    if (!this.systemBus) return
+    try {
+      const adapterPath = await this.findAdapterPath()
+      if (!adapterPath) return
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, adapterPath)
+      const a   = obj.getInterface(IFACE_ADAPTER)
+      if (on) await a.StartDiscovery()
+      else    await a.StopDiscovery()
+    } catch (err) { console.warn('[bt] scan failed', err) }
+  }
+
+  private async findAdapterPath(): Promise<string | null> {
+    try {
+      const root = await this.systemBus.getProxyObject(BLUEZ_BUS, BLUEZ_ROOT)
+      const om   = root.getInterface(IFACE_OBJMGR)
+      const objs = await om.GetManagedObjects()
+      for (const [path, ifaces] of Object.entries(objs)) {
+        if ((ifaces as any)[IFACE_ADAPTER]) return path
+      }
+    } catch { /* */ }
+    return null
+  }
+
+  private async deviceOp(addr: string, op: 'Connect' | 'Disconnect' | 'Pair' | 'Trust') {
+    const path = this.pathForAddress(addr)
+    if (!path) return
+    try {
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
+      if (op === 'Trust') {
+        const p = obj.getInterface(IFACE_PROPS)
+        await p.Set(IFACE_DEVICE, 'Trusted', new this.dbus.Variant('b', true))
+      } else {
+        const d = obj.getInterface(IFACE_DEVICE)
+        await d[op]()
+      }
+    } catch (err) { console.warn(`[bt] ${op} failed for`, addr, err) }
+  }
+
+  private async connectDevice(addr: string) {
+    await this.deviceOp(addr, 'Trust').catch(() => undefined)
+    await this.deviceOp(addr, 'Connect')
+  }
+  private async disconnectDevice(addr: string) { await this.deviceOp(addr, 'Disconnect') }
+
+  private async forgetDevice(addr: string) {
+    const path = this.pathForAddress(addr)
+    if (!path) return
+    try {
+      const adapterPath = await this.findAdapterPath()
+      if (!adapterPath) return
+      const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, adapterPath)
+      const a   = obj.getInterface(IFACE_ADAPTER)
+      await a.RemoveDevice(path)
+    } catch (err) { console.warn('[bt] forget failed', err) }
+  }
+
+  private pathForAddress(addr: string): string | null {
+    const entries = Array.from(this.devicePaths.entries())
+    for (const [path, d] of entries) if (d.address === addr) return path
+    return null
+  }
+
+  // ─── ofono — calls + HFP ───────────────────────────────────────────────────
+
+  private async initOFono() {
+    if (!this.systemBus) return
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, '/')
+      const mgr = obj.getInterface(IFACE_OFONO_MGR)
+
+      const modems = await mgr.GetModems()
+      if (Array.isArray(modems) && modems.length > 0) {
+        this.activeModemPath = String(modems[0][0])
+        console.log('[bt] ofono modem:', this.activeModemPath)
+        await this.subscribeVCM(this.activeModemPath)
+      }
+      mgr.on('ModemAdded', async (path: string) => {
+        if (!this.activeModemPath) {
+          this.activeModemPath = path
+          await this.subscribeVCM(path)
+        }
+      })
+      mgr.on('ModemRemoved', (path: string) => {
+        if (this.activeModemPath === path) {
+          this.activeModemPath = null
+          this.activeCallPath = null
+          this.call = { status: 'idle', durationSec: 0, muted: false }
+          this.pushCall()
+        }
+      })
+    } catch (err) {
+      console.warn('[bt] ofono not available — calls disabled (install + start ofonod). err:', (err as Error).message)
+    }
+  }
+
+  private async subscribeVCM(modemPath: string) {
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, modemPath)
+      const vcm = obj.getInterface(IFACE_VCM)
+
+      const calls = await vcm.GetCalls()
+      if (Array.isArray(calls)) {
+        for (const [cpath, props] of calls) this.adoptCall(cpath, unwrapVariants(props))
+      }
+      vcm.on('CallAdded',   (cpath: string, props: any) => this.adoptCall(cpath, unwrapVariants(props)))
+      vcm.on('CallRemoved', (cpath: string)             => this.releaseCall(cpath))
+    } catch (err) { console.warn('[bt] VCM subscribe failed', err) }
+  }
+
+  private async adoptCall(path: string, props: Record<string, any>) {
+    this.activeCallPath = path
+    const num  = props.LineIdentification ? String(props.LineIdentification) : ''
+    const name = props.Name ? String(props.Name) : this.lookupContactName(num)
+    this.call = {
+      status:    callStatusFromOfono(String(props.State ?? '')),
+      contact:   num ? { number: num, name } : undefined,
+      durationSec: 0,
+      muted:     this.call.muted,
+    }
+    this.pushCall()
+
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, path)
+      const p   = obj.getInterface(IFACE_PROPS)
+      p.on('PropertiesChanged', (name2: string, value: any) => {
+        if (name2 === 'State') {
+          this.call.status = callStatusFromOfono(String(unwrapVariant(value)))
+          this.pushCall()
+        }
+      })
+    } catch { /* */ }
+  }
+
+  private releaseCall(path: string) {
+    if (this.activeCallPath !== path) return
+    this.activeCallPath = null
+    this.call = { status: 'idle', durationSec: 0, muted: false }
+    this.pushCall()
+  }
+
+  private async dial(num: string) {
+    if (!this.activeModemPath) {
+      console.warn('[bt] dial: no modem (ofono running?  HFP connected?)')
+      return
+    }
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeModemPath)
+      const vcm = obj.getInterface(IFACE_VCM)
+      await vcm.Dial(num, 'default')
+    } catch (err) { console.warn('[bt] dial failed', err) }
+  }
+
+  private async answer() {
+    if (!this.activeCallPath) return
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeCallPath)
+      await obj.getInterface(IFACE_VOICECALL).Answer()
+    } catch (err) { console.warn('[bt] answer failed', err) }
+  }
+
+  private async hangup() {
+    if (!this.activeCallPath) {
+      // No specific call — hangup all
+      if (this.activeModemPath) {
+        try {
+          const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeModemPath)
+          await obj.getInterface(IFACE_VCM).HangupAll()
+        } catch { /* */ }
+      }
+      return
+    }
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeCallPath)
+      await obj.getInterface(IFACE_VOICECALL).Hangup()
+    } catch (err) { console.warn('[bt] hangup failed', err) }
+  }
+
+  private async reject() {
+    // For an incoming call, Hangup() rejects it.
+    return this.hangup()
+  }
+
+  private async setMuted(on: boolean) {
+    this.call.muted = on
+    this.pushCall()
+    if (!this.activeModemPath) return
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeModemPath)
+      const p   = obj.getInterface(IFACE_PROPS)
+      await p.Set(IFACE_CALLVOL, 'Muted', new this.dbus.Variant('b', on))
+    } catch (err) { console.warn('[bt] mute failed', err) }
+  }
+
+  // ─── obex — PBAP phonebook sync ───────────────────────────────────────────
+
+  private async syncContacts() {
+    if (!this.sessionBus) {
+      this.contacts.lastError = 'session bus unavailable'
+      this.pushContacts()
+      return
+    }
+    if (!this.activePhonePath) {
+      this.contacts.lastError = 'no phone connected'
+      this.pushContacts()
+      return
+    }
+    const phone = this.devicePaths.get(this.activePhonePath)
+    if (!phone) return
+
+    this.contacts.syncing = true
+    this.contacts.lastError = undefined
+    this.pushContacts()
+
+    try {
+      const obj = await this.sessionBus.getProxyObject(OBEX_BUS, '/org/bluez/obex')
+      const client = obj.getInterface(IFACE_OBEX_MGR)
+      const sessionPath: string = await client.CreateSession(
+        phone.address,
+        { Target: new this.dbus.Variant('s', 'pbap') }
+      )
+
+      const sobj = await this.sessionBus.getProxyObject(OBEX_BUS, sessionPath)
+      const pb   = sobj.getInterface(IFACE_PBAP)
+      await pb.Select('int', 'pb')
+
+      // Pull the vcard list — names + handles only (cheap).
+      const listing = await pb.List({})
+      const items: Contact[] = []
+      for (const [handle, name] of listing as [string, string][]) {
+        try {
+          const [vcard] = await pb.Pull(handle, '', { Format: new this.dbus.Variant('s', 'vcard30') })
+          const parsed = parseVcard(String(vcard))
+          if (parsed.numbers.length > 0) {
+            items.push({
+              id: handle,
+              name: parsed.name || name || 'Unknown',
+              numbers: parsed.numbers,
+              photo: parsed.photo,
+            })
+          }
+        } catch { /* skip this card */ }
+      }
+
+      // Best-effort cleanup
+      try { await client.RemoveSession(sessionPath) } catch { /* */ }
+
+      this.contacts = {
+        synced: true, syncing: false,
+        contacts: items.sort((a, b) => a.name.localeCompare(b.name)),
+      }
+      this.pushContacts()
+    } catch (err) {
+      console.warn('[bt] PBAP sync failed', err)
+      this.contacts.syncing = false
+      this.contacts.lastError = (err as Error).message ?? 'pbap error'
+      this.pushContacts()
+    }
+  }
+
+  private lookupContactName(num: string): string | undefined {
+    if (!num) return undefined
+    const norm = num.replace(/[^\d]/g, '')
+    const tail = norm.slice(-7)
+    if (!tail) return undefined
+    const hit = this.contacts.contacts.find(c =>
+      c.numbers.some(n => n.number.replace(/[^\d]/g, '').endsWith(tail))
+    )
+    return hit?.name
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Unwrap dbus-next Variant ({signature, value}) to plain JS recursively (one level). */
+function unwrapVariants(obj: any): Record<string, any> {
+  if (!obj || typeof obj !== 'object') return obj
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(obj)) out[k] = unwrapVariant(v)
+  return out
+}
+
+function unwrapVariant(v: any): any {
+  if (v && typeof v === 'object' && 'value' in v && 'signature' in v) return v.value
+  return v
+}
+
+const PHONE_ICONS = new Set(['phone', 'phone-cell', 'phone-smartphone'])
+const HFP_UUIDS   = new Set([
+  '0000111e-0000-1000-8000-00805f9b34fb', // HFP HF
+  '0000111f-0000-1000-8000-00805f9b34fb', // HFP AG
+  '0000112f-0000-1000-8000-00805f9b34fb', // PBAP PSE
+  '00001130-0000-1000-8000-00805f9b34fb', // PBAP PCE
+])
+
+function isPhone(props: any): boolean {
+  const icon = String(props.Icon ?? '').toLowerCase()
+  if (PHONE_ICONS.has(icon)) return true
+  const uuids = Array.isArray(props.UUIDs) ? props.UUIDs.map((u: string) => u.toLowerCase()) : []
+  return uuids.some((u: string) => HFP_UUIDS.has(u))
+}
+
+function callStatusFromOfono(state: string): CallStatus {
+  switch (state) {
+    case 'incoming':    return 'incoming'
+    case 'waiting':     return 'incoming'
+    case 'dialing':     return 'dialing'
+    case 'alerting':    return 'dialing'
+    case 'active':      return 'active'
+    case 'held':        return 'held'
+    case 'disconnected':
+    default:            return 'idle'
+  }
+}
+
+/** Tiny vCard 3.0 parser — extracts FN + TEL entries + PHOTO if present. */
+function parseVcard(text: string): { name: string; numbers: { type?: string; number: string }[]; photo?: string } {
+  const lines = text.replace(/\r/g, '').split('\n')
+  // RFC 2425: lines starting with space/tab continue the previous line.
+  const unfolded: string[] = []
+  for (const ln of lines) {
+    if (ln.startsWith(' ') || ln.startsWith('\t')) unfolded[unfolded.length - 1] += ln.slice(1)
+    else unfolded.push(ln)
+  }
+  let name = ''
+  const numbers: { type?: string; number: string }[] = []
+  let photo: string | undefined
+  for (const ln of unfolded) {
+    if (ln.startsWith('FN:')) name = ln.slice(3).trim()
+    else if (/^TEL/i.test(ln)) {
+      const colon = ln.indexOf(':')
+      if (colon === -1) continue
+      const params = ln.slice(0, colon).toUpperCase()
+      const value  = ln.slice(colon + 1).trim()
+      if (!value) continue
+      const type = params.includes('CELL') ? 'mobile'
+                 : params.includes('HOME') ? 'home'
+                 : params.includes('WORK') ? 'work'
+                 : undefined
+      numbers.push({ type, number: value })
+    } else if (/^PHOTO/i.test(ln)) {
+      const colon = ln.indexOf(':')
+      if (colon !== -1 && /b/i.test(ln.slice(0, colon))) {
+        // base64-encoded inline photo
+        const mime = /JPEG/i.test(ln) ? 'image/jpeg' : /PNG/i.test(ln) ? 'image/png' : 'image/jpeg'
+        photo = `data:${mime};base64,${ln.slice(colon + 1).trim()}`
+      }
+    }
+  }
+  return { name, numbers, photo }
+}

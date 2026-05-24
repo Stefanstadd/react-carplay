@@ -73,6 +73,7 @@
   },
   "optionalDependencies": {
     "socketcan": "^4.0.4",
-    "socketmost": "^2.0.6"
+    "socketmost": "^2.0.6",
+    "dbus-next": "^0.10.2"
   }
 }
