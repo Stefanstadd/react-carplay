@@ -207,7 +207,7 @@ function NavBar({
 // ─── Music View ───────────────────────────────────────────────────────────────
 
 const NUM_BARS = 24
-const BAR_MIX_LO = 0.85
+const BAR_MIX_LO = 0.78
 const BAR_MIX_HI = 0.95
 const BAR_FREQS = [
   '60',
