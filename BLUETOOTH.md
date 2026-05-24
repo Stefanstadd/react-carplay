@@ -160,7 +160,103 @@ sudo systemctl enable ofono
 systemctl --user enable pulseaudio
 ```
 
-## 10. Troubleshooting
+## 10. EQ visualiser — capture the speaker output
+
+The head unit's EQ bars come from `getUserMedia({audio: true})`, which captures
+the system's *default input*.  By default that's the microphone — so the bars
+will react to ambient room sound instead of the music.  To make them track
+what's actually playing, set the default input to the **monitor source** of
+whichever sink is being used for music output.
+
+For a USB DAC (e.g. C-Media USB Audio Device):
+
+```bash
+pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
+```
+
+Substitute your own sink name — `pactl list sources short | grep monitor`
+shows what's available.
+
+**Make it persistent across reboots** with a one-shot user service:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/pa-default-monitor.service <<'EOF'
+[Unit]
+Description=Set default audio source to the speaker monitor
+After=pipewire-pulse.service
+Requires=pipewire-pulse.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user daemon-reload
+systemctl --user enable --now pa-default-monitor.service
+```
+
+**Once A2DP is working** and music is streaming from the phone *through the
+Pi*, switch the default to the BT monitor (the head unit's source-selection
+regex `/monitor|bluez|bluetooth/i` will then auto-pick it from
+enumerateDevices):
+
+```bash
+pactl set-default-source bluez_output.4C_79_75_69_EF_9D.1.monitor
+```
+
+If the bars only pulse weakly in the bass when music is playing, the head
+unit is running its **idle simulation** because `getUserMedia` either failed
+or returned a silent source — check the renderer DevTools console for
+`[eq]` log lines telling you which input was picked.
+
+## 11. PipeWire bluez profile gotchas
+
+On Bookworm with PipeWire, WirePlumber's default policy treats phones as
+*audio sources* (Pi as the A2DP source) and never exposes an `a2dp-sink`
+profile — `pactl list cards` shows only `audio-gateway` for the phone's
+`bluez_card`.  And if you run ofono, WirePlumber's native HFP backend
+collides with ofono on the same D-Bus path.
+
+Drop this file in to fix both:
+
+```bash
+sudo mkdir -p /etc/wireplumber/wireplumber.conf.d
+sudo nano /etc/wireplumber/wireplumber.conf.d/51-bluez-headunit.conf
+```
+
+```
+monitor.bluez.properties = {
+  bluez5.roles = [ a2dp_sink a2dp_source hfp_hf hfp_ag hsp_hs hsp_ag ]
+  bluez5.codecs = [ sbc sbc_xq aac ]
+  bluez5.enable-sbc-xq = true
+  bluez5.enable-msbc = true
+  bluez5.enable-hw-volume = true
+  bluez5.hfphsp-backend = "ofono"
+}
+```
+
+```bash
+systemctl --user restart wireplumber pipewire pipewire-pulse
+bluetoothctl disconnect <mac> && bluetoothctl connect <mac>
+```
+
+Then `pactl list cards` should show `a2dp-sink-aac` / `a2dp-sink-sbc` /
+`headset-head-unit` profiles, and `pactl set-card-profile bluez_card.<mac> a2dp-sink-aac`
+will activate A2DP audio routing.  On the iPhone, Control Center → audio
+widget → AirPlay → **SAAB Head Unit** to start streaming.
+
+If `pactl list cards` shows no bluez card *after* the restart, check
+`systemctl --user status wireplumber` — `RegisterProfile() failed:
+org.bluez.Error.NotPermitted` means WirePlumber's HFP backend collided with
+ofono (check `bluez5.hfphsp-backend = "ofono"` is set above), or ofono is
+running but wasn't started cleanly.
+
+## 12. Troubleshooting
 
 | Symptom | Check |
 |--------|-------|

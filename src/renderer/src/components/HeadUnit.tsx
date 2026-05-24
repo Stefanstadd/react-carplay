@@ -239,9 +239,16 @@ function MusicView({
   const isPlaying = media.playing && phoneConnected
   const artworkSrc = useITunesArt(media.title, media.artist, media.artworkSrc)
 
+  // isPlaying via a ref so the simulation fallback can react to play/pause
+  // without retearing the analyser on every state change.
+  const isPlayingRef = useRef(isPlaying)
+  useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
+
   // EQ analyser — capture audio from a PulseAudio monitor source (the
   // standard way to expose what's being played out the BT/HDMI/jack sink).
   // Falls back to a tasteful idle animation if no monitor source exists.
+  // Set up ONCE on mount — re-acquiring getUserMedia on every play/pause
+  // creates a gap where the simulation takes over.
   useEffect(() => {
     let cancelled = false
     let tick = 0
@@ -249,32 +256,36 @@ function MusicView({
       if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
       const ctx = new AudioContext()
       ctxRef.current = ctx
+      if (ctx.state === 'suspended') ctx.resume().catch(() => undefined)
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 64
+      analyser.smoothingTimeConstant = 0.6
       dataRef.current = new Uint8Array(analyser.frequencyBinCount)
       analyserRef.current = analyser
       ctx.createMediaStreamSource(stream).connect(analyser)
+      console.log('[eq] analyser attached, tracks:', stream.getAudioTracks().map(t => t.label))
     }
     const tryAudio = async () => {
       try {
-        // First call triggers permission + populates device labels.
         const probe = await navigator.mediaDevices.getUserMedia({ audio: true })
         const devs  = await navigator.mediaDevices.enumerateDevices()
-        const monitor = devs.find(d =>
-          d.kind === 'audioinput' && /monitor|bluez|bluetooth/i.test(d.label))
+        const inputs = devs.filter(d => d.kind === 'audioinput')
+        console.log('[eq] audio inputs:', inputs.map(d => ({ label: d.label, id: d.deviceId.slice(0, 8) })))
+        const monitor = inputs.find(d => /monitor|bluez|bluetooth/i.test(d.label))
         if (monitor && monitor.deviceId) {
+          console.log('[eq] using monitor source:', monitor.label)
           probe.getTracks().forEach(t => t.stop())
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: { deviceId: { exact: monitor.deviceId } } as MediaTrackConstraints,
           })
           attach(stream)
         } else {
-          // No monitor source detected — use the default input.  On Linux,
-          // setting the PulseAudio default source to the BT monitor makes
-          // this Just Work.  See BLUETOOTH.md.
+          console.log('[eq] no monitor source labelled — using default input (set PA default-source to capture speaker output)')
           attach(probe)
         }
-      } catch { /* simulation fallback */ }
+      } catch (err) {
+        console.warn('[eq] getUserMedia failed — using simulation fallback', err)
+      }
       startLoop()
     }
     const startLoop = () => {
@@ -288,12 +299,13 @@ function MusicView({
             setEqBars(Array.from({ length: NUM_BARS }, (_, i) =>
               dataRef.current![Math.floor((i / NUM_BARS) * len)] / 255))
           } else {
+            const playing = isPlayingRef.current
             setEqBars(prev => prev.map((v, i) => {
               const isBass = i < 4
               const speed  = isBass ? 0.05 : i < 12 ? 0.08 : 0.12
-              const ceiling = isPlaying ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
+              const ceiling = playing ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
               if (Math.random() < 0.04)
-                targetRef.current[i] = Math.random() * ceiling + (isPlaying ? 0.08 : 0.02)
+                targetRef.current[i] = Math.random() * ceiling + (playing ? 0.08 : 0.02)
               return v + (targetRef.current[i] - v) * speed
             }))
           }
@@ -309,7 +321,7 @@ function MusicView({
       ctxRef.current?.close()
       ctxRef.current = null; analyserRef.current = null; dataRef.current = null
     }
-  }, [isPlaying])
+  }, [])
 
   const progress = media.durationSec > 0
     ? Math.min(1, media.positionSec / media.durationSec) : 0
