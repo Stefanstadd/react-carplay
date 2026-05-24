@@ -222,6 +222,14 @@ function Carplay({ receivingVideo, setReceivingVideo, settings, command, command
   const isLoading = !isPlugged
   const active = pathname === '/carplay'
 
+  // Tell the render worker to stop decoding H264 frames when CarPlay isn't
+  // the active view.  Decoding is the heaviest CPU cost; skipping it while
+  // the user is on the head unit dashboard keeps the UI responsive.
+  useEffect(() => {
+    if (!renderWorker) return
+    renderWorker.postMessage({ type: 'setActive', active })
+  }, [active, renderWorker])
+
   return (
     <div
       style={{

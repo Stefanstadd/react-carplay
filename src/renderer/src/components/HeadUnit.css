@@ -413,8 +413,8 @@ img.hu-numpad-call-icon {
 }
 
 .hu-music-art {
-  width: 140px;
-  height: 140px;
+  width: 180px;
+  height: 180px;
   border: 2px solid var(--hu-green);
   background: var(--hu-bg-deep);
   display: flex;

@@ -209,32 +209,23 @@ function NavBar({
 const NUM_BARS = 24
 const BAR_MIX_LO = 0.78
 const BAR_MIX_HI = 0.95
-const BAR_FREQS = [
-  '60',
-  '100',
-  '160',
-  '250',
-  '400',
-  '630',
-  '1k',
-  '1.6k',
-  '2.5k',
-  '4k',
-  '6k',
-  '8k',
-  '10k',
-  '12k',
-  '13k',
-  '14k',
-  '15k',
-  '16k',
-  '17k',
-  '18k',
-  '19k',
-  '20k',
-  '21k',
-  '22k'
-]
+
+// Log-spaced center frequencies across the audible band.  The earlier
+// linear-to-bin mapping put 5kHz onto the "1k" label — this fixes it.
+const F_MIN_HZ = 30
+const F_MAX_HZ = 20000
+const BAR_RATIO = Math.pow(F_MAX_HZ / F_MIN_HZ, 1 / (NUM_BARS - 1)) // ≈1/3 octave per bar
+const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) =>
+  F_MIN_HZ * Math.pow(BAR_RATIO, i)
+)
+const formatHz = (hz: number): string => {
+  if (hz >= 1000) {
+    const k = hz / 1000
+    return k >= 10 ? `${Math.round(k)}k` : `${k.toFixed(1).replace(/\.0$/, '')}k`
+  }
+  return `${Math.round(hz)}`
+}
+const BAR_FREQS = BAR_CENTERS_HZ.map(formatHz)
 
 // Album art fallback via iTunes Search API.  AVRCP rarely carries cover art
 // (and BlueZ doesn't expose what little there is), so when we have title+artist
@@ -335,8 +326,12 @@ function MusicView({
       ctxRef.current = ctx
       if (ctx.state === 'suspended') ctx.resume().catch(() => undefined)
       const analyser = ctx.createAnalyser()
-      analyser.fftSize = 64
-      analyser.smoothingTimeConstant = 0.6
+      // 2048 → 1024 bins at 48kHz = 23.4 Hz/bin, enough resolution to
+      // distinguish 30 Hz from 60 Hz at the bottom of the band.
+      analyser.fftSize = 2048
+      analyser.smoothingTimeConstant = 0.65
+      analyser.minDecibels = -85
+      analyser.maxDecibels = -25
       dataRef.current = new Uint8Array(analyser.frequencyBinCount)
       analyserRef.current = analyser
       ctx.createMediaStreamSource(stream).connect(analyser)
@@ -380,12 +375,26 @@ function MusicView({
         if (tick % 2 === 0) {
           if (analyserRef.current && dataRef.current) {
             analyserRef.current.getByteFrequencyData(dataRef.current)
-            const len = dataRef.current.length
+            const sampleRate = ctxRef.current?.sampleRate ?? 48000
+            const bins = dataRef.current.length
+            const binWidth = sampleRate / 2 / bins
+            const edge = Math.sqrt(BAR_RATIO)
+            // Each bar covers center / sqrt(ratio) … center * sqrt(ratio).
+            // Average the FFT bins inside that range so log-spaced bars
+            // line up with their labels.
             setEqBars(
-              Array.from(
-                { length: NUM_BARS },
-                (_, i) => dataRef.current![Math.floor((i / NUM_BARS) * len)] / 255
-              )
+              Array.from({ length: NUM_BARS }, (_, i) => {
+                const center = BAR_CENTERS_HZ[i]
+                const lo = Math.max(0, Math.floor((center / edge) / binWidth))
+                const hi = Math.min(bins - 1, Math.ceil((center * edge) / binWidth))
+                let sum = 0
+                let n = 0
+                for (let b = lo; b <= hi; b++) {
+                  sum += dataRef.current![b]
+                  n++
+                }
+                return n > 0 ? sum / n / 255 : 0
+              })
             )
           } else {
             const playing = isPlayingRef.current

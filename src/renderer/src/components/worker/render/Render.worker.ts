@@ -25,6 +25,14 @@ export class RenderWorker {
   private frameCount = 0
   private timestamp = 0
   private fps = 0
+  // When false, incoming H264 frames are dropped instead of decoded.  Saves
+  // the bulk of the decode CPU when CarPlay isn't the active view.  Decoder
+  // resyncs on the next keyframe once we're re-enabled.
+  private active = true
+
+  setActive = (active: boolean) => {
+    this.active = active
+  }
 
   private onVideoDecoderOutput = (frame: VideoFrame) => {
     // Update statistics.
@@ -103,6 +111,9 @@ export class RenderWorker {
         console.log(decoderConfig)
       }
     }
+    // Skip decoding while inactive — biggest CPU win when CarPlay is in the
+    // background.  The decoder will resync on the next keyframe.
+    if (!this.active) return
     if (this.decoder.state === 'configured') {
       try {
         this.decoder.decode(
@@ -121,9 +132,11 @@ export class RenderWorker {
 
 // eslint-disable-next-line no-restricted-globals
 const worker = new RenderWorker(self)
-scope.addEventListener('message', (event: MessageEvent<WorkerEvent>) => {
+scope.addEventListener('message', (event: MessageEvent<any>) => {
   if (event.data.type === 'init') {
     worker.init(event.data as InitEvent)
+  } else if (event.data.type === 'setActive') {
+    worker.setActive(!!event.data.active)
   }
 })
 
