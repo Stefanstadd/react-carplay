@@ -217,7 +217,7 @@ const F_MAX_HZ = 20000
 const BAR_RATIO = Math.pow(F_MAX_HZ / F_MIN_HZ, 1 / (NUM_BARS - 1)) // ≈1/3 octave per bar
 const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) => F_MIN_HZ * Math.pow(BAR_RATIO, i))
 
-// ─── EQ responsiveness — tweak these to taste ─────────────────────────────
+// ─── EQ responsiveness + contrast — tweak these to taste ─────────────────
 // Peak-hold decay: each frame the previous bar height is multiplied by this
 // factor, and the bar shows max(decayedPrev, freshValue).  Lower = snappier
 // (bars track audio tightly, snap down fast), higher = smoother fall.
@@ -231,6 +231,21 @@ const EQ_FALL_FACTOR = 0.5
 //   0.3 → mild smoothing
 //   0.8 → heavy averaging
 const EQ_ANALYSER_SMOOTHING = 0.2
+// Gamma curve on the bar value — >1 squashes mid values and emphasises
+// peaks (more contrast: peakier peaks, deeper depths).  <1 expands the
+// middle so quiet sounds still register.
+//   0.5 → boost everything (everything looks active)
+//   1.0 → linear
+//   1.8 → moderate contrast (default)
+//   2.5 → strong contrast (only loud transients reach the top)
+const EQ_GAMMA = 1.8
+// Noise gate: anything below this fraction (after smoothing) is clamped
+// to zero so quiet bars actually fall to nothing instead of hovering.
+//   0.0  → no gate
+//   0.05 → eat just floor noise
+//   0.10 → also kill very quiet music tails
+//   0.20 → only mid-loud parts register
+const EQ_NOISE_GATE = 0.08
 const formatHz = (hz: number): string => {
   if (hz >= 1000) {
     const k = hz / 1000
@@ -408,7 +423,14 @@ function MusicView({
                   sum += dataRef.current![b]
                   n++
                 }
-                const value = n > 0 ? sum / n / 255 : 0
+                let value = n > 0 ? sum / n / 255 : 0
+                // Noise gate — drop quiet bars to zero and rescale the
+                // remaining [gate, 1] range back to [0, 1] so the gate
+                // doesn't visibly lower the loud parts.
+                if (value < EQ_NOISE_GATE) value = 0
+                else value = (value - EQ_NOISE_GATE) / (1 - EQ_NOISE_GATE)
+                // Gamma curve for visual contrast.
+                if (value > 0) value = Math.pow(value, EQ_GAMMA)
                 const decayed = prev[i] * EQ_FALL_FACTOR
                 return Math.max(value, decayed)
               })
