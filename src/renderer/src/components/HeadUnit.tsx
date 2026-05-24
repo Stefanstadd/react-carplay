@@ -216,6 +216,21 @@ const F_MIN_HZ = 30
 const F_MAX_HZ = 20000
 const BAR_RATIO = Math.pow(F_MAX_HZ / F_MIN_HZ, 1 / (NUM_BARS - 1)) // ≈1/3 octave per bar
 const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) => F_MIN_HZ * Math.pow(BAR_RATIO, i))
+
+// ─── EQ responsiveness — tweak these to taste ─────────────────────────────
+// Peak-hold decay: each frame the previous bar height is multiplied by this
+// factor, and the bar shows max(decayedPrev, freshValue).  Lower = snappier
+// (bars track audio tightly, snap down fast), higher = smoother fall.
+//   0.0 → bars snap to value every frame (jittery)
+//   0.5 → drops to half each frame → ~12% after 3 frames (~100 ms)
+//   0.8 → smoother, slower drop
+//   1.0 → bars never fall (only ever rise)
+const EQ_FALL_FACTOR = 0.5
+// Web Audio's temporal smoothing on the raw FFT data.  Stacked with FALL.
+//   0.0 → frame-fresh FFT bins (most responsive, can look noisy)
+//   0.3 → mild smoothing
+//   0.8 → heavy averaging
+const EQ_ANALYSER_SMOOTHING = 0.2
 const formatHz = (hz: number): string => {
   if (hz >= 1000) {
     const k = hz / 1000
@@ -327,7 +342,7 @@ function MusicView({
       // 2048 → 1024 bins at 48kHz = 23.4 Hz/bin, enough resolution to
       // distinguish 30 Hz from 60 Hz at the bottom of the band.
       analyser.fftSize = 2048
-      analyser.smoothingTimeConstant = 0.65
+      analyser.smoothingTimeConstant = EQ_ANALYSER_SMOOTHING
       analyser.minDecibels = -85
       analyser.maxDecibels = -25
       dataRef.current = new Uint8Array(analyser.frequencyBinCount)
@@ -378,9 +393,11 @@ function MusicView({
             const binWidth = sampleRate / 2 / bins
             const edge = Math.sqrt(BAR_RATIO)
             // Each bar covers center / sqrt(ratio) … center * sqrt(ratio).
-            // Average the FFT bins inside that range so log-spaced bars
-            // line up with their labels.
-            setEqBars(
+            // Average the FFT bins in that range, then apply peak-hold
+            // decay: rise instantly to the new value, fall by
+            // EQ_FALL_FACTOR per frame.  Tune EQ_FALL_FACTOR at the top
+            // of this file for snappiness vs. smoothness.
+            setEqBars((prev) =>
               Array.from({ length: NUM_BARS }, (_, i) => {
                 const center = BAR_CENTERS_HZ[i]
                 const lo = Math.max(0, Math.floor(center / edge / binWidth))
@@ -391,7 +408,9 @@ function MusicView({
                   sum += dataRef.current![b]
                   n++
                 }
-                return n > 0 ? sum / n / 255 : 0
+                const value = n > 0 ? sum / n / 255 : 0
+                const decayed = prev[i] * EQ_FALL_FACTOR
+                return Math.max(value, decayed)
               })
             )
           } else {
