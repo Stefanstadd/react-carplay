@@ -207,17 +207,15 @@ function NavBar({
 // ─── Music View ───────────────────────────────────────────────────────────────
 
 const NUM_BARS = 24
-const BAR_MIX_LO = 0.78
-const BAR_MIX_HI = 0.95
+const BAR_MIX_LO = 0.7
+const BAR_MIX_HI = 0.9
 
 // Log-spaced center frequencies across the audible band.  The earlier
 // linear-to-bin mapping put 5kHz onto the "1k" label — this fixes it.
 const F_MIN_HZ = 30
 const F_MAX_HZ = 20000
 const BAR_RATIO = Math.pow(F_MAX_HZ / F_MIN_HZ, 1 / (NUM_BARS - 1)) // ≈1/3 octave per bar
-const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) =>
-  F_MIN_HZ * Math.pow(BAR_RATIO, i)
-)
+const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) => F_MIN_HZ * Math.pow(BAR_RATIO, i))
 const formatHz = (hz: number): string => {
   if (hz >= 1000) {
     const k = hz / 1000
@@ -385,7 +383,7 @@ function MusicView({
             setEqBars(
               Array.from({ length: NUM_BARS }, (_, i) => {
                 const center = BAR_CENTERS_HZ[i]
-                const lo = Math.max(0, Math.floor((center / edge) / binWidth))
+                const lo = Math.max(0, Math.floor(center / edge / binWidth))
                 const hi = Math.min(bins - 1, Math.ceil((center * edge) / binWidth))
                 let sum = 0
                 let n = 0
