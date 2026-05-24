@@ -207,7 +207,7 @@ function NavBar({
 // ─── Music View ───────────────────────────────────────────────────────────────
 
 const NUM_BARS = 24
-const BAR_MIX_LO = 0.7
+const BAR_MIX_LO = 0.6
 const BAR_MIX_HI = 0.9
 
 // Log-spaced center frequencies across the audible band.  The earlier
