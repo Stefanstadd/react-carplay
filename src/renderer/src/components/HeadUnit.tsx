@@ -203,14 +203,19 @@ function useITunesArt(title?: string, artist?: string, embedded?: string): strin
     if (artCache.has(key)) { setArt(artCache.get(key) ?? undefined); return }
     let cancelled = false
     const term = encodeURIComponent(`${artist} ${title}`)
+    console.log('[art] iTunes lookup:', artist, '—', title)
     fetch(`https://itunes.apple.com/search?term=${term}&limit=1&media=music`)
       .then(r => r.json())
       .then(data => {
         const url100 = data?.results?.[0]?.artworkUrl100 as string | undefined
         const big = url100?.replace(/100x100bb/, '600x600bb') ?? null
+        console.log('[art] iTunes result:', big ?? '(no hit)')
         if (!cancelled) { artCache.set(key, big); setArt(big ?? undefined) }
       })
-      .catch(() => { if (!cancelled) { artCache.set(key, null); setArt(undefined) } })
+      .catch((err) => {
+        console.warn('[art] iTunes fetch failed', err)
+        if (!cancelled) { artCache.set(key, null); setArt(undefined) }
+      })
     return () => { cancelled = true }
   }, [title, artist, embedded])
   return art
@@ -379,7 +384,18 @@ function MusicView({
       <div className="hu-info-area">
         <div className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}>
           {artworkSrc
-            ? <img src={artworkSrc} alt="album art" className="hu-art-img"/>
+            ? <img
+                src={artworkSrc}
+                alt=""
+                crossOrigin="anonymous"
+                className="hu-art-img"
+                onError={(e) => {
+                  // Image was returned but failed to load (network, CORS, CORP).
+                  // Hide so the SVG fallback shows instead of broken alt text.
+                  (e.currentTarget as HTMLImageElement).style.display = 'none'
+                  console.warn('[art] image failed to load', artworkSrc)
+                }}
+              />
             : <svg viewBox="0 0 80 80" width="100%" height="100%" opacity="0.6" shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
                 <rect x="14" y="14" width="52" height="52" fill="none" stroke="#00ff0a" strokeWidth="3"/>
                 <rect x="36" y="34" width="8" height="14" fill="#00ff0a"/>

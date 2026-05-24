@@ -166,6 +166,10 @@ function createWindow(): void {
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     details.responseHeaders!['Cross-Origin-Opener-Policy'] = ['same-origin'];
     details.responseHeaders!['Cross-Origin-Embedder-Policy'] = ['require-corp'];
+    // COEP=require-corp blocks every cross-origin resource that doesn't
+    // advertise CORP — including the iTunes album-art CDN.  We trust everything
+    // we load (it's a kiosk), so unconditionally allow embedding.
+    details.responseHeaders!['Cross-Origin-Resource-Policy'] = ['cross-origin'];
     callback({ responseHeaders: details.responseHeaders });
   });
 }
@@ -193,7 +197,8 @@ app.whenReady().then(() => {
       responseHeaders: {
         ...details.responseHeaders,
         'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp'
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Cross-Origin-Resource-Policy': 'cross-origin'
       }
     })
   })
