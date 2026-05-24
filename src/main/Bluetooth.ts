@@ -10,6 +10,9 @@
 // drive things from the user (Connect, Dial, MediaPlayer1.Play, etc.).
 
 import { ipcMain, BrowserWindow } from 'electron'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
 
 // ─── Types pushed to renderer ────────────────────────────────────────────────
 
@@ -609,7 +612,7 @@ export class BluetoothManager {
 
   private async syncContacts() {
     if (!this.sessionBus) {
-      this.contacts.lastError = 'session bus unavailable'
+      this.contacts.lastError = 'session bus unavailable (no user D-Bus)'
       this.pushContacts()
       return
     }
@@ -625,38 +628,45 @@ export class BluetoothManager {
     this.contacts.lastError = undefined
     this.pushContacts()
 
+    const tmpFile = path.join(os.tmpdir(), `headunit-pbap-${Date.now()}.vcf`)
+    let sessionPath: string | null = null
+
     try {
+      console.log('[bt] PBAP: opening obex Client1 …')
       const obj = await this.sessionBus.getProxyObject(OBEX_BUS, '/org/bluez/obex')
       const client = obj.getInterface(IFACE_OBEX_MGR)
-      const sessionPath: string = await client.CreateSession(
+
+      console.log('[bt] PBAP: CreateSession ->', phone.address)
+      sessionPath = await client.CreateSession(
         phone.address,
         { Target: new this.dbus.Variant('s', 'pbap') }
       )
+      console.log('[bt] PBAP: session', sessionPath)
 
-      const sobj = await this.sessionBus.getProxyObject(OBEX_BUS, sessionPath)
+      const sobj = await this.sessionBus.getProxyObject(OBEX_BUS, sessionPath!)
       const pb   = sobj.getInterface(IFACE_PBAP)
+
+      console.log('[bt] PBAP: Select(int, pb)')
       await pb.Select('int', 'pb')
 
-      // Pull the vcard list — names + handles only (cheap).
-      const listing = await pb.List({})
-      const items: Contact[] = []
-      for (const [handle, name] of listing as [string, string][]) {
-        try {
-          const [vcard] = await pb.Pull(handle, '', { Format: new this.dbus.Variant('s', 'vcard30') })
-          const parsed = parseVcard(String(vcard))
-          if (parsed.numbers.length > 0) {
-            items.push({
-              id: handle,
-              name: parsed.name || name || 'Unknown',
-              numbers: parsed.numbers,
-              photo: parsed.photo,
-            })
-          }
-        } catch { /* skip this card */ }
-      }
+      console.log('[bt] PBAP: PullAll ->', tmpFile)
+      const result = await pb.PullAll(tmpFile, {
+        Format: new this.dbus.Variant('s', 'vcard30'),
+      })
+      // PullAll returns (transferPath, propertiesDict)
+      const transferPath: string = Array.isArray(result) ? result[0] : result
+      const transferProps: any   = Array.isArray(result) ? result[1] : {}
+      const actualFile = String(unwrapVariant(transferProps?.Filename) || tmpFile)
 
-      // Best-effort cleanup
-      try { await client.RemoveSession(sessionPath) } catch { /* */ }
+      console.log('[bt] PBAP: waiting for transfer', transferPath)
+      await this.waitForObexTransfer(transferPath)
+
+      console.log('[bt] PBAP: reading', actualFile)
+      const vcfText = await readFileSafe(actualFile)
+      try { fs.unlinkSync(actualFile) } catch { /* */ }
+
+      const items = parseVcardList(vcfText)
+      console.log(`[bt] PBAP: parsed ${items.length} contacts`)
 
       this.contacts = {
         synced: true, syncing: false,
@@ -666,9 +676,56 @@ export class BluetoothManager {
     } catch (err) {
       console.warn('[bt] PBAP sync failed', err)
       this.contacts.syncing = false
-      this.contacts.lastError = (err as Error).message ?? 'pbap error'
+      this.contacts.lastError = (err as Error).message ?? String(err) ?? 'pbap error'
       this.pushContacts()
+    } finally {
+      if (sessionPath) {
+        try {
+          const obj = await this.sessionBus.getProxyObject(OBEX_BUS, '/org/bluez/obex')
+          await obj.getInterface(IFACE_OBEX_MGR).RemoveSession(sessionPath)
+        } catch { /* */ }
+      }
     }
+  }
+
+  /** Resolves when an obex Transfer1 reaches Status="complete", rejects on "error" or timeout. */
+  private waitForObexTransfer(transferPath: string): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('PBAP transfer timeout (30s)'))
+      }, 30000)
+
+      this.sessionBus.getProxyObject(OBEX_BUS, transferPath).then((obj: any) => {
+        const props = obj.getInterface(IFACE_PROPS)
+
+        const finish = (ok: boolean, why?: string) => {
+          clearTimeout(timer)
+          try { props.removeListener?.('PropertiesChanged', listener) } catch { /* */ }
+          ok ? resolve() : reject(new Error(why ?? 'PBAP transfer error'))
+        }
+
+        const listener = (iface: string, changed: any) => {
+          if (iface !== 'org.bluez.obex.Transfer1') return
+          const c = unwrapVariants(changed)
+          if ('Status' in c) {
+            const status = String(c.Status)
+            if (status === 'complete') finish(true)
+            else if (status === 'error') finish(false, 'PBAP transfer reported error')
+          }
+        }
+        props.on('PropertiesChanged', listener)
+
+        // Race: it might already be done before we attached the listener.
+        props.GetAll('org.bluez.obex.Transfer1').then((all: any) => {
+          const status = String(unwrapVariant(all?.Status) ?? '')
+          if (status === 'complete') finish(true)
+          else if (status === 'error') finish(false, 'PBAP transfer reported error')
+        }).catch(() => { /* may already be gone — wait for the signal */ })
+      }).catch((err: any) => {
+        clearTimeout(timer)
+        reject(err)
+      })
+    })
   }
 
   private lookupContactName(num: string): string | undefined {
@@ -724,6 +781,42 @@ function callStatusFromOfono(state: string): CallStatus {
     case 'disconnected':
     default:            return 'idle'
   }
+}
+
+async function readFileSafe(p: string): Promise<string> {
+  // Tiny retry — obexd may have just finished writing.
+  for (let i = 0; i < 5; i++) {
+    try {
+      const buf = fs.readFileSync(p)
+      if (buf.length > 0) return buf.toString('utf-8')
+    } catch { /* not there yet */ }
+    await new Promise(r => setTimeout(r, 100))
+  }
+  return fs.readFileSync(p).toString('utf-8')
+}
+
+/** Split a multi-vCard file into individual vCard blocks and parse each. */
+function parseVcardList(text: string): Contact[] {
+  const blocks: string[] = []
+  let current: string[] = []
+  for (const ln of text.split(/\r?\n/)) {
+    if (/^BEGIN:VCARD/i.test(ln)) current = [ln]
+    else if (/^END:VCARD/i.test(ln)) { current.push(ln); blocks.push(current.join('\n')); current = [] }
+    else if (current.length > 0) current.push(ln)
+  }
+  const items: Contact[] = []
+  blocks.forEach((b, idx) => {
+    const parsed = parseVcard(b)
+    if (parsed.numbers.length > 0) {
+      items.push({
+        id: `c${idx}`,
+        name: parsed.name || 'Unknown',
+        numbers: parsed.numbers,
+        photo: parsed.photo,
+      })
+    }
+  })
+  return items
 }
 
 /** Tiny vCard 3.0 parser — extracts FN + TEL entries + PHOTO if present. */

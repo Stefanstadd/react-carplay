@@ -654,6 +654,7 @@ function PhoneView({
               contacts={bt.contacts.contacts}
               synced={bt.contacts.synced}
               syncing={bt.contacts.syncing}
+              lastError={bt.contacts.lastError}
               onCall={onCallContact}
             />
           )}
@@ -677,11 +678,24 @@ function PhoneView({
 }
 
 function ContactsList({
-  contacts, synced, syncing, onCall,
+  contacts, synced, syncing, lastError, onCall,
 }: {
   contacts: Contact[]; synced: boolean; syncing: boolean
+  lastError?: string
   onCall: (c: Contact) => void
 }) {
+  if (lastError && !syncing) {
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">SYNC FAILED</div>
+        <div className="hu-empty-sub">{lastError}</div>
+        <div className="hu-empty-sub" style={{ fontSize: 22, opacity: 0.7 }}>
+          On iPhone: Settings → Bluetooth → tap (i) next to the head unit → enable Sync Contacts.
+          Then tap SYNC again.
+        </div>
+      </div>
+    )
+  }
   if (!synced && !syncing && contacts.length === 0) {
     return (
       <div className="hu-empty-state">
