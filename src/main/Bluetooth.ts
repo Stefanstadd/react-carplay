@@ -31,6 +31,7 @@ export interface PhoneState {
   address?: string
   name?: string
   batteryPct?: number
+  charging?: boolean
 }
 
 export interface MediaState {
@@ -214,6 +215,8 @@ export class BluetoothManager {
     if (!this.activePhonePath) return { connected: false }
     const d = this.devicePaths.get(this.activePhonePath)
     if (!d) return { connected: false }
+    // Note: BlueZ Battery1 doesn't expose charging state for iOS — the
+    // charging field stays undefined unless a future BlueZ version surfaces it.
     return { connected: d.connected, address: d.address, name: d.name, batteryPct: d.batteryPct }
   }
 
@@ -275,6 +278,9 @@ export class BluetoothManager {
       const b = unwrapVariants(interfaces[IFACE_BATTERY])
       const d = this.devicePaths.get(path)!
       if (typeof b.Percentage === 'number') d.batteryPct = b.Percentage
+      // Battery1 appeared AFTER Device1 (typical for HFP-derived battery) —
+      // subscribe now or we'll never get updates.
+      await this.subscribeBatteryProps(path)
       this.pushDevices(); if (path === this.activePhonePath) this.pushPhone()
     }
   }
@@ -349,11 +355,17 @@ export class BluetoothManager {
     if ('Position' in props) this.media.positionSec = Math.floor(Number(props.Position) / 1000)
     if ('Track' in props) {
       const t = unwrapVariants(props.Track)
-      this.media.title    = t.Title    !== undefined ? String(t.Title)    : this.media.title
-      this.media.artist   = t.Artist   !== undefined ? String(t.Artist)   : this.media.artist
-      this.media.album    = t.Album    !== undefined ? String(t.Album)    : this.media.album
+      const newTitle  = t.Title  !== undefined ? String(t.Title)  : this.media.title
+      const newArtist = t.Artist !== undefined ? String(t.Artist) : this.media.artist
+      const trackChanged = newTitle !== this.media.title || newArtist !== this.media.artist
+      this.media.title  = newTitle
+      this.media.artist = newArtist
+      this.media.album  = t.Album !== undefined ? String(t.Album) : this.media.album
       const dur = t.Duration !== undefined ? Math.floor(Number(t.Duration) / 1000) : 0
       if (dur > 0) this.media.durationSec = dur
+      // When the track changes (next/previous), position resets to 0 — most
+      // phones don't push Position alongside Track, so do it here.
+      if (trackChanged && !('Position' in props)) this.media.positionSec = 0
       this.media.hasMetadata = !!(this.media.title || this.media.artist || this.media.album)
     }
   }

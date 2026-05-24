@@ -23,6 +23,7 @@ export interface PhoneState {
   address?: string
   name?: string
   batteryPct?: number
+  charging?: boolean
 }
 
 export interface MediaState {
@@ -157,15 +158,35 @@ export function normaliseNumber(n: string): string {
   return plus + trimmed.replace(/[^\d]/g, '')
 }
 
+// T9 letter-to-digit mapping for dial-pad name search.
+const T9: Record<string, string> = {
+  a:'2', b:'2', c:'2',
+  d:'3', e:'3', f:'3',
+  g:'4', h:'4', i:'4',
+  j:'5', k:'5', l:'5',
+  m:'6', n:'6', o:'6',
+  p:'7', q:'7', r:'7', s:'7',
+  t:'8', u:'8', v:'8',
+  w:'9', x:'9', y:'9', z:'9',
+}
+
+function nameToT9(name: string): string {
+  return name.toLowerCase().split('').map(c => T9[c] ?? '').join('')
+}
+
 /**
- * Match contacts whose numbers contain the typed digits (in order).
- * Uses last-N digits matching so partial dial strings work naturally.
+ * Match contacts whose numbers contain the typed digits (in order), OR
+ * whose name (T9-encoded) starts with the typed digits.  So "262" matches
+ * both the phone number 026...262... AND the name "Bob" (B=2, o=6, b=2).
  */
 export function filterContactsByDial(contacts: Contact[], dial: string): Contact[] {
   const digits = dial.replace(/[^\d]/g, '')
   if (!digits) return contacts
   return contacts.filter(c =>
-    c.numbers.some(n => normaliseNumber(n.number).replace(/^\+/, '').includes(digits))
+    c.numbers.some(n => normaliseNumber(n.number).replace(/^\+/, '').includes(digits)) ||
+    nameToT9(c.name).startsWith(digits) ||
+    // Also match against individual words in the name ("john smith" → 5646...7648)
+    c.name.toLowerCase().split(/\s+/).some(word => nameToT9(word).startsWith(digits))
   )
 }
 

@@ -127,6 +127,15 @@ img.hu-numpad-call-icon {
   font-size: 26px;
   color: var(--hu-green-mid);
   letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hu-phone-charging {
+  font-size: 28px;
+  color: var(--hu-green);
+  line-height: 1;
 }
 
 /* ─── Content area / screen stack ──────────────────────────────────────── */
@@ -303,8 +312,11 @@ img.hu-numpad-call-icon {
 .hu-info-area {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  text-align: left;
   gap: 24px;
   min-height: 0;
+  width: 100%;
 }
 
 .hu-controls-area {
@@ -428,8 +440,11 @@ img.hu-numpad-call-icon {
 .hu-music-text {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
   gap: 2px;
   min-width: 0;
+  flex: 1;
 }
 
 .hu-music-via {
@@ -1156,4 +1171,99 @@ img.hu-numpad-call-icon {
   width: 40px;
   height: 40px;
   filter: brightness(0);
+}
+
+/* ─── Touch scrolling on scrollable panes ───────────────────────────────
+   App.tsx applies touch-action:none globally to suppress page-level pinch
+   and pan-to-scroll on the dashboard.  Re-enable vertical pan inside lists
+   so the user can finger-swipe through contacts/recents.                  */
+.hu-phone-content,
+.hu-dial-matches {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ─── Numpad keys with letter labels ──────────────────────────────────── */
+.hu-numpad-key {
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0;
+}
+
+.hu-numpad-digit {
+  font-size: 44px;
+  line-height: 1;
+}
+
+.hu-numpad-letters {
+  font-size: 16px;
+  color: var(--hu-green-mid);
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+
+.hu-numpad-key:hover .hu-numpad-letters,
+.hu-numpad-key:active .hu-numpad-letters,
+.hu-numpad-key:focus-visible .hu-numpad-letters {
+  color: var(--hu-bg-deep);
+}
+
+.hu-call-green .hu-numpad-letters,
+.hu-call-green .hu-numpad-digit {
+  color: var(--hu-bg-deep);
+}
+
+/* ─── List section headers (A / B / C …) ──────────────────────────────── */
+.hu-list-section {
+  font-size: 28px;
+  color: var(--hu-green);
+  letter-spacing: 0.20em;
+  padding: 16px 8px 6px;
+  border-bottom: 1px solid var(--hu-green-mid);
+  background: var(--hu-bg-panel);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* ─── Selected list row (tap-to-select, then tap CALL to dial) ────────── */
+.hu-list-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hu-list-row-selected {
+  background: var(--hu-green);
+  color: var(--hu-bg-deep);
+}
+
+.hu-list-row-selected .hu-list-name,
+.hu-list-row-selected .hu-list-sub,
+.hu-list-row-selected .hu-call-time {
+  color: var(--hu-bg-deep);
+}
+
+.hu-list-row-selected .hu-avatar {
+  background: var(--hu-bg-deep);
+  color: var(--hu-green);
+}
+
+.hu-list-row-selected .hu-call-icon-img {
+  filter: none;
+}
+
+/* Suppress the row hover state on touch devices so finger-swiping doesn't
+   leave hover-highlighted rows behind across the list. */
+@media (hover: none) {
+  .hu-list-row:hover {
+    background: transparent;
+    color: inherit;
+  }
+  .hu-list-row:hover .hu-list-name,
+  .hu-list-row:hover .hu-list-sub,
+  .hu-list-row:hover .hu-call-time {
+    color: inherit;
+  }
+  .hu-list-row:hover .hu-call-icon-img { filter: none; }
 }

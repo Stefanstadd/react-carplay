@@ -111,13 +111,19 @@ function HUHeader({ phone }: { phone: PhoneState }) {
         {phone.connected ? (
           <>
             <span className="hu-phone-name">{phone.name ?? 'Phone'}</span>
-            <svg viewBox="0 0 30 14" width="56" height="26">
+            <svg viewBox="0 0 30 14" width="56" height="26" className="hu-batt-svg">
               <rect x="0.75" y="0.75" width="25.5" height="12.5" rx="0" fill="none" stroke="#00ff0a" strokeWidth="1.5"/>
               <rect x="26.25" y="4" width="3" height="6" rx="0" fill="#00ff0a"/>
               <rect x="2" y="2" width={fillW} height="10" rx="0" fill="#00ff0a"/>
+              {phone.charging && (
+                <polygon points="14,3 9,8 13,8 11,12 16,7 12,7" fill="#001500" stroke="#001500" strokeWidth="0.4"/>
+              )}
             </svg>
             {phone.batteryPct !== undefined && (
-              <span className="hu-phone-batt">{Math.round(phone.batteryPct)}%</span>
+              <span className="hu-phone-batt">
+                {Math.round(phone.batteryPct)}%
+                {phone.charging && <span className="hu-phone-charging" aria-label="charging">⚡</span>}
+              </span>
             )}
           </>
         ) : (
@@ -183,6 +189,33 @@ const BAR_FREQS = [
   '10k','12k','13k','14k','15k','16k','17k','18k','19k','20k','21k','22k',
 ]
 
+// Album art fallback via iTunes Search API.  AVRCP rarely carries cover art
+// (and BlueZ doesn't expose what little there is), so when we have title+artist
+// we fetch a cover from iTunes.  Cached per artist|title to avoid re-fetching.
+const artCache = new Map<string, string | null>()
+
+function useITunesArt(title?: string, artist?: string, embedded?: string): string | undefined {
+  const [art, setArt] = useState<string | undefined>(embedded)
+  useEffect(() => {
+    if (embedded) { setArt(embedded); return }
+    if (!title || !artist || title === 'No Track') { setArt(undefined); return }
+    const key = `${artist}|${title}`
+    if (artCache.has(key)) { setArt(artCache.get(key) ?? undefined); return }
+    let cancelled = false
+    const term = encodeURIComponent(`${artist} ${title}`)
+    fetch(`https://itunes.apple.com/search?term=${term}&limit=1&media=music`)
+      .then(r => r.json())
+      .then(data => {
+        const url100 = data?.results?.[0]?.artworkUrl100 as string | undefined
+        const big = url100?.replace(/100x100bb/, '600x600bb') ?? null
+        if (!cancelled) { artCache.set(key, big); setArt(big ?? undefined) }
+      })
+      .catch(() => { if (!cancelled) { artCache.set(key, null); setArt(undefined) } })
+    return () => { cancelled = true }
+  }, [title, artist, embedded])
+  return art
+}
+
 function MusicView({
   onLaunchCarplay,
   onSelectView,
@@ -204,26 +237,42 @@ function MusicView({
   const phoneConnected = bt.phone.connected
   const media = bt.media
   const isPlaying = media.playing && phoneConnected
+  const artworkSrc = useITunesArt(media.title, media.artist, media.artworkSrc)
 
-  // EQ analyser — tries to attach to system audio.  If unavailable, falls
-  // back to a tasteful idle animation that's heavier when audio is playing.
+  // EQ analyser — capture audio from a PulseAudio monitor source (the
+  // standard way to expose what's being played out the BT/HDMI/jack sink).
+  // Falls back to a tasteful idle animation if no monitor source exists.
   useEffect(() => {
     let cancelled = false
     let tick = 0
+    const attach = (stream: MediaStream) => {
+      if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+      const ctx = new AudioContext()
+      ctxRef.current = ctx
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 64
+      dataRef.current = new Uint8Array(analyser.frequencyBinCount)
+      analyserRef.current = analyser
+      ctx.createMediaStreamSource(stream).connect(analyser)
+    }
     const tryAudio = async () => {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          audio: true, video: { width: 1, height: 1, frameRate: 1 } as MediaTrackConstraints,
-        })
-        stream.getVideoTracks().forEach(t => t.stop())
-        if (!cancelled && stream.getAudioTracks().length > 0) {
-          const ctx = new AudioContext()
-          ctxRef.current = ctx
-          const analyser = ctx.createAnalyser()
-          analyser.fftSize = 64
-          dataRef.current = new Uint8Array(analyser.frequencyBinCount)
-          analyserRef.current = analyser
-          ctx.createMediaStreamSource(stream).connect(analyser)
+        // First call triggers permission + populates device labels.
+        const probe = await navigator.mediaDevices.getUserMedia({ audio: true })
+        const devs  = await navigator.mediaDevices.enumerateDevices()
+        const monitor = devs.find(d =>
+          d.kind === 'audioinput' && /monitor|bluez|bluetooth/i.test(d.label))
+        if (monitor && monitor.deviceId) {
+          probe.getTracks().forEach(t => t.stop())
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: { deviceId: { exact: monitor.deviceId } } as MediaTrackConstraints,
+          })
+          attach(stream)
+        } else {
+          // No monitor source detected — use the default input.  On Linux,
+          // setting the PulseAudio default source to the BT monitor makes
+          // this Just Work.  See BLUETOOTH.md.
+          attach(probe)
         }
       } catch { /* simulation fallback */ }
       startLoop()
@@ -317,9 +366,9 @@ function MusicView({
 
       <div className="hu-info-area">
         <div className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}>
-          {media.artworkSrc
-            ? <img src={media.artworkSrc} alt="album art" className="hu-art-img"/>
-            : <svg viewBox="0 0 80 80" width="100" height="100" opacity="0.6" shapeRendering="crispEdges">
+          {artworkSrc
+            ? <img src={artworkSrc} alt="album art" className="hu-art-img"/>
+            : <svg viewBox="0 0 80 80" width="100%" height="100%" opacity="0.6" shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
                 <rect x="14" y="14" width="52" height="52" fill="none" stroke="#00ff0a" strokeWidth="3"/>
                 <rect x="36" y="34" width="8" height="14" fill="#00ff0a"/>
                 <rect x="44" y="32" width="2" height="14" fill="#00ff0a"/>
@@ -598,6 +647,15 @@ function PhoneView({
 }) {
   const [tab,  setTab]  = useState<PhoneTab>('contacts')
   const [dial, setDial] = useState('')
+  // Currently-selected contact / recent — tap to select, tap CALL to dial.
+  // Switching tabs clears the selection so it doesn't bleed across screens.
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  const [selectedRecentIdx, setSelectedRecentIdx] = useState<number | null>(null)
+
+  useEffect(() => {
+    setSelectedContactId(null)
+    setSelectedRecentIdx(null)
+  }, [tab])
 
   const dialMatches = useMemo(
     () => filterContactsByDial(bt.contacts.contacts, dial).slice(0, 8),
@@ -655,12 +713,19 @@ function PhoneView({
               synced={bt.contacts.synced}
               syncing={bt.contacts.syncing}
               lastError={bt.contacts.lastError}
+              selectedId={selectedContactId}
+              onSelect={(id) => setSelectedContactId(prev => prev === id ? null : id)}
               onCall={onCallContact}
             />
           )}
 
           {bt.phone.connected && tab === 'recent' && (
-            <RecentsList recents={recents} onCall={(n) => bt.dial(n)}/>
+            <RecentsList
+              recents={recents}
+              selectedIdx={selectedRecentIdx}
+              onSelect={(i) => setSelectedRecentIdx(prev => prev === i ? null : i)}
+              onCall={(n) => bt.dial(n)}
+            />
           )}
 
           {bt.phone.connected && tab === 'call' && (
@@ -678,10 +743,12 @@ function PhoneView({
 }
 
 function ContactsList({
-  contacts, synced, syncing, lastError, onCall,
+  contacts, synced, syncing, lastError, selectedId, onSelect, onCall,
 }: {
   contacts: Contact[]; synced: boolean; syncing: boolean
   lastError?: string
+  selectedId: string | null
+  onSelect: (id: string) => void
   onCall: (c: Contact) => void
 }) {
   if (lastError && !syncing) {
@@ -710,46 +777,131 @@ function ContactsList({
   if (contacts.length === 0) {
     return <div className="hu-empty-state"><div className="hu-empty-title">NO CONTACTS</div></div>
   }
+
+  // Group by first letter (A-Z, then '#' for everything else).
+  const grouped: Record<string, Contact[]> = {}
+  for (const c of contacts) {
+    const ch = (c.name[0] ?? '#').toUpperCase()
+    const key = /[A-Z]/.test(ch) ? ch : '#'
+    ;(grouped[key] ??= []).push(c)
+  }
+  const sections = Object.keys(grouped).sort((a, b) => {
+    if (a === '#') return 1
+    if (b === '#') return -1
+    return a.localeCompare(b)
+  })
+
   return (
     <div className="hu-list">
-      {contacts.map(c => (
-        <div key={c.id} className="hu-list-row">
-          <div className="hu-avatar">
-            {c.photo ? <img src={c.photo} alt="" className="hu-avatar-img"/> : c.name[0]}
-          </div>
-          <div>
-            <div className="hu-list-name">{c.name}</div>
-            <div className="hu-list-sub">{c.numbers[0]?.number ?? ''}</div>
-          </div>
-          <button className="hu-call-icon-btn" onClick={() => onCall(c)} aria-label="Call">
-            <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
-          </button>
+      {sections.map(letter => (
+        <div key={letter}>
+          <div className="hu-list-section">{letter}</div>
+          {grouped[letter].map(c => (
+            <ContactRow
+              key={c.id}
+              contact={c}
+              selected={c.id === selectedId}
+              onSelect={() => onSelect(c.id)}
+              onCall={() => onCall(c)}
+            />
+          ))}
         </div>
       ))}
     </div>
   )
 }
 
-function RecentsList({ recents, onCall }: { recents: RecentEntry[]; onCall: (n: string) => void }) {
+function ContactRow({
+  contact, selected, onSelect, onCall,
+}: {
+  contact: Contact
+  selected: boolean
+  onSelect: () => void
+  onCall: () => void
+}) {
+  return (
+    <div
+      className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
+      onClick={onSelect}
+    >
+      <div className="hu-avatar">
+        {contact.photo ? <img src={contact.photo} alt="" className="hu-avatar-img"/> : contact.name[0]}
+      </div>
+      <div className="hu-list-info">
+        <div className="hu-list-name">{contact.name}</div>
+        <div className="hu-list-sub">{contact.numbers[0]?.number ?? ''}</div>
+      </div>
+      {selected && (
+        <button
+          className="hu-call-icon-btn"
+          onClick={(e) => { e.stopPropagation(); onCall() }}
+          aria-label="Call"
+        >
+          <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
+        </button>
+      )}
+    </div>
+  )
+}
+
+function RecentsList({
+  recents, selectedIdx, onSelect, onCall,
+}: {
+  recents: RecentEntry[]
+  selectedIdx: number | null
+  onSelect: (i: number) => void
+  onCall: (n: string) => void
+}) {
   if (recents.length === 0) {
-    return <div className="hu-empty-state"><div className="hu-empty-title">NO RECENT CALLS</div></div>
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">NO RECENT CALLS</div>
+        <div className="hu-empty-sub">Calls you make or receive will appear here.</div>
+      </div>
+    )
   }
   return (
     <div className="hu-list">
-      {recents.map((r, i) => (
-        <div key={i} className="hu-list-row" onClick={() => onCall(r.number)}>
-          <span className={`hu-call-dir hu-call-${r.dir}`}>
-            {r.dir === 'miss' ? '↘' : r.dir === 'in' ? '↙' : '↗'}
-          </span>
-          <div>
-            <div className="hu-list-name">{r.name ?? 'Unknown'}</div>
-            <div className="hu-list-sub">{r.number}</div>
+      {recents.map((r, i) => {
+        const selected = i === selectedIdx
+        return (
+          <div
+            key={i}
+            className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
+            onClick={() => onSelect(i)}
+          >
+            <span className={`hu-call-dir hu-call-${r.dir}`}>
+              {r.dir === 'miss' ? '↘' : r.dir === 'in' ? '↙' : '↗'}
+            </span>
+            <div className="hu-list-info">
+              <div className="hu-list-name">{r.name ?? 'Unknown'}</div>
+              <div className="hu-list-sub">{r.number}</div>
+            </div>
+            <span className="hu-call-time">{formatRecentTime(r.time)}</span>
+            {selected && (
+              <button
+                className="hu-call-icon-btn"
+                onClick={(e) => { e.stopPropagation(); onCall(r.number) }}
+                aria-label="Call"
+              >
+                <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
+              </button>
+            )}
           </div>
-          <span className="hu-call-time">{formatRecentTime(r.time)}</span>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
+}
+
+// T9-style letters shown below each digit on the dialer numpad.  Also
+// used by the contact filter (see filterContactsByDial) so typing "262"
+// matches both phone numbers containing 262 and names like "Bob".
+const KEY_LETTERS: Record<string, string> = {
+  '1': '',    '2': 'ABC', '3': 'DEF',
+  '4': 'GHI', '5': 'JKL', '6': 'MNO',
+  '7': 'PQRS','8': 'TUV', '9': 'WXYZ',
+  '*': '',    '0': '+',   '#': '',
 }
 
 function DialerView({
@@ -761,6 +913,8 @@ function DialerView({
   onCall: () => void
   onCallContact: (c: Contact) => void
 }) {
+  const [matchSelected, setMatchSelected] = useState<string | null>(null)
+
   return (
     <div className="hu-dialer">
       <div className="hu-numpad">
@@ -770,7 +924,10 @@ function DialerView({
         {[['1','2','3'],['4','5','6'],['7','8','9'],['*','0','#']].map((row, ri) => (
           <div key={ri} className="hu-numpad-row">
             {row.map(k => (
-              <button key={k} className="hu-numpad-key" onClick={() => setDial(p => p + k)}>{k}</button>
+              <button key={k} className="hu-numpad-key" onClick={() => setDial(p => p + k)}>
+                <span className="hu-numpad-digit">{k}</span>
+                {KEY_LETTERS[k] && <span className="hu-numpad-letters">{KEY_LETTERS[k]}</span>}
+              </button>
             ))}
           </div>
         ))}
@@ -778,7 +935,9 @@ function DialerView({
           <button className="hu-numpad-key hu-call-green" onClick={onCall} disabled={!dial} aria-label="Call">
             <img src={iconPhone} alt="call" className="hu-numpad-call-icon"/>
           </button>
-          <button className="hu-numpad-key" onClick={() => setDial(p => p.slice(0, -1))}>⌫</button>
+          <button className="hu-numpad-key" onClick={() => setDial(p => p.slice(0, -1))}>
+            <span className="hu-numpad-digit">⌫</span>
+          </button>
         </div>
       </div>
 
@@ -788,18 +947,31 @@ function DialerView({
         </div>
         {matches.length === 0 ? (
           <div className="hu-empty-sub" style={{ paddingTop: 16 }}>No matches</div>
-        ) : matches.map(c => (
-          <div key={c.id} className="hu-list-row" onClick={() => onCallContact(c)}>
-            <div className="hu-avatar">{c.name[0]}</div>
-            <div>
-              <div className="hu-list-name">{c.name}</div>
-              <div className="hu-list-sub">{c.numbers[0]?.number}</div>
+        ) : matches.map(c => {
+          const selected = c.id === matchSelected
+          return (
+            <div
+              key={c.id}
+              className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
+              onClick={() => setMatchSelected(prev => prev === c.id ? null : c.id)}
+            >
+              <div className="hu-avatar">{c.name[0]}</div>
+              <div className="hu-list-info">
+                <div className="hu-list-name">{c.name}</div>
+                <div className="hu-list-sub">{c.numbers[0]?.number}</div>
+              </div>
+              {selected && (
+                <button
+                  className="hu-call-icon-btn"
+                  onClick={(e) => { e.stopPropagation(); onCallContact(c) }}
+                  aria-label="Call"
+                >
+                  <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
+                </button>
+              )}
             </div>
-            <button className="hu-call-icon-btn" onClick={(e) => { e.stopPropagation(); onCallContact(c) }} aria-label="Call">
-              <img src={iconPhone} alt="call" className="hu-call-icon-img"/>
-            </button>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -927,23 +1099,43 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
     if (bt.call.status === 'idle') setCallFull(false)
   }, [bt.call.status])
 
-  // Log call transitions into the recent-calls list.
+  // Session-based call logging: open a session when a call appears (idle →
+  // non-idle), remember whether it ever went to active, close the session
+  // when it goes back to idle and push one recents entry with the right
+  // direction.  This catches every call shape — answered outgoing, answered
+  // incoming, missed incoming, AND outgoing-never-answered (which the
+  // earlier dialing→active-only logic dropped).
   const lastCallRef = useRef<CallState>(bt.call)
+  const sessionRef  = useRef<{ dir: 'in' | 'out'; name?: string; number: string; started: number; answered: boolean } | null>(null)
+
   useEffect(() => {
     const prev = lastCallRef.current
     const curr = bt.call
-    // Outgoing answered: dialing → active
-    if (prev.status === 'dialing' && curr.status === 'active' && curr.contact?.number) {
-      pushRecent({ name: curr.contact.name, number: curr.contact.number, time: Date.now(), dir: 'out' })
+
+    // Open a session when a call appears.
+    if (prev.status === 'idle' && curr.status !== 'idle' && curr.contact?.number) {
+      sessionRef.current = {
+        dir:    curr.status === 'incoming' ? 'in' : 'out',
+        name:   curr.contact.name,
+        number: curr.contact.number,
+        started: Date.now(),
+        answered: curr.status === 'active',
+      }
     }
-    // Incoming answered: incoming → active
-    if (prev.status === 'incoming' && curr.status === 'active' && curr.contact?.number) {
-      pushRecent({ name: curr.contact.name, number: curr.contact.number, time: Date.now(), dir: 'in' })
+    // Mark answered the moment we see active.
+    if (curr.status === 'active' && sessionRef.current) sessionRef.current.answered = true
+    // Update contact name if we learn it after the call started.
+    if (curr.contact?.name && sessionRef.current && !sessionRef.current.name) {
+      sessionRef.current.name = curr.contact.name
     }
-    // Missed: incoming → idle (rejected/timeout)
-    if (prev.status === 'incoming' && curr.status === 'idle' && prev.contact?.number) {
-      pushRecent({ name: prev.contact.name, number: prev.contact.number, time: Date.now(), dir: 'miss' })
+    // Close the session on idle.
+    if (prev.status !== 'idle' && curr.status === 'idle' && sessionRef.current) {
+      const s = sessionRef.current
+      const dir: RecentEntry['dir'] = (s.dir === 'in' && !s.answered) ? 'miss' : s.dir
+      pushRecent({ name: s.name, number: s.number, time: s.started, dir })
+      sessionRef.current = null
     }
+
     lastCallRef.current = curr
   }, [bt.call])
 
