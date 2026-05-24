@@ -255,12 +255,59 @@ const formatHz = (hz: number): string => {
 }
 const BAR_FREQS = BAR_CENTERS_HZ.map(formatHz)
 
-// Album art fallback via iTunes Search API.  AVRCP rarely carries cover art
-// (and BlueZ doesn't expose what little there is), so when we have title+artist
-// we fetch a cover from iTunes.  Cached per artist|title to avoid re-fetching.
+// Album art fallback chain.  AVRCP rarely carries cover art (and BlueZ
+// doesn't expose what little there is), so we look it up online: iTunes
+// first (best match for major-label music), then Deezer (covers a lot of
+// what iTunes misses, including Spotify-exclusive / Canvas tracks).
+// Several query shapes are tried per service before giving up.
 const artCache = new Map<string, string | null>()
 
-function useITunesArt(title?: string, artist?: string, embedded?: string): string | undefined {
+/** Strip "(feat. ...)", "[Remix]", " - Remaster" tails that confuse searches. */
+function cleanForSearch(s: string): string {
+  return s
+    .replace(/\s*\([^)]*\)/g, '')
+    .replace(/\s*\[[^\]]*\]/g, '')
+    .replace(/\s*-\s*(remaster(ed)?|remix|edit|version|mix|live|mono|stereo).*$/i, '')
+    .replace(/\s+feat\.?.*$/i, '')
+    .replace(/\s+ft\.?.*$/i, '')
+    .replace(/\s+,.*$/, '')
+    .trim()
+}
+
+async function searchItunes(query: string): Promise<string | null> {
+  try {
+    const r = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&limit=5&media=music`
+    )
+    const data = await r.json()
+    for (const result of data?.results ?? []) {
+      const url100 = result?.artworkUrl100 as string | undefined
+      if (url100) return url100.replace(/100x100bb/, '600x600bb')
+    }
+  } catch { /* network / parse fail */ }
+  return null
+}
+
+async function searchDeezer(query: string): Promise<string | null> {
+  try {
+    const r = await fetch(
+      `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=5`
+    )
+    const data = await r.json()
+    for (const result of data?.data ?? []) {
+      const big = result?.album?.cover_xl ?? result?.album?.cover_big ?? result?.album?.cover_medium
+      if (big) return big as string
+    }
+  } catch { /* network / parse fail */ }
+  return null
+}
+
+function useArt(
+  title?: string,
+  artist?: string,
+  album?: string,
+  embedded?: string
+): string | undefined {
   const [art, setArt] = useState<string | undefined>(embedded)
   useEffect(() => {
     if (embedded) {
@@ -271,36 +318,44 @@ function useITunesArt(title?: string, artist?: string, embedded?: string): strin
       setArt(undefined)
       return
     }
-    const key = `${artist}|${title}`
+    const key = `${artist}|${title}|${album ?? ''}`
     if (artCache.has(key)) {
       setArt(artCache.get(key) ?? undefined)
       return
     }
     let cancelled = false
-    const term = encodeURIComponent(`${artist} ${title}`)
-    console.log('[art] iTunes lookup:', artist, '—', title)
-    fetch(`https://itunes.apple.com/search?term=${term}&limit=1&media=music`)
-      .then((r) => r.json())
-      .then((data) => {
-        const url100 = data?.results?.[0]?.artworkUrl100 as string | undefined
-        const big = url100?.replace(/100x100bb/, '600x600bb') ?? null
-        console.log('[art] iTunes result:', big ?? '(no hit)')
-        if (!cancelled) {
-          artCache.set(key, big)
-          setArt(big ?? undefined)
+    const cleanTitle  = cleanForSearch(title)
+    const cleanArtist = cleanForSearch(artist)
+    const queries = [
+      `${cleanArtist} ${cleanTitle}`,
+      album ? `${cleanArtist} ${album}` : null,
+      `${cleanArtist} ${album ?? ''} ${cleanTitle}`,
+    ].filter(Boolean) as string[]
+
+    ;(async () => {
+      console.log('[art] looking up:', artist, '—', title, album ? `(album: ${album})` : '')
+      for (const q of queries) {
+        const hit = await searchItunes(q)
+        if (hit) {
+          console.log('[art] iTunes hit for query:', q)
+          if (!cancelled) { artCache.set(key, hit); setArt(hit) }
+          return
         }
-      })
-      .catch((err) => {
-        console.warn('[art] iTunes fetch failed', err)
-        if (!cancelled) {
-          artCache.set(key, null)
-          setArt(undefined)
+      }
+      for (const q of queries) {
+        const hit = await searchDeezer(q)
+        if (hit) {
+          console.log('[art] Deezer hit for query:', q)
+          if (!cancelled) { artCache.set(key, hit); setArt(hit) }
+          return
         }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [title, artist, embedded])
+      }
+      console.warn('[art] no hit on any service for', artist, '—', title)
+      if (!cancelled) { artCache.set(key, null); setArt(undefined) }
+    })()
+
+    return () => { cancelled = true }
+  }, [title, artist, album, embedded])
   return art
 }
 
@@ -328,7 +383,7 @@ function MusicView({
   const phoneConnected = bt.phone.connected
   const media = bt.media
   const isPlaying = media.playing && phoneConnected
-  const artworkSrc = useITunesArt(media.title, media.artist, media.artworkSrc)
+  const artworkSrc = useArt(media.title, media.artist, media.album, media.artworkSrc)
 
   // isPlaying via a ref so the simulation fallback can react to play/pause
   // without retearing the analyser on every state change.
