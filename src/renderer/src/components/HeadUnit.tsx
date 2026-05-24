@@ -213,10 +213,13 @@ const NUM_BARS = 32
 const BAR_MIX_LO = 0.6
 const BAR_MIX_HI = 0.9
 
-// Log-spaced center frequencies across the audible band.  The earlier
-// linear-to-bin mapping put 5kHz onto the "1k" label — this fixes it.
-const F_MIN_HZ = 30
-const F_MAX_HZ = 20000
+// Frequency range covered by the visualiser, log-spaced.  Tighter range
+// means more resolution where music actually lives.  30 Hz → 20 kHz is
+// the "full audible" range but the bottom octave is mostly sub-bass
+// rumble that visually dominates.  50 Hz → 18 kHz is a good musical
+// default.
+const F_MIN_HZ = 50
+const F_MAX_HZ = 18000
 const BAR_RATIO = Math.pow(F_MAX_HZ / F_MIN_HZ, 1 / (NUM_BARS - 1)) // ≈1/3 octave per bar
 const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) => F_MIN_HZ * Math.pow(BAR_RATIO, i))
 
@@ -249,6 +252,19 @@ const EQ_GAMMA = 1.8
 //   0.10 → also kill very quiet music tails
 //   0.20 → only mid-loud parts register
 const EQ_NOISE_GATE = 0.08
+// Frequency tilt — boosts high-freq bars relative to lows, compensating
+// for music's natural bass-heavy energy distribution.  Same idea as
+// FL Studio's spectrum analyzer tilt or pink-noise compensation.  Each
+// bar's value is multiplied by (centerHz / 1000) ^ EQ_TILT, capped at 3x.
+//   0.0  → no tilt (raw spectrum — bass dominates as captured)
+//   0.3  → mild musical balance
+//   0.5  → moderate (pink-noise compensation)
+//   0.8  → aggressive (highs dominate)
+const EQ_TILT = 0.4
+const EQ_TILT_MAX_GAIN = 3.0
+const BAR_TILT_GAINS = BAR_CENTERS_HZ.map((hz) =>
+  Math.min(EQ_TILT_MAX_GAIN, Math.pow(hz / 1000, EQ_TILT))
+)
 const formatHz = (hz: number): string => {
   if (hz >= 1000) {
     const k = hz / 1000
@@ -482,6 +498,9 @@ function MusicView({
                   n++
                 }
                 let value = n > 0 ? sum / n / 255 : 0
+                // Frequency tilt — multiply by the precomputed per-bar
+                // gain so high frequencies aren't dwarfed by bass.
+                value = Math.min(1, value * BAR_TILT_GAINS[i])
                 // Noise gate — drop quiet bars to zero and rescale the
                 // remaining [gate, 1] range back to [0, 1] so the gate
                 // doesn't visibly lower the loud parts.
