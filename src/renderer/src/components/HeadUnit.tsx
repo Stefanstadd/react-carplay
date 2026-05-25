@@ -477,6 +477,16 @@ function MusicView({
         if (tick % 2 === 0) {
           if (analyserRef.current && dataRef.current) {
             analyserRef.current.getByteFrequencyData(dataRef.current)
+            // DEBUG: once per second, log the max raw byte value from the
+            // FFT.  0 = analyser is reading silence (audio not reaching
+            // the captured source).  >0 = signal IS there → tuning issue.
+            if (tick % 60 === 0) {
+              let max = 0
+              for (let b = 0; b < dataRef.current.length; b++) {
+                if (dataRef.current[b] > max) max = dataRef.current[b]
+              }
+              console.log('[eq] raw analyser max byte:', max, '/ 255')
+            }
             const sampleRate = ctxRef.current?.sampleRate ?? 48000
             const bins = dataRef.current.length
             const binWidth = sampleRate / 2 / bins
