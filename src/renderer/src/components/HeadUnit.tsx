@@ -242,26 +242,26 @@ const EQ_ANALYSER_SMOOTHING = 0.2
 // middle so quiet sounds still register.
 //   0.5 → boost everything (everything looks active)
 //   1.0 → linear
-//   1.8 → moderate contrast (default)
-//   2.5 → strong contrast (only loud transients reach the top)
-const EQ_GAMMA = 1.8
+//   1.4 → moderate contrast (default — still leaves moderate audio visible)
+//   2.0 → strong contrast (only loud transients reach the top)
+const EQ_GAMMA = 1.3
 // Noise gate: anything below this fraction (after smoothing) is clamped
 // to zero so quiet bars actually fall to nothing instead of hovering.
 //   0.0  → no gate
-//   0.05 → eat just floor noise
+//   0.04 → eat just floor noise (default)
 //   0.10 → also kill very quiet music tails
 //   0.20 → only mid-loud parts register
-const EQ_NOISE_GATE = 0.08
+const EQ_NOISE_GATE = 0.04
 // Frequency tilt — boosts high-freq bars relative to lows, compensating
 // for music's natural bass-heavy energy distribution.  Same idea as
 // FL Studio's spectrum analyzer tilt or pink-noise compensation.  Each
-// bar's value is multiplied by (centerHz / 1000) ^ EQ_TILT, capped at 3x.
+// bar's value is multiplied by (centerHz / 1000) ^ EQ_TILT, capped at 2x.
 //   0.0  → no tilt (raw spectrum — bass dominates as captured)
-//   0.3  → mild musical balance
+//   0.25 → mild musical balance (default)
 //   0.5  → moderate (pink-noise compensation)
 //   0.8  → aggressive (highs dominate)
-const EQ_TILT = 0.4
-const EQ_TILT_MAX_GAIN = 3.0
+const EQ_TILT = 0.25
+const EQ_TILT_MAX_GAIN = 2.0
 const BAR_TILT_GAINS = BAR_CENTERS_HZ.map((hz) =>
   Math.min(EQ_TILT_MAX_GAIN, Math.pow(hz / 1000, EQ_TILT))
 )
