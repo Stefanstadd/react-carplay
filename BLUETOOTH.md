@@ -168,45 +168,86 @@ will react to ambient room sound instead of the music.  To make them track
 what's actually playing, set the default input to the **monitor source** of
 whichever sink is being used for music output.
 
-For a USB DAC (e.g. C-Media USB Audio Device):
+### One catch: Chromium hides raw `.monitor` sources
+
+`pactl set-default-source <your-sink>.monitor` is *not* enough on its own.
+Chromium's `enumerateDevices()` filters out PA monitor sources for privacy,
+and even setting them as the system default doesn't always make Chromium
+follow it.  We work around this by loading a `module-remap-source` that
+exposes the monitor under a **regular source name** (`SpeakerMonitor`).
+The head unit's source-selection regex `/monitor|bluez|bluetooth/i` then
+picks it up automatically by label.
+
+For a USB DAC (e.g. C-Media USB Audio Device) — both commands needed
+once per session:
 
 ```bash
-pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
+pactl load-module module-remap-source \
+  source_name=SpeakerMonitor \
+  master=alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor \
+  source_properties=device.description=Speaker_Monitor
+pactl set-default-source SpeakerMonitor
 ```
 
 Substitute your own sink name — `pactl list sources short | grep monitor`
 shows what's available.
 
-**Make it persistent across reboots** with a one-shot user service:
+### Make both persistent across reboots
+
+A one-shot user service that runs both `pactl` commands at login.  Edit
+the `master=` value if your sink name differs.
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/pa-default-monitor.service <<'EOF'
+nano ~/.config/systemd/user/pa-default-monitor.service
+```
+
+Paste:
+
+```
 [Unit]
-Description=Set default audio source to the speaker monitor
+Description=Head unit audio setup — load SpeakerMonitor + set as default
 After=pipewire-pulse.service
 Requires=pipewire-pulse.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/pactl set-default-source alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor
+ExecStart=/usr/bin/pactl load-module module-remap-source source_name=SpeakerMonitor master=alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor source_properties=device.description=Speaker_Monitor
+ExecStart=/usr/bin/pactl set-default-source SpeakerMonitor
 RemainAfterExit=yes
 
 [Install]
 WantedBy=default.target
-EOF
+```
 
+Save (`Ctrl+O` Enter, `Ctrl+X`), then:
+
+```bash
+rm -f ~/.config/systemd/user/pa-default-monitor.service~   # nano backup, if present
 systemctl --user daemon-reload
 systemctl --user enable --now pa-default-monitor.service
 ```
 
-**Once A2DP is working** and music is streaming from the phone *through the
-Pi*, switch the default to the BT monitor (the head unit's source-selection
-regex `/monitor|bluez|bluetooth/i` will then auto-pick it from
-enumerateDevices):
+Verify:
 
 ```bash
-pactl set-default-source bluez_output.4C_79_75_69_EF_9D.1.monitor
+systemctl --user status pa-default-monitor.service --no-pager
+pactl list sources short | grep -i speakermonitor
+pactl info | grep "Default Source"
+```
+
+Expected: service `active (exited)`, a `SpeakerMonitor` row in the source
+list, and `Default Source: SpeakerMonitor`.
+
+**Once A2DP is working** and music is streaming from the phone *through the
+Pi*, the BT sink's `.monitor` becomes the more interesting source.  Either
+update `master=` in the service file to that monitor and restart the
+service, or just add a second remap line for the BT sink so both are
+available to Chromium:
+
+```
+ExecStart=/usr/bin/pactl load-module module-remap-source source_name=BtMonitor master=bluez_output.4C_79_75_69_EF_9D.1.monitor source_properties=device.description=BT_Monitor
+ExecStart=/usr/bin/pactl set-default-source BtMonitor
 ```
 
 If the bars only pulse weakly in the bass when music is playing, the head
