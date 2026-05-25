@@ -457,7 +457,13 @@ function MusicView({
           '[eq] audio inputs:',
           inputs.map((d) => ({ label: d.label, id: d.deviceId.slice(0, 8) }))
         )
-        const monitor = inputs.find((d) => /monitor|bluez|bluetooth/i.test(d.label))
+        // Prefer a BT-labelled source first (works when PipeWire routes
+        // BT audio direct to the hardware, bypassing the sink+monitor
+        // path).  Fall back to generic "monitor" sources for non-BT audio
+        // (e.g. CarPlay audio that goes through Chromium → sink).
+        const monitor =
+          inputs.find((d) => /bluez|bluetooth|\bbt[\s_-]/i.test(d.label)) ??
+          inputs.find((d) => /monitor/i.test(d.label))
         if (monitor && monitor.deviceId) {
           console.log('[eq] using monitor source:', monitor.label)
           probe.getTracks().forEach((t) => t.stop())
