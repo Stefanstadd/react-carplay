@@ -281,9 +281,15 @@ const BAR_FREQS = BAR_CENTERS_HZ.map(formatHz)
 // Several query shapes are tried per service before giving up.
 const artCache = new Map<string, string | null>()
 
-/** Strip "(feat. ...)", "[Remix]", " - Remaster" tails that confuse searches. */
+/** Strip "(feat. ...)", "[Remix]", " - Remaster", and Spotify's
+ * " • Video beschikbaar" / " • Music Video" Canvas annotations that
+ * confuse the iTunes/Deezer search. */
 function cleanForSearch(s: string): string {
   return s
+    // Spotify appends "• <something>" to the artist or title for tracks
+    // that have a Canvas video.  In any language.  Strip everything from
+    // the bullet onward.
+    .replace(/\s*[•·]\s*.*$/u, '')
     .replace(/\s*\([^)]*\)/g, '')
     .replace(/\s*\[[^\]]*\]/g, '')
     .replace(/\s*-\s*(remaster(ed)?|remix|edit|version|mix|live|mono|stereo).*$/i, '')
