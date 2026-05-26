@@ -18,6 +18,43 @@ import {
   type BtDevice
 } from './bluetooth'
 
+// ─── FFT (Cooley-Tukey, radix-2, in-place) ──────────────────────────────────
+// Pure JS so we don't depend on Web Audio's AnalyserNode (which is gated by
+// getUserMedia / Chromium device enumeration).  Called once per animation
+// frame on a 2048-pt buffer — well within budget on a Pi 4/5.
+function fft(real: Float32Array, imag: Float32Array): void {
+  const n = real.length
+  // Bit-reversal permutation
+  let j = 0
+  for (let i = 0; i < n - 1; i++) {
+    if (i < j) {
+      const tr = real[i]; real[i] = real[j]; real[j] = tr
+      const ti = imag[i]; imag[i] = imag[j]; imag[j] = ti
+    }
+    let k = n >> 1
+    while (k > 0 && k <= j) { j -= k; k >>= 1 }
+    j += k
+  }
+  // Butterflies
+  for (let size = 2; size <= n; size <<= 1) {
+    const half = size >> 1
+    const baseAngle = (-2 * Math.PI) / size
+    for (let i = 0; i < n; i += size) {
+      for (let k = 0; k < half; k++) {
+        const angle = baseAngle * k
+        const cosA = Math.cos(angle)
+        const sinA = Math.sin(angle)
+        const tr = real[i + k + half] * cosA - imag[i + k + half] * sinA
+        const ti = real[i + k + half] * sinA + imag[i + k + half] * cosA
+        real[i + k + half] = real[i + k] - tr
+        imag[i + k + half] = imag[i + k] - ti
+        real[i + k] += tr
+        imag[i + k] += ti
+      }
+    }
+  }
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface VehicleData {
@@ -417,149 +454,116 @@ function MusicView({
     isPlayingRef.current = isPlaying
   }, [isPlaying])
 
-  // EQ analyser — capture audio from a PulseAudio monitor source (the
-  // standard way to expose what's being played out the BT/HDMI/jack sink).
-  // Falls back to a tasteful idle animation if no monitor source exists.
-  // Set up ONCE on mount — re-acquiring getUserMedia on every play/pause
-  // creates a gap where the simulation takes over.
+  // EQ — receives raw s16le PCM chunks from the main process (parec on the
+  // Pi captures the USB DAC's monitor source directly), accumulates them
+  // in a ring buffer, and runs an FFT in JS every animation frame.  This
+  // bypasses every Chromium / PulseAudio quirk that broke the previous
+  // getUserMedia-based capture.
   useEffect(() => {
+    const FFT_SIZE = 2048
+    const SAMPLE_RATE = 48000
+    const ring = new Float32Array(FFT_SIZE)
+    let writePos = 0
+    let everSawSignal = false
     let cancelled = false
     let tick = 0
-    const attach = (stream: MediaStream) => {
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop())
-        return
-      }
-      const ctx = new AudioContext()
-      ctxRef.current = ctx
-      if (ctx.state === 'suspended') ctx.resume().catch(() => undefined)
-      const analyser = ctx.createAnalyser()
-      // 2048 → 1024 bins at 48kHz = 23.4 Hz/bin, enough resolution to
-      // distinguish 30 Hz from 60 Hz at the bottom of the band.
-      analyser.fftSize = 2048
-      analyser.smoothingTimeConstant = EQ_ANALYSER_SMOOTHING
-      analyser.minDecibels = -85
-      analyser.maxDecibels = -25
-      dataRef.current = new Uint8Array(analyser.frequencyBinCount)
-      analyserRef.current = analyser
-      ctx.createMediaStreamSource(stream).connect(analyser)
-      console.log(
-        '[eq] analyser attached, tracks:',
-        stream.getAudioTracks().map((t) => t.label)
-      )
+    // Pre-allocate FFT buffers + Hann window
+    const reBuf = new Float32Array(FFT_SIZE)
+    const imBuf = new Float32Array(FFT_SIZE)
+    const hann = new Float32Array(FFT_SIZE)
+    for (let i = 0; i < FFT_SIZE; i++) {
+      hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1))
     }
-    const tryAudio = async () => {
-      try {
-        const probe = await navigator.mediaDevices.getUserMedia({ audio: true })
-        const devs = await navigator.mediaDevices.enumerateDevices()
-        const inputs = devs.filter((d) => d.kind === 'audioinput')
-        console.log(
-          '[eq] audio inputs:',
-          inputs.map((d) => ({ label: d.label, id: d.deviceId.slice(0, 8) }))
-        )
-        // Prefer a BT-labelled source first (works when PipeWire routes
-        // BT audio direct to the hardware, bypassing the sink+monitor
-        // path).  Fall back to generic "monitor" sources for non-BT audio
-        // (e.g. CarPlay audio that goes through Chromium → sink).
-        const monitor =
-          inputs.find((d) => /bluez|bluetooth|\bbt[\s_-]/i.test(d.label)) ??
-          inputs.find((d) => /monitor/i.test(d.label))
-        if (monitor && monitor.deviceId) {
-          console.log('[eq] using monitor source:', monitor.label)
-          probe.getTracks().forEach((t) => t.stop())
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: { deviceId: { exact: monitor.deviceId } } as MediaTrackConstraints
-          })
-          attach(stream)
-        } else {
-          console.log(
-            '[eq] no monitor source labelled — using default input (set PA default-source to capture speaker output)'
-          )
-          attach(probe)
-        }
-      } catch (err) {
-        console.warn('[eq] getUserMedia failed — using simulation fallback', err)
+
+    // Pre-compute bar bin ranges
+    const binWidth = SAMPLE_RATE / 2 / (FFT_SIZE / 2)
+    const edge = Math.sqrt(BAR_RATIO)
+    const barRanges = BAR_CENTERS_HZ.map((center) => ({
+      lo: Math.max(0, Math.floor(center / edge / binWidth)),
+      hi: Math.min(FFT_SIZE / 2 - 1, Math.ceil((center * edge) / binWidth)),
+    }))
+
+    // Subscribe to PCM chunks from the main process.
+    const onPcm = (chunk: Uint8Array) => {
+      const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+      const len = chunk.byteLength >> 1
+      for (let i = 0; i < len; i++) {
+        const s = view.getInt16(i * 2, true) / 32768
+        ring[writePos] = s
+        writePos = (writePos + 1) % FFT_SIZE
+        if (!everSawSignal && s !== 0) everSawSignal = true
       }
-      startLoop()
     }
-    const startLoop = () => {
-      const loop = () => {
-        if (cancelled) return
-        tick++
-        if (tick % 2 === 0) {
-          if (analyserRef.current && dataRef.current) {
-            analyserRef.current.getByteFrequencyData(dataRef.current)
-            // DEBUG: once per second, log the max raw byte value from the
-            // FFT.  0 = analyser is reading silence (audio not reaching
-            // the captured source).  >0 = signal IS there → tuning issue.
-            if (tick % 60 === 0) {
-              let max = 0
-              for (let b = 0; b < dataRef.current.length; b++) {
-                if (dataRef.current[b] > max) max = dataRef.current[b]
-              }
-              console.log('[eq] raw analyser max byte:', max, '/ 255')
-            }
-            const sampleRate = ctxRef.current?.sampleRate ?? 48000
-            const bins = dataRef.current.length
-            const binWidth = sampleRate / 2 / bins
-            const edge = Math.sqrt(BAR_RATIO)
-            // Each bar covers center / sqrt(ratio) … center * sqrt(ratio).
-            // Average the FFT bins in that range, then apply peak-hold
-            // decay: rise instantly to the new value, fall by
-            // EQ_FALL_FACTOR per frame.  Tune EQ_FALL_FACTOR at the top
-            // of this file for snappiness vs. smoothness.
-            setEqBars((prev) =>
-              Array.from({ length: NUM_BARS }, (_, i) => {
-                const center = BAR_CENTERS_HZ[i]
-                const lo = Math.max(0, Math.floor(center / edge / binWidth))
-                const hi = Math.min(bins - 1, Math.ceil((center * edge) / binWidth))
-                let sum = 0
-                let n = 0
-                for (let b = lo; b <= hi; b++) {
-                  sum += dataRef.current![b]
-                  n++
-                }
-                let value = n > 0 ? sum / n / 255 : 0
-                // Frequency tilt — multiply by the precomputed per-bar
-                // gain so high frequencies aren't dwarfed by bass.
-                value = Math.min(1, value * BAR_TILT_GAINS[i])
-                // Noise gate — drop quiet bars to zero and rescale the
-                // remaining [gate, 1] range back to [0, 1] so the gate
-                // doesn't visibly lower the loud parts.
-                if (value < EQ_NOISE_GATE) value = 0
-                else value = (value - EQ_NOISE_GATE) / (1 - EQ_NOISE_GATE)
-                // Gamma curve for visual contrast.
-                if (value > 0) value = Math.pow(value, EQ_GAMMA)
-                const decayed = prev[i] * EQ_FALL_FACTOR
-                return Math.max(value, decayed)
-              })
-            )
-          } else {
-            const playing = isPlayingRef.current
-            setEqBars((prev) =>
-              prev.map((v, i) => {
-                const isBass = i < 4
-                const speed = isBass ? 0.05 : i < 12 ? 0.08 : 0.12
-                const ceiling = playing ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
-                if (Math.random() < 0.04)
-                  targetRef.current[i] = Math.random() * ceiling + (playing ? 0.08 : 0.02)
-                return v + (targetRef.current[i] - v) * speed
-              })
-            )
+    ;(window as any).api?.onAudioPcm?.(onPcm)
+    console.log('[eq] subscribed to main-process audio PCM stream')
+
+    const loop = () => {
+      if (cancelled) return
+      tick++
+      if (tick % 2 === 0) {
+        if (everSawSignal) {
+          // Copy ring buffer (in time order) into reBuf with Hann applied.
+          for (let i = 0; i < FFT_SIZE; i++) {
+            const src = (writePos + i) % FFT_SIZE
+            reBuf[i] = ring[src] * hann[i]
+            imBuf[i] = 0
           }
+          fft(reBuf, imBuf)
+          // Compute magnitude for the first half of bins (positive frequencies).
+          // Re-use imBuf to store magnitudes (we don't need imag anymore).
+          const halfBins = FFT_SIZE / 2
+          for (let b = 0; b < halfBins; b++) {
+            const mag = Math.sqrt(reBuf[b] * reBuf[b] + imBuf[b] * imBuf[b])
+            imBuf[b] = mag
+          }
+          if (tick % 60 === 0) {
+            let maxMag = 0
+            for (let b = 0; b < halfBins; b++) if (imBuf[b] > maxMag) maxMag = imBuf[b]
+            console.log('[eq] FFT max magnitude:', maxMag.toFixed(3))
+          }
+          setEqBars((prev) =>
+            Array.from({ length: NUM_BARS }, (_, i) => {
+              const { lo, hi } = barRanges[i]
+              let sum = 0
+              let n = 0
+              for (let b = lo; b <= hi; b++) {
+                sum += imBuf[b]
+                n++
+              }
+              // Map FFT magnitude to ~[0,1].  Empirical scaling — windowed
+              // 2048-pt FFT on s16le PCM peaks around ~80 for full-scale tones.
+              let value = n > 0 ? Math.min(1, (sum / n) * 0.04) : 0
+              value = Math.min(1, value * BAR_TILT_GAINS[i])
+              if (value < EQ_NOISE_GATE) value = 0
+              else value = (value - EQ_NOISE_GATE) / (1 - EQ_NOISE_GATE)
+              if (value > 0) value = Math.pow(value, EQ_GAMMA)
+              const decayed = prev[i] * EQ_FALL_FACTOR
+              return Math.max(value, decayed)
+            })
+          )
+        } else {
+          // No PCM data has arrived yet — show the idle simulation so the
+          // visualiser isn't a flat line while we're waiting on main.
+          const playing = isPlayingRef.current
+          setEqBars((prev) =>
+            prev.map((v, i) => {
+              const isBass = i < 4
+              const speed = isBass ? 0.05 : i < 12 ? 0.08 : 0.12
+              const ceiling = playing ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
+              if (Math.random() < 0.04)
+                targetRef.current[i] = Math.random() * ceiling + (playing ? 0.08 : 0.02)
+              return v + (targetRef.current[i] - v) * speed
+            })
+          )
         }
-        frameRef.current = requestAnimationFrame(loop)
       }
       frameRef.current = requestAnimationFrame(loop)
     }
-    tryAudio()
+    frameRef.current = requestAnimationFrame(loop)
+
     return () => {
       cancelled = true
       cancelAnimationFrame(frameRef.current)
-      ctxRef.current?.close()
-      ctxRef.current = null
-      analyserRef.current = null
-      dataRef.current = null
     }
   }, [])
 

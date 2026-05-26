@@ -34,6 +34,7 @@ export interface Api {
   stream?: (stream: Stream) =>  void
   quit: () =>  void
   bt: BtApi
+  onAudioPcm: (cb: (chunk: Uint8Array) => void) => void
 }
 
 const bt: BtApi = {
@@ -66,6 +67,9 @@ const api: Api = {
   // stream: (stream: Stream) => ipcRenderer.send('startStream', stream),
   quit: () => ipcRenderer.send('quit'),
   bt,
+  onAudioPcm: (cb: (chunk: Uint8Array) => void) => {
+    ipcRenderer.on('audio:pcm', (_e, chunk: Uint8Array | Buffer) => cb(chunk as Uint8Array))
+  },
 }
 
 try {

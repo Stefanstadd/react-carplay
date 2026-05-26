@@ -10,10 +10,12 @@ import {Canbus} from "./Canbus"
 
 import { ExtraConfig, KeyBindings } from "./Globals";
 import { BluetoothManager } from "./Bluetooth";
+import { AudioCapture } from "./AudioCapture";
 // import CarplayNode, {DEFAULT_CONFIG, CarplayMessage} from "node-carplay/node";
 
 let mainWindow: BrowserWindow
 let bluetooth: BluetoothManager | null = null
+let audioCapture: AudioCapture | null = null
 const appPath: string = app.getPath('userData')
 const configPath: string = appPath + '/config.json'
 console.log(configPath)
@@ -213,6 +215,9 @@ app.whenReady().then(() => {
 
   bluetooth = new BluetoothManager(() => mainWindow)
   bluetooth.start().catch(err => console.warn('[bt] start failed', err))
+
+  audioCapture = new AudioCapture(() => mainWindow)
+  audioCapture.start()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
