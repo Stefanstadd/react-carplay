@@ -82,15 +82,17 @@
 
 .cp-exit-btn {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  top: 18px;
+  left: 18px;
   z-index: 50;
-  background: transparent;
-  border: none;
+  background: rgba(0, 21, 0, 0.55);
+  border: 2px solid var(--hu-green, #00ff0a);
   color: var(--hu-green, #00ff0a);
   font-family: 'VT323', monospace;
-  font-size: 24px;
-  padding: 8px 18px;
+  /* Base size — scaled at render time via the --cp-exit-scale CSS var
+     (set from CARPLAY_EXIT_BTN_SCALE in headunit.config.ts). */
+  font-size: calc(28px * var(--cp-exit-scale, 1));
+  padding: calc(10px * var(--cp-exit-scale, 1)) calc(22px * var(--cp-exit-scale, 1));
   cursor: pointer;
   letter-spacing: 0.10em;
   font-weight: bold;

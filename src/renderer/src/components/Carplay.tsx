@@ -12,6 +12,7 @@ import { useLocation } from "react-router-dom";
 import { ExtraConfig} from "../../../main/Globals";
 import { useCarplayStore, useStatusStore } from "../store/store";
 import { InitEvent } from './worker/render/RenderEvents'
+import { CARPLAY_EXIT_BTN_SCALE } from './headunit.config'
 
 const RETRY_DELAY_MS = 15000
 
@@ -246,7 +247,11 @@ function Carplay({ receivingVideo, setReceivingVideo, settings, command, command
       ref={mainElem}
     >
       {active && (
-        <button className="cp-exit-btn" onClick={() => onHostUIRequested?.()}>
+        <button
+          className="cp-exit-btn"
+          onClick={() => onHostUIRequested?.()}
+          style={{ ['--cp-exit-scale' as any]: CARPLAY_EXIT_BTN_SCALE }}
+        >
           ← EXIT
         </button>
       )}

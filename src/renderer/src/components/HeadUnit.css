@@ -298,8 +298,6 @@ img.hu-numpad-call-icon {
   position: absolute;
   top: 22px;
   left: 44px;
-  width: 20%;
-  height: 20%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -307,6 +305,17 @@ img.hu-numpad-call-icon {
   padding: 0;
   background: transparent;
   z-index: 5;
+}
+
+/* 2x2 grid layout, used by MusicView's quick-access overlay.  Cell + icon
+   sizes come from the --quick-cell / --quick-icon vars set inline. */
+.hu-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, var(--quick-cell, 150px));
+  grid-template-rows: repeat(2, var(--quick-cell, 150px));
+  gap: 24px;
+  width: auto;
+  height: auto;
 }
 
 .hu-info-area {
@@ -355,9 +364,16 @@ img.hu-numpad-call-icon {
 }
 
 .hu-quick-btn-img {
-  width: 64px;
-  height: 64px;
+  width: var(--quick-icon, 64px);
+  height: var(--quick-icon, 64px);
   object-fit: contain;
+}
+
+.hu-quick-grid .hu-quick-btn {
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--hu-green);
+  background: var(--hu-bg-panel);
 }
 
 /* Visualizer container (top) — bars row above, labels row below */
@@ -413,8 +429,8 @@ img.hu-numpad-call-icon {
 }
 
 .hu-music-art {
-  width: 180px;
-  height: 180px;
+  width: var(--art-size, 180px);
+  height: var(--art-size, 180px);
   border: 2px solid var(--hu-green);
   background: var(--hu-bg-deep);
   display: flex;
@@ -454,15 +470,36 @@ img.hu-numpad-call-icon {
   text-transform: uppercase;
 }
 
+/* The title is wrapped in MarqueeText — outer .hu-music-title is the
+   masked viewport, inner .hu-marquee-text is the (potentially) sliding
+   text.  Static fits get no animation; long titles ping-pong. */
 .hu-music-title {
   font-size: 46px;
   font-weight: bold;
   color: var(--hu-green);
   letter-spacing: 0.04em;
   line-height: 1.05;
-  white-space: nowrap;
+}
+
+.hu-marquee-wrap {
   overflow: hidden;
-  text-overflow: ellipsis;
+  width: 100%;
+  display: block;
+}
+
+.hu-marquee-text {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.hu-marquee-text.is-scrolling {
+  animation: hu-marquee var(--marquee-dur, 12s) ease-in-out infinite alternate;
+}
+
+@keyframes hu-marquee {
+  0%, 12%   { transform: translateX(0); }
+  88%, 100% { transform: translateX(var(--marquee-end, 0)); }
 }
 
 .hu-music-artist {
@@ -658,6 +695,8 @@ img.hu-numpad-call-icon {
 .hu-list-row {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  text-align: left;
   gap: 20px;
   padding: 18px 8px;
   border-bottom: 1px solid var(--hu-divider);
@@ -694,12 +733,19 @@ img.hu-numpad-call-icon {
   flex-shrink: 0;
 }
 
-.hu-list-name { font-size: 36px; color: var(--hu-green); line-height: 1.1; font-weight: bold; }
+.hu-list-name {
+  font-size: 36px;
+  color: var(--hu-green);
+  line-height: 1.1;
+  font-weight: bold;
+  text-align: left;
+}
 
 .hu-list-sub {
   font-size: 28px;
   color: var(--hu-green-mid);
   margin-top: 2px;
+  text-align: left;
 }
 
 .hu-call-icon-btn {
@@ -1231,6 +1277,10 @@ img.hu-numpad-call-icon {
 .hu-list-info {
   flex: 1;
   min-width: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .hu-list-row-selected {

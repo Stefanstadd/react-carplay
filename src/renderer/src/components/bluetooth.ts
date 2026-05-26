@@ -122,12 +122,14 @@ export function useBluetooth() {
   return {
     phone, media, call, contacts, devices,
 
-    // Media transport
+    // Media transport.  prev/next optimistically snap position to 0 so
+    // the counter doesn't keep climbing from the previous song's time
+    // while we wait for the new track metadata.
     mediaPlay:    () => bt?.mediaCmd?.('play'),
     mediaPause:   () => bt?.mediaCmd?.('pause'),
     mediaToggle:  () => bt?.mediaCmd?.(media.playing ? 'pause' : 'play'),
-    mediaNext:    () => bt?.mediaCmd?.('next'),
-    mediaPrev:    () => bt?.mediaCmd?.('previous'),
+    mediaNext:    () => { bt?.mediaCmd?.('next');     setMedia(p => ({ ...p, positionSec: 0 })) },
+    mediaPrev:    () => { bt?.mediaCmd?.('previous'); setMedia(p => ({ ...p, positionSec: 0 })) },
     mediaSeek:    (sec: number) => bt?.mediaCmd?.(`seek:${Math.max(0, Math.floor(sec))}`),
 
     // Calls

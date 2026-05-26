@@ -55,6 +55,56 @@ function fft(real: Float32Array, imag: Float32Array): void {
   }
 }
 
+// ─── MarqueeText: auto-scrolling text when it overflows its container ─────
+// Measures whether the inner span overflows and, if so, runs a ping-pong
+// CSS animation that translates it from 0 to -overflowPx.  No animation
+// when the text fits.
+function MarqueeText({
+  children, className, speedPxPerSec = 60,
+}: {
+  children: React.ReactNode
+  className?: string
+  speedPxPerSec?: number
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const textRef = useRef<HTMLSpanElement>(null)
+  const [overflow, setOverflow] = useState(0)
+
+  useEffect(() => {
+    const measure = () => {
+      const w = wrapRef.current
+      const t = textRef.current
+      if (!w || !t) return
+      const o = t.scrollWidth - w.clientWidth
+      setOverflow(o > 4 ? o : 0)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (wrapRef.current) ro.observe(wrapRef.current)
+    return () => ro.disconnect()
+  }, [children])
+
+  const styleObj: React.CSSProperties | undefined =
+    overflow > 0
+      ? ({
+          ['--marquee-end' as any]: `-${overflow}px`,
+          ['--marquee-dur' as any]: `${Math.max(6, (overflow / speedPxPerSec) * 2.4)}s`,
+        } as React.CSSProperties)
+      : undefined
+
+  return (
+    <div ref={wrapRef} className={`hu-marquee-wrap ${className ?? ''}`}>
+      <span
+        ref={textRef}
+        className={`hu-marquee-text${overflow > 0 ? ' is-scrolling' : ''}`}
+        style={styleObj}
+      >
+        {children}
+      </span>
+    </div>
+  )
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface VehicleData {
@@ -242,66 +292,26 @@ function NavBar({
 }
 
 // ─── Music View ───────────────────────────────────────────────────────────────
+// All tweakable knobs live in headunit.config.ts — edit there, not here.
 
-// Number of EQ bars across the visualizer.  Bars stay log-spaced from
-// F_MIN_HZ → F_MAX_HZ no matter how many you pick.  More bars = thinner,
-// finer detail; fewer = wider/chunkier.  Tested up to 64.
-const NUM_BARS = 32
-const BAR_MIX_LO = 0.6
-const BAR_MIX_HI = 0.9
+import {
+  NUM_BARS,
+  BAR_MIX_LO,
+  BAR_MIX_HI,
+  F_MIN_HZ,
+  F_MAX_HZ,
+  EQ_FALL_FACTOR,
+  EQ_GAMMA,
+  EQ_NOISE_GATE,
+  SHOW_FREQ_LABELS,
+  ALBUM_ART_SIZE,
+  TITLE_SCROLL_SPEED,
+  QUICK_BTN_ICON_SIZE,
+  QUICK_BTN_CELL_SIZE,
+} from './headunit.config'
 
-// Frequency range covered by the visualiser, log-spaced.  Tighter range
-// means more resolution where music actually lives.  30 Hz → 20 kHz is
-// the "full audible" range but the bottom octave is mostly sub-bass
-// rumble that visually dominates.  50 Hz → 18 kHz is a good musical
-// default.
-const F_MIN_HZ = 50
-const F_MAX_HZ = 18000
 const BAR_RATIO = Math.pow(F_MAX_HZ / F_MIN_HZ, 1 / (NUM_BARS - 1)) // ≈1/3 octave per bar
 const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) => F_MIN_HZ * Math.pow(BAR_RATIO, i))
-
-// ─── EQ responsiveness + contrast — tweak these to taste ─────────────────
-// Peak-hold decay: each frame the previous bar height is multiplied by this
-// factor, and the bar shows max(decayedPrev, freshValue).  Lower = snappier
-// (bars track audio tightly, snap down fast), higher = smoother fall.
-//   0.0 → bars snap to value every frame (jittery)
-//   0.5 → drops to half each frame → ~12% after 3 frames (~100 ms)
-//   0.8 → smoother, slower drop
-//   1.0 → bars never fall (only ever rise)
-const EQ_FALL_FACTOR = 0.5
-// Web Audio's temporal smoothing on the raw FFT data.  Stacked with FALL.
-//   0.0 → frame-fresh FFT bins (most responsive, can look noisy)
-//   0.3 → mild smoothing
-//   0.8 → heavy averaging
-const EQ_ANALYSER_SMOOTHING = 0.2
-// Gamma curve on the bar value — >1 squashes mid values and emphasises
-// peaks (more contrast: peakier peaks, deeper depths).  <1 expands the
-// middle so quiet sounds still register.
-//   0.5 → boost everything (everything looks active)
-//   1.0 → linear
-//   1.4 → moderate contrast (default — still leaves moderate audio visible)
-//   2.0 → strong contrast (only loud transients reach the top)
-const EQ_GAMMA = 1.3
-// Noise gate: anything below this fraction (after smoothing) is clamped
-// to zero so quiet bars actually fall to nothing instead of hovering.
-//   0.0  → no gate
-//   0.04 → eat just floor noise (default)
-//   0.10 → also kill very quiet music tails
-//   0.20 → only mid-loud parts register
-const EQ_NOISE_GATE = 0.04
-// Frequency tilt — boosts high-freq bars relative to lows, compensating
-// for music's natural bass-heavy energy distribution.  Same idea as
-// FL Studio's spectrum analyzer tilt or pink-noise compensation.  Each
-// bar's value is multiplied by (centerHz / 1000) ^ EQ_TILT, capped at 2x.
-//   0.0  → no tilt (raw spectrum — bass dominates as captured)
-//   0.25 → mild musical balance (default)
-//   0.5  → moderate (pink-noise compensation)
-//   0.8  → aggressive (highs dominate)
-const EQ_TILT = 0.25
-const EQ_TILT_MAX_GAIN = 2.0
-const BAR_TILT_GAINS = BAR_CENTERS_HZ.map((hz) =>
-  Math.min(EQ_TILT_MAX_GAIN, Math.pow(hz / 1000, EQ_TILT))
-)
 const formatHz = (hz: number): string => {
   if (hz >= 1000) {
     const k = hz / 1000
@@ -533,7 +543,6 @@ function MusicView({
               // Map FFT magnitude to ~[0,1].  Empirical scaling — windowed
               // 2048-pt FFT on s16le PCM peaks around ~80 for full-scale tones.
               let value = n > 0 ? Math.min(1, (sum / n) * 0.04) : 0
-              value = Math.min(1, value * BAR_TILT_GAINS[i])
               if (value < EQ_NOISE_GATE) value = 0
               else value = (value - EQ_NOISE_GATE) / (1 - EQ_NOISE_GATE)
               if (value > 0) value = Math.pow(value, EQ_GAMMA)
@@ -602,6 +611,7 @@ function MusicView({
             )
           })}
         </div>
+        {SHOW_FREQ_LABELS && (
         <div className="hu-eq-labels">
           {BAR_FREQS.slice(0, NUM_BARS).map((f, i) => {
             // Thin labels as bar count grows so they don't overlap on
@@ -616,9 +626,16 @@ function MusicView({
             )
           })}
         </div>
+        )}
       </div>
 
-      <div className="hu-quick-area">
+      <div
+        className="hu-quick-area hu-quick-grid"
+        style={{
+          ['--quick-cell' as any]: `${QUICK_BTN_CELL_SIZE}px`,
+          ['--quick-icon' as any]: `${QUICK_BTN_ICON_SIZE}px`,
+        }}
+      >
         <button className="hu-quick-btn" onClick={onLaunchCarplay} aria-label="CarPlay">
           <img src={iconCarplay} alt="" className="hu-quick-btn-img" />
         </button>
@@ -632,10 +649,20 @@ function MusicView({
         >
           <img src={iconRecent} alt="" className="hu-quick-btn-img" />
         </button>
+        <button
+          className="hu-quick-btn"
+          onClick={() => onSelectView('phone')}
+          aria-label="Contacts"
+        >
+          <img src={iconContacts} alt="" className="hu-quick-btn-img" />
+        </button>
       </div>
 
       <div className="hu-info-area">
-        <div className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}>
+        <div
+          className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}
+          style={{ ['--art-size' as any]: `${ALBUM_ART_SIZE}px` }}
+        >
           {artworkSrc ? (
             <img
               src={artworkSrc}
@@ -676,7 +703,7 @@ function MusicView({
           <div className="hu-music-via">
             {phoneConnected ? 'via Bluetooth' : 'Bluetooth Disconnected'}
           </div>
-          <div className="hu-music-title">{title}</div>
+          <MarqueeText className="hu-music-title" speedPxPerSec={TITLE_SCROLL_SPEED}>{title}</MarqueeText>
           <div className="hu-music-artist">{artist}</div>
           <div className="hu-music-album">{album}</div>
         </div>
