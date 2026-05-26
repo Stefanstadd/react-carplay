@@ -372,8 +372,8 @@ img.hu-numpad-call-icon {
 .hu-quick-grid .hu-quick-btn {
   width: 100%;
   height: 100%;
-  border: 2px solid var(--hu-green);
-  background: var(--hu-bg-panel);
+  border: none;
+  background: transparent;
 }
 
 /* Visualizer container (top) — bars row above, labels row below */
@@ -456,7 +456,9 @@ img.hu-numpad-call-icon {
 .hu-music-text {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  /* align-items default = stretch — so the MarqueeText wrap (width:100%)
+     actually gets the full available width.  text-align:left handles the
+     visual left-alignment of the text inside each child. */
   text-align: left;
   gap: 2px;
   min-width: 0;
@@ -1278,9 +1280,6 @@ img.hu-numpad-call-icon {
   flex: 1;
   min-width: 0;
   text-align: left;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
 }
 
 .hu-list-row-selected {

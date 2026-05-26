@@ -85,8 +85,8 @@
   top: 18px;
   left: 18px;
   z-index: 50;
-  background: rgba(0, 21, 0, 0.55);
-  border: 2px solid var(--hu-green, #00ff0a);
+  background: transparent;
+  border: none;
   color: var(--hu-green, #00ff0a);
   font-family: 'VT323', monospace;
   /* Base size — scaled at render time via the --cp-exit-scale CSS var
