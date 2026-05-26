@@ -470,7 +470,10 @@ function MusicView({
   // bypasses every Chromium / PulseAudio quirk that broke the previous
   // getUserMedia-based capture.
   useEffect(() => {
-    const FFT_SIZE = 2048
+    // FFT_SIZE 8192 at 48 kHz gives 5.86 Hz/bin — fine enough that low-freq
+    // bars (50, 61, 75, 92 Hz …) each map to their own bin instead of all
+    // sharing one 23 Hz-wide bin like 2048 did.
+    const FFT_SIZE = 8192
     const SAMPLE_RATE = 48000
     const ring = new Float32Array(FFT_SIZE)
     let writePos = 0
@@ -534,19 +537,17 @@ function MusicView({
           setEqBars((prev) =>
             Array.from({ length: NUM_BARS }, (_, i) => {
               const { lo, hi } = barRanges[i]
-              // Peak-pick across the bins in this bar's frequency range.
-              // Averaging would dilute high-freq bars (which span hundreds
-              // of bins) and visually bias the spectrum toward the bass —
-              // even without an explicit tilt.  max() shows the loudest
-              // content in each band, which is what dedicated spectrum
-              // analysers do.
-              let peak = 0
+              // Average the bins in this bar's frequency range.
+              let sum = 0
+              let n = 0
               for (let b = lo; b <= hi; b++) {
-                if (imBuf[b] > peak) peak = imBuf[b]
+                sum += imBuf[b]
+                n++
               }
-              // Map FFT magnitude to ~[0,1].  Empirical scaling — windowed
-              // 2048-pt FFT on s16le PCM peaks around ~80 for full-scale tones.
-              let value = Math.min(1, peak * 0.04)
+              // Map FFT magnitude to ~[0,1].  Empirical scaling — for an
+              // 8192-pt FFT the magnitudes are ~4x larger than at 2048,
+              // so we divide the scale factor by 4 (0.04 → 0.01).
+              let value = n > 0 ? Math.min(1, (sum / n) * 0.01) : 0
               if (value < EQ_NOISE_GATE) value = 0
               else value = (value - EQ_NOISE_GATE) / (1 - EQ_NOISE_GATE)
               if (value > 0) value = Math.pow(value, EQ_GAMMA)
