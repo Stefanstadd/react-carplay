@@ -68,3 +68,12 @@ export const QUICK_BTN_CELL_SIZE = 150
 /** Multiplier for the ← EXIT button in the top-left of CarPlay.
  *  1.0 = original size, 1.8 = much chunkier (easier to hit while driving). */
 export const CARPLAY_EXIT_BTN_SCALE = 1.8
+
+// ─── Vite HMR hook ──────────────────────────────────────────────────────────
+// Tell Vite this module accepts its own hot updates so saves trigger an
+// in-place update of the importing component instead of a full page reload.
+// React Refresh re-mounts HeadUnit with the new constants while keeping
+// the rest of the app (CarPlay layer, BT connection, EQ pipeline) alive.
+if (import.meta.hot) {
+  import.meta.hot.accept()
+}

@@ -84,8 +84,16 @@ export function useBluetooth() {
     const bt = (window as any).api?.bt
     if (!bt) return
 
-    bt.onPhone   ((_: any, d: PhoneState)    => setPhone(d ?? DEFAULT_PHONE))
-    bt.onMedia   ((_: any, d: MediaState)    => setMedia(d ?? DEFAULT_MEDIA))
+    bt.onPhone((_: any, d: PhoneState) => {
+      console.log('[bt:hook] phone state:', d)
+      setPhone(d ?? DEFAULT_PHONE)
+    })
+    bt.onMedia((_: any, d: MediaState) => {
+      console.log('[bt:hook] media state:',
+        d?.title ?? '(no title)', '/', d?.artist ?? '(no artist)',
+        d?.playing ? 'playing' : 'paused')
+      setMedia(d ?? DEFAULT_MEDIA)
+    })
     bt.onCall    ((_: any, d: CallState)     => setCall(d ?? DEFAULT_CALL))
     bt.onContacts((_: any, d: ContactsState) => setContacts(d ?? DEFAULT_CTS))
     bt.onDevices ((_: any, d: BtDevice[])    => setDevices(d ?? []))
