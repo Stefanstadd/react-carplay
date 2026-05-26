@@ -534,15 +534,19 @@ function MusicView({
           setEqBars((prev) =>
             Array.from({ length: NUM_BARS }, (_, i) => {
               const { lo, hi } = barRanges[i]
-              let sum = 0
-              let n = 0
+              // Peak-pick across the bins in this bar's frequency range.
+              // Averaging would dilute high-freq bars (which span hundreds
+              // of bins) and visually bias the spectrum toward the bass —
+              // even without an explicit tilt.  max() shows the loudest
+              // content in each band, which is what dedicated spectrum
+              // analysers do.
+              let peak = 0
               for (let b = lo; b <= hi; b++) {
-                sum += imBuf[b]
-                n++
+                if (imBuf[b] > peak) peak = imBuf[b]
               }
               // Map FFT magnitude to ~[0,1].  Empirical scaling — windowed
               // 2048-pt FFT on s16le PCM peaks around ~80 for full-scale tones.
-              let value = n > 0 ? Math.min(1, (sum / n) * 0.04) : 0
+              let value = Math.min(1, peak * 0.04)
               if (value < EQ_NOISE_GATE) value = 0
               else value = (value - EQ_NOISE_GATE) / (1 - EQ_NOISE_GATE)
               if (value > 0) value = Math.pow(value, EQ_GAMMA)
