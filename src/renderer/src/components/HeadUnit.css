@@ -385,21 +385,41 @@ img.hu-numpad-call-icon {
 
 .hu-eq-bars {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 6px;
   flex: 1;
   min-height: 0;
   width: 100%;
 }
 
-.hu-eq-bar {
+/* One cell per bar — stacks the bar (bottom-anchored) and the peak
+   indicator (absolute positioned by bottom: %).  JS sets all dynamic
+   values inline; CSS keeps the layout. */
+.hu-eq-bar-wrap {
   flex: 1;
-  /* background is set inline via color-mix(...) so it blends smoothly
-     between --hu-green-dim and --hu-green across the 70%–85% range. */
-  height: var(--bar-h, 20%);
-  min-height: 3px;
   min-width: 0;
-  transition: background 120ms linear;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.hu-eq-bar {
+  width: 100%;
+  min-height: 2px;
+  /* Background, height, and box-shadow are set inline by the React
+     render — JS smoothing handles all temporal animation, so no CSS
+     transitions here (they'd visibly lag the analyser). */
+}
+
+.hu-eq-peak {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--hu-green);
+  pointer-events: none;
+  box-shadow: 0 0 6px rgba(0, 255, 10, 0.6);
 }
 
 .hu-eq-labels {

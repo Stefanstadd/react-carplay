@@ -18,43 +18,6 @@ import {
   type BtDevice
 } from './bluetooth'
 
-// ─── FFT (Cooley-Tukey, radix-2, in-place) ──────────────────────────────────
-// Pure JS so we don't depend on Web Audio's AnalyserNode (which is gated by
-// getUserMedia / Chromium device enumeration).  Called once per animation
-// frame on a 2048-pt buffer — well within budget on a Pi 4/5.
-function fft(real: Float32Array, imag: Float32Array): void {
-  const n = real.length
-  // Bit-reversal permutation
-  let j = 0
-  for (let i = 0; i < n - 1; i++) {
-    if (i < j) {
-      const tr = real[i]; real[i] = real[j]; real[j] = tr
-      const ti = imag[i]; imag[i] = imag[j]; imag[j] = ti
-    }
-    let k = n >> 1
-    while (k > 0 && k <= j) { j -= k; k >>= 1 }
-    j += k
-  }
-  // Butterflies
-  for (let size = 2; size <= n; size <<= 1) {
-    const half = size >> 1
-    const baseAngle = (-2 * Math.PI) / size
-    for (let i = 0; i < n; i += size) {
-      for (let k = 0; k < half; k++) {
-        const angle = baseAngle * k
-        const cosA = Math.cos(angle)
-        const sinA = Math.sin(angle)
-        const tr = real[i + k + half] * cosA - imag[i + k + half] * sinA
-        const ti = real[i + k + half] * sinA + imag[i + k + half] * cosA
-        real[i + k + half] = real[i + k] - tr
-        imag[i + k + half] = imag[i + k] - ti
-        real[i + k] += tr
-        imag[i + k] += ti
-      }
-    }
-  }
-}
-
 // ─── MarqueeText: auto-scrolling text when it overflows its container ─────
 // Measures whether the inner span overflows and, if so, runs a ping-pong
 // CSS animation that translates it from 0 to -overflowPx.  No animation
@@ -295,31 +258,13 @@ function NavBar({
 // All tweakable knobs live in headunit.config.ts — edit there, not here.
 
 import {
-  NUM_BARS,
-  BAR_MIX_LO,
-  BAR_MIX_HI,
-  F_MIN_HZ,
-  F_MAX_HZ,
-  EQ_FALL_FACTOR,
-  EQ_GAMMA,
-  EQ_NOISE_GATE,
-  SHOW_FREQ_LABELS,
+  VIZ_CONFIG,
   ALBUM_ART_SIZE,
   TITLE_SCROLL_SPEED,
   QUICK_BTN_ICON_SIZE,
   QUICK_BTN_CELL_SIZE,
 } from './headunit.config'
-
-const BAR_RATIO = Math.pow(F_MAX_HZ / F_MIN_HZ, 1 / (NUM_BARS - 1)) // ≈1/3 octave per bar
-const BAR_CENTERS_HZ = Array.from({ length: NUM_BARS }, (_, i) => F_MIN_HZ * Math.pow(BAR_RATIO, i))
-const formatHz = (hz: number): string => {
-  if (hz >= 1000) {
-    const k = hz / 1000
-    return k >= 10 ? `${Math.round(k)}k` : `${k.toFixed(1).replace(/\.0$/, '')}k`
-  }
-  return `${Math.round(hz)}`
-}
-const BAR_FREQS = BAR_CENTERS_HZ.map(formatHz)
+import { useAudioVisualizer } from './audioVisualizer'
 
 // Album art fallback chain.  AVRCP rarely carries cover art (and BlueZ
 // doesn't expose what little there is), so we look it up online: iTunes
@@ -440,146 +385,16 @@ function MusicView({
   onSelectView: (v: ViewName) => void
   bt: ReturnType<typeof useBluetooth>
 }) {
-  const targetRef = useRef<number[]>(
-    Array.from(
-      { length: NUM_BARS },
-      (_, i) => (i < 6 ? 0.6 : i < 14 ? 0.4 : 0.25) + Math.random() * 0.2
-    )
-  )
-  const [eqBars, setEqBars] = useState<number[]>(targetRef.current.slice())
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const ctxRef = useRef<AudioContext | null>(null)
-  const dataRef = useRef<Uint8Array | null>(null)
-  const frameRef = useRef(0)
-
   const phoneConnected = bt.phone.connected
   const media = bt.media
   const isPlaying = media.playing && phoneConnected
   const artworkSrc = useArt(media.title, media.artist, media.album, media.artworkSrc)
 
-  // isPlaying via a ref so the simulation fallback can react to play/pause
-  // without retearing the analyser on every state change.
-  const isPlayingRef = useRef(isPlaying)
-  useEffect(() => {
-    isPlayingRef.current = isPlaying
-  }, [isPlaying])
-
-  // EQ — receives raw s16le PCM chunks from the main process (parec on the
-  // Pi captures the USB DAC's monitor source directly), accumulates them
-  // in a ring buffer, and runs an FFT in JS every animation frame.  This
-  // bypasses every Chromium / PulseAudio quirk that broke the previous
-  // getUserMedia-based capture.
-  useEffect(() => {
-    // FFT_SIZE 8192 at 48 kHz gives 5.86 Hz/bin — fine enough that low-freq
-    // bars (50, 61, 75, 92 Hz …) each map to their own bin instead of all
-    // sharing one 23 Hz-wide bin like 2048 did.
-    const FFT_SIZE = 8192
-    const SAMPLE_RATE = 48000
-    const ring = new Float32Array(FFT_SIZE)
-    let writePos = 0
-    let everSawSignal = false
-    let cancelled = false
-    let tick = 0
-    // Pre-allocate FFT buffers + Hann window
-    const reBuf = new Float32Array(FFT_SIZE)
-    const imBuf = new Float32Array(FFT_SIZE)
-    const hann = new Float32Array(FFT_SIZE)
-    for (let i = 0; i < FFT_SIZE; i++) {
-      hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1))
-    }
-
-    // Pre-compute bar bin ranges
-    const binWidth = SAMPLE_RATE / 2 / (FFT_SIZE / 2)
-    const edge = Math.sqrt(BAR_RATIO)
-    const barRanges = BAR_CENTERS_HZ.map((center) => ({
-      lo: Math.max(0, Math.floor(center / edge / binWidth)),
-      hi: Math.min(FFT_SIZE / 2 - 1, Math.ceil((center * edge) / binWidth)),
-    }))
-
-    // Subscribe to PCM chunks from the main process.
-    const onPcm = (chunk: Uint8Array) => {
-      const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength)
-      const len = chunk.byteLength >> 1
-      for (let i = 0; i < len; i++) {
-        const s = view.getInt16(i * 2, true) / 32768
-        ring[writePos] = s
-        writePos = (writePos + 1) % FFT_SIZE
-        if (!everSawSignal && s !== 0) everSawSignal = true
-      }
-    }
-    ;(window as any).api?.onAudioPcm?.(onPcm)
-    console.log('[eq] subscribed to main-process audio PCM stream')
-
-    const loop = () => {
-      if (cancelled) return
-      tick++
-      if (tick % 2 === 0) {
-        if (everSawSignal) {
-          // Copy ring buffer (in time order) into reBuf with Hann applied.
-          for (let i = 0; i < FFT_SIZE; i++) {
-            const src = (writePos + i) % FFT_SIZE
-            reBuf[i] = ring[src] * hann[i]
-            imBuf[i] = 0
-          }
-          fft(reBuf, imBuf)
-          // Compute magnitude for the first half of bins (positive frequencies).
-          // Re-use imBuf to store magnitudes (we don't need imag anymore).
-          const halfBins = FFT_SIZE / 2
-          for (let b = 0; b < halfBins; b++) {
-            const mag = Math.sqrt(reBuf[b] * reBuf[b] + imBuf[b] * imBuf[b])
-            imBuf[b] = mag
-          }
-          if (tick % 60 === 0) {
-            let maxMag = 0
-            for (let b = 0; b < halfBins; b++) if (imBuf[b] > maxMag) maxMag = imBuf[b]
-            console.log('[eq] FFT max magnitude:', maxMag.toFixed(3))
-          }
-          setEqBars((prev) =>
-            Array.from({ length: NUM_BARS }, (_, i) => {
-              const { lo, hi } = barRanges[i]
-              // Average the bins in this bar's frequency range.
-              let sum = 0
-              let n = 0
-              for (let b = lo; b <= hi; b++) {
-                sum += imBuf[b]
-                n++
-              }
-              // Map FFT magnitude to ~[0,1].  Empirical scaling — for an
-              // 8192-pt FFT the magnitudes are ~4x larger than at 2048,
-              // so we divide the scale factor by 4 (0.04 → 0.01).
-              let value = n > 0 ? Math.min(1, (sum / n) * 0.01) : 0
-              if (value < EQ_NOISE_GATE) value = 0
-              else value = (value - EQ_NOISE_GATE) / (1 - EQ_NOISE_GATE)
-              if (value > 0) value = Math.pow(value, EQ_GAMMA)
-              const decayed = prev[i] * EQ_FALL_FACTOR
-              return Math.max(value, decayed)
-            })
-          )
-        } else {
-          // No PCM data has arrived yet — show the idle simulation so the
-          // visualiser isn't a flat line while we're waiting on main.
-          const playing = isPlayingRef.current
-          setEqBars((prev) =>
-            prev.map((v, i) => {
-              const isBass = i < 4
-              const speed = isBass ? 0.05 : i < 12 ? 0.08 : 0.12
-              const ceiling = playing ? (isBass ? 0.95 : i < 12 ? 0.78 : 0.6) : 0.18
-              if (Math.random() < 0.04)
-                targetRef.current[i] = Math.random() * ceiling + (playing ? 0.08 : 0.02)
-              return v + (targetRef.current[i] - v) * speed
-            })
-          )
-        }
-      }
-      frameRef.current = requestAnimationFrame(loop)
-    }
-    frameRef.current = requestAnimationFrame(loop)
-
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(frameRef.current)
-    }
-  }, [])
+  // Professional spectrum analyser — see audioVisualizer.ts.  Reads PCM
+  // from the main-process parec stream, runs a 4096-pt windowed FFT,
+  // returns smoothed bar heights + peak-hold positions every animation
+  // frame.  All tuning lives in VIZ_CONFIG (headunit.config.ts).
+  const { bars: vizBars, peaks: vizPeaks, labels: vizLabels } = useAudioVisualizer(VIZ_CONFIG)
 
   const progress = media.durationSec > 0 ? Math.min(1, media.positionSec / media.durationSec) : 0
 
@@ -598,39 +413,49 @@ function MusicView({
     <div className="hu-screen hu-music-screen">
       <div className="hu-viz-area">
         <div className="hu-eq-bars">
-          {eqBars.map((h, i) => {
-            const t = Math.max(0, Math.min(1, (h - BAR_MIX_LO) / (BAR_MIX_HI - BAR_MIX_LO)))
+          {Array.from({ length: VIZ_CONFIG.bars }, (_, i) => {
+            const h = vizBars[i] || 0
+            const p = vizPeaks[i] || 0
+            const t = Math.max(0, Math.min(1, (h - VIZ_CONFIG.mixLo) / (VIZ_CONFIG.mixHi - VIZ_CONFIG.mixLo)))
             const dimPct = ((1 - t) * 100).toFixed(0)
             const brigPct = (t * 100).toFixed(0)
+            const glowPx = (4 + 14 * h) * VIZ_CONFIG.glowStrength
+            const glowAlpha = (0.18 + 0.5 * h) * VIZ_CONFIG.glowStrength
             return (
-              <div
-                key={i}
-                className="hu-eq-bar"
-                style={
-                  {
-                    '--bar-h': `${Math.max(3, Math.round(h * 100))}%`,
-                    background: `color-mix(in srgb, var(--hu-green-dim) ${dimPct}%, var(--hu-green) ${brigPct}%)`
-                  } as React.CSSProperties
-                }
-              />
+              <div key={i} className="hu-eq-bar-wrap">
+                <div
+                  className="hu-eq-bar"
+                  style={{
+                    height: `${Math.max(2, h * 100)}%`,
+                    background: `color-mix(in srgb, var(--hu-green-dim) ${dimPct}%, var(--hu-green) ${brigPct}%)`,
+                    boxShadow: glowPx > 0.1 ? `0 0 ${glowPx.toFixed(1)}px rgba(0, 255, 10, ${glowAlpha.toFixed(2)})` : 'none',
+                  }}
+                />
+                {p > 0.02 && (
+                  <div
+                    className="hu-eq-peak"
+                    style={{ bottom: `${(p * 100).toFixed(2)}%` }}
+                  />
+                )}
+              </div>
             )
           })}
         </div>
-        {SHOW_FREQ_LABELS && (
-        <div className="hu-eq-labels">
-          {BAR_FREQS.slice(0, NUM_BARS).map((f, i) => {
-            // Thin labels as bar count grows so they don't overlap on
-            // the 5.5" screen.  Always show the first and last bar's label.
-            const step =
-              NUM_BARS <= 24 ? 2 : NUM_BARS <= 32 ? 3 : NUM_BARS <= 48 ? 4 : 6
-            const show = i === 0 || i === NUM_BARS - 1 || i % step === 0
-            return (
-              <span key={i} className="hu-eq-label">
-                {show ? f : ''}
-              </span>
-            )
-          })}
-        </div>
+        {VIZ_CONFIG.showFrequencyLabels && (
+          <div className="hu-eq-labels">
+            {vizLabels.map((f, i) => {
+              // Thin labels as bar count grows so they don't overlap on
+              // the 5.5" screen.  Always show the first and last bar's label.
+              const n = VIZ_CONFIG.bars
+              const step = n <= 24 ? 2 : n <= 32 ? 3 : n <= 48 ? 4 : 6
+              const show = i === 0 || i === n - 1 || i % step === 0
+              return (
+                <span key={i} className="hu-eq-label">
+                  {show ? f : ''}
+                </span>
+              )
+            })}
+          </div>
         )}
       </div>
 
