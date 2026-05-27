@@ -222,6 +222,15 @@ export class BluetoothManager {
 
   private deviceList(): BtDevice[] {
     return Array.from(this.devicePaths.values())
+      .filter((d) => {
+        // Always show paired or connected devices.
+        if (d.paired || d.connected) return true
+        // Otherwise filter discovery noise: drop devices we only know by
+        // MAC address (no name), or anonymous BLE advertisers that BlueZ
+        // picks up during scan but the user can't meaningfully pair.
+        if (!d.name || d.name === d.address) return false
+        return true
+      })
       .sort((a, b) => Number(b.connected) - Number(a.connected) || a.name.localeCompare(b.name))
   }
 
@@ -290,7 +299,12 @@ export class BluetoothManager {
       this.devicePaths.delete(path)
       if (path === this.activePhonePath) {
         this.activePhonePath = null
+        this.activePlayerPath = null
+        this.media = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
+        this.contacts = { synced: false, syncing: false, contacts: [] }
         this.pushPhone()
+        this.pushMedia()
+        this.pushContacts()
       }
       this.pushDevices()
     }
@@ -309,6 +323,7 @@ export class BluetoothManager {
         if (iface !== IFACE_DEVICE) return
         const d = this.devicePaths.get(path); if (!d) return
         const c = unwrapVariants(changed)
+        const wasActive = this.activePhonePath === path
         if ('Name'      in c) d.name      = String(c.Name)
         if ('Alias'     in c) d.name      = d.name || String(c.Alias)
         if ('Connected' in c) d.connected = !!c.Connected
@@ -316,7 +331,22 @@ export class BluetoothManager {
         if ('Trusted'   in c) d.trusted   = !!c.Trusted
         this.maybePromoteToActivePhone(path)
         this.pushDevices()
-        if (path === this.activePhonePath) this.pushPhone()
+        // Push phone state when ANYTHING about the active phone changes —
+        // including when it has JUST been demoted (Connected=false), so
+        // the renderer hears about the disconnect.  Without this the
+        // "was active" path was missed and the header stayed connected.
+        if (wasActive || path === this.activePhonePath) {
+          if (wasActive && this.activePhonePath !== path) {
+            // The previously-active phone is gone — also clear the media
+            // metadata and contacts that were tied to it.
+            this.media = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
+            this.contacts = { synced: false, syncing: false, contacts: [] }
+            this.activePlayerPath = null
+            this.pushMedia()
+            this.pushContacts()
+          }
+          this.pushPhone()
+        }
       })
     } catch (err) { /* device gone */ }
   }
@@ -402,6 +432,14 @@ export class BluetoothManager {
     if (this.activePhonePath === path) return
     this.activePhonePath = path
     console.log('[bt] active phone:', d.name, d.address)
+    // Auto-sync contacts so the user doesn't have to tap SYNC each time
+    // the phone connects.  Small delay so PBAP/obex has time to wake up.
+    setTimeout(() => {
+      if (this.activePhonePath === path && !this.contacts.synced && !this.contacts.syncing) {
+        console.log('[bt] auto-syncing contacts for', d.name)
+        this.syncContacts().catch((err) => console.warn('[bt] auto-sync failed', err))
+      }
+    }, 2000)
   }
 
   // ─── BlueZ commands ────────────────────────────────────────────────────────

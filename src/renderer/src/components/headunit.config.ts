@@ -37,9 +37,10 @@ export const VIZ_CONFIG = {
    *  noise floor doesn't show. */
   noiseGate: 0.015,
 
-  /** Auto-leveling: visualizer slowly tracks the average peak and scales
-   *  so loud + quiet songs both fill the meter. */
-  adaptiveGain: 1.2,
+  /** Static gain multiplier on every bar value before clamping to 1.0.
+   *  Replaces the old adaptive-leveling (which felt visibly slow).  Crank
+   *  if bars feel small, drop if they slam the ceiling on every transient. */
+  gain: 1.5,
 
   /** Frequency-band shaping.  Bass bars (<250 Hz) get this multiplier so
    *  the kick still feels punchy.  High bars (>4 kHz) get damped so the
@@ -52,10 +53,10 @@ export const VIZ_CONFIG = {
    *  release which act on the per-band normalized value. */
   smoothing: 0.18,
 
-  /** Bar color blend.  Below mixLo bars are full-dim; above mixHi
-   *  full-bright; in between blended. */
-  mixLo: 0.35,
-  mixHi: 0.95,
+  /** Color curve exponent for the bar palette.  >1 spreads the colour
+   *  toward the upper end (more visible mid shades, peaks pop bright);
+   *  <1 spreads toward the lower end (everything looks active). */
+  colorCurve: 1.6,
 
   /** Glow intensity multiplier for the bars (uses CSS box-shadow). */
   glowStrength: 0.7,

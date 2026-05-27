@@ -4,7 +4,7 @@
 // window.api.bt.* and re-exposes them as a React hook.  On dev (Windows)
 // the IPC bridge is absent — the hook just returns the disconnected default.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -79,6 +79,12 @@ export function useBluetooth() {
   const [call,     setCall]     = useState<CallState>(DEFAULT_CALL)
   const [contacts, setContacts] = useState<ContactsState>(DEFAULT_CTS)
   const [devices,  setDevices]  = useState<BtDevice[]>([])
+  // Timestamp (ms) of the last user-driven seek/prev/next.  For 800 ms
+  // after that we ignore positionSec updates from main, otherwise the
+  // BlueZ position poller snaps the bar back to the OLD position while
+  // the phone hasn't actually responded yet (= the visible "0 → old → 1"
+  // flicker on previous-button press).
+  const userSeekAtRef = useRef(0)
 
   useEffect(() => {
     const bt = (window as any).api?.bt
@@ -89,28 +95,49 @@ export function useBluetooth() {
       setPhone(d ?? DEFAULT_PHONE)
     })
     bt.onMedia((_: any, d: MediaState) => {
-      console.log('[bt:hook] media state:',
-        d?.title ?? '(no title)', '/', d?.artist ?? '(no artist)',
-        d?.playing ? 'playing' : 'paused')
-      setMedia(d ?? DEFAULT_MEDIA)
+      setMedia((prev) => {
+        const next = d ?? DEFAULT_MEDIA
+        const sameTrack = next.title === prev.title && next.artist === prev.artist
+        const recentlySeeked = Date.now() - userSeekAtRef.current < 800
+        const smallDrift =
+          sameTrack && Math.abs((next.positionSec ?? 0) - prev.positionSec) < 2
+        // Trust local positionSec over main when the user just seeked OR
+        // when the diff is small (BlueZ polls 1Hz; our local tick is 10Hz
+        // so the local value is always ahead by up to 1 s — that's not
+        // a real seek, it's just clock drift).
+        if (recentlySeeked || smallDrift) {
+          return { ...next, positionSec: prev.positionSec }
+        }
+        return next
+      })
     })
     bt.onCall    ((_: any, d: CallState)     => setCall(d ?? DEFAULT_CALL))
     bt.onContacts((_: any, d: ContactsState) => setContacts(d ?? DEFAULT_CTS))
     bt.onDevices ((_: any, d: BtDevice[])    => setDevices(d ?? []))
 
-    // Locally tick position while a track is playing so the bar doesn't
-    // wait for the next push from main.  Main re-syncs on every change.
     bt.requestState?.()
   }, [])
 
-  // Local position tick — overrides positionSec each second while playing.
+  // Smooth local position tick — 10 Hz so the progress bar slides
+  // continuously instead of jumping in 1-second chunks like main's poll.
   useEffect(() => {
     if (!media.playing) return
+    let last = performance.now()
     const id = setInterval(() => {
-      setMedia(prev => prev.playing
-        ? { ...prev, positionSec: Math.min(prev.positionSec + 1, prev.durationSec || prev.positionSec + 1) }
-        : prev)
-    }, 1000)
+      const now = performance.now()
+      const dt = (now - last) / 1000
+      last = now
+      setMedia((prev) =>
+        prev.playing
+          ? {
+              ...prev,
+              positionSec: prev.durationSec > 0
+                ? Math.min(prev.positionSec + dt, prev.durationSec)
+                : prev.positionSec + dt,
+            }
+          : prev
+      )
+    }, 100)
     return () => clearInterval(id)
   }, [media.playing])
 
@@ -130,15 +157,27 @@ export function useBluetooth() {
   return {
     phone, media, call, contacts, devices,
 
-    // Media transport.  prev/next optimistically snap position to 0 so
-    // the counter doesn't keep climbing from the previous song's time
-    // while we wait for the new track metadata.
+    // Media transport.  prev/next optimistically snap position to 0 and
+    // mark a "user just seeked" timestamp so the BlueZ position poller
+    // doesn't yank us back to the old time during the next 800 ms.
     mediaPlay:    () => bt?.mediaCmd?.('play'),
     mediaPause:   () => bt?.mediaCmd?.('pause'),
     mediaToggle:  () => bt?.mediaCmd?.(media.playing ? 'pause' : 'play'),
-    mediaNext:    () => { bt?.mediaCmd?.('next');     setMedia(p => ({ ...p, positionSec: 0 })) },
-    mediaPrev:    () => { bt?.mediaCmd?.('previous'); setMedia(p => ({ ...p, positionSec: 0 })) },
-    mediaSeek:    (sec: number) => bt?.mediaCmd?.(`seek:${Math.max(0, Math.floor(sec))}`),
+    mediaNext: () => {
+      bt?.mediaCmd?.('next')
+      userSeekAtRef.current = Date.now()
+      setMedia((p) => ({ ...p, positionSec: 0 }))
+    },
+    mediaPrev: () => {
+      bt?.mediaCmd?.('previous')
+      userSeekAtRef.current = Date.now()
+      setMedia((p) => ({ ...p, positionSec: 0 }))
+    },
+    mediaSeek: (sec: number) => {
+      bt?.mediaCmd?.(`seek:${Math.max(0, Math.floor(sec))}`)
+      userSeekAtRef.current = Date.now()
+      setMedia((p) => ({ ...p, positionSec: Math.max(0, sec) }))
+    },
 
     // Calls
     dial:    (num: string)     => bt?.dial?.(num),

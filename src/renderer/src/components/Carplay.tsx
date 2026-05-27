@@ -246,7 +246,7 @@ function Carplay({ receivingVideo, setReceivingVideo, settings, command, command
       className="App"
       ref={mainElem}
     >
-      {active && (
+      {active && (deviceFound === false || isLoading) && (
         <button
           className="cp-exit-btn"
           onClick={() => onHostUIRequested?.()}

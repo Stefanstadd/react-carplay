@@ -125,12 +125,11 @@ export type VizConfig = {
   peakFallSpeed: number
   gamma: number
   noiseGate: number
-  adaptiveGain: number
+  gain: number
   bassBoost: number
   highFrequencyDamping: number
   smoothing: number
-  mixLo: number
-  mixHi: number
+  colorCurve: number
   glowStrength: number
   showFrequencyLabels: boolean
 }
@@ -168,10 +167,6 @@ export class AudioVisualizer {
   private bandCenter: Float32Array
   private bassMask: Uint8Array
   private highMask: Uint8Array
-
-  // Adaptive gain — slow-tracked average peak so quiet songs lift and
-  // loud songs stay in range.
-  private avgPeak = 0.5
 
   constructor(cfg: VizConfig) {
     this.cfg = cfg
@@ -268,7 +263,6 @@ export class AudioVisualizer {
     }
 
     // 4. Per-band processing.
-    let frameMax = 0
     for (let b = 0; b < cfg.bars; b++) {
       const binLo = this.bandBinLo[b]
       const binHi = this.bandBinHi[b]
@@ -324,24 +318,13 @@ export class AudioVisualizer {
       const prev = this.smoothed[b]
       if (v > prev) this.smoothed[b] = prev + (v - prev) * cfg.attackSpeed
       else this.smoothed[b] = prev + (v - prev) * cfg.releaseSpeed
-
-      if (this.smoothed[b] > frameMax) frameMax = this.smoothed[b]
     }
 
-    // 5. Adaptive gain — slow EMA of the per-frame peak so loud + quiet
-    //    songs both fill the meter.
-    if (frameMax > 0.05) {
-      this.avgPeak = this.avgPeak * 0.997 + frameMax * 0.003
-    } else {
-      this.avgPeak = this.avgPeak * 0.9995 + 0.01 * 0.0005
-    }
-    if (this.avgPeak < 0.15) this.avgPeak = 0.15
-    const gain = Math.min(3, cfg.adaptiveGain / this.avgPeak)
-
-    // 6. Final bar values + peak-hold physics.
+    // 5. Final bar values + peak-hold physics.  Static gain — replaces
+    //    the old adaptive-leveling which felt visibly laggy.
     const dt60 = dtMs / 16.667 // normalise to 60-fps frames
     for (let b = 0; b < cfg.bars; b++) {
-      let val = this.smoothed[b] * gain
+      let val = this.smoothed[b] * cfg.gain
       if (val > 1) val = 1
       if (val < 0) val = 0
       this.bars[b] = val
@@ -367,39 +350,91 @@ export class AudioVisualizer {
   }
 }
 
-// ─── React hook ────────────────────────────────────────────────────────────
+// ─── Singleton instance + animation loop ───────────────────────────────────
+// The visualizer is module-scoped so its state (smoothed bars, peak hold
+// timers, ring buffer) survives across React mount/unmount cycles.
+// Switching to another head-unit screen no longer resets the bars.
 
-/**
- * Drives an AudioVisualizer from the main-process PCM stream.  Re-renders
- * the caller every animation frame so it can read the live `bars` /
- * `peaks` arrays.
- */
-export function useAudioVisualizer(cfg: VizConfig) {
-  const vizRef = useRef<AudioVisualizer | null>(null)
-  if (!vizRef.current) vizRef.current = new AudioVisualizer(cfg)
-  const [, setTick] = useState(0)
-  const rafRef = useRef(0)
+let GLOBAL_VIZ: AudioVisualizer | null = null
+let PCM_HOOKED = false
+let LOOP_STARTED = false
+const LISTENERS = new Set<() => void>()
 
-  useEffect(() => {
-    const viz = vizRef.current!
-    const onPcm = (chunk: Uint8Array) => viz.pushPcmS16(chunk)
-    ;(window as any).api?.onAudioPcm?.(onPcm)
-
+function ensureViz(cfg: VizConfig): AudioVisualizer {
+  if (!GLOBAL_VIZ) GLOBAL_VIZ = new AudioVisualizer(cfg)
+  if (!PCM_HOOKED) {
+    const api = (window as any).api
+    if (api?.onAudioPcm) {
+      api.onAudioPcm((chunk: Uint8Array) => GLOBAL_VIZ!.pushPcmS16(chunk))
+      PCM_HOOKED = true
+    }
+  }
+  if (!LOOP_STARTED) {
+    LOOP_STARTED = true
     let last = performance.now()
     const loop = (now: number) => {
       const dt = Math.min(100, now - last)
       last = now
-      viz.step(dt)
-      setTick((t) => (t + 1) & 0xffff)
-      rafRef.current = requestAnimationFrame(loop)
+      GLOBAL_VIZ!.step(dt)
+      LISTENERS.forEach((fn) => fn())
+      requestAnimationFrame(loop)
     }
-    rafRef.current = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(rafRef.current)
+    requestAnimationFrame(loop)
+  }
+  return GLOBAL_VIZ
+}
+
+// ─── React hook ────────────────────────────────────────────────────────────
+
+/**
+ * Subscribes the calling component to per-frame re-renders driven by the
+ * global AudioVisualizer.  Returns live refs to the bars/peaks arrays;
+ * read them inline in JSX.
+ */
+export function useAudioVisualizer(cfg: VizConfig) {
+  const viz = ensureViz(cfg)
+  const [, setTick] = useState(0)
+
+  useEffect(() => {
+    const fn = () => setTick((t) => (t + 1) & 0xffff)
+    LISTENERS.add(fn)
+    return () => {
+      LISTENERS.delete(fn)
+    }
   }, [])
 
-  return {
-    bars: vizRef.current.bars,
-    peaks: vizRef.current.peaks,
-    labels: vizRef.current.labels,
+  return { bars: viz.bars, peaks: viz.peaks, labels: viz.labels }
+}
+
+// ─── Color palette ─────────────────────────────────────────────────────────
+// Multi-stop gradient: dark green at silence, full bright at near-peak,
+// hot green-white at the very top.  colorCurve in config bends the curve.
+
+type RGB = readonly [number, number, number]
+const COLOR_STOPS: { t: number; rgb: RGB }[] = [
+  { t: 0.0, rgb: [0, 30, 4] },
+  { t: 0.25, rgb: [0, 90, 6] },
+  { t: 0.55, rgb: [0, 170, 10] },
+  { t: 0.85, rgb: [0, 240, 16] },
+  { t: 1.0, rgb: [150, 255, 130] },
+]
+
+/** Returns a CSS rgb() string for a bar height (0..1).  Exponential
+ *  curve via cfg.colorCurve (>1 emphasises the bright/hot end). */
+export function barColor(h: number, colorCurve = 1.6): string {
+  if (h <= 0) return `rgb(${COLOR_STOPS[0].rgb.join(',')})`
+  const t = Math.pow(Math.min(1, h), 1 / colorCurve)
+  for (let i = 1; i < COLOR_STOPS.length; i++) {
+    if (t <= COLOR_STOPS[i].t) {
+      const lo = COLOR_STOPS[i - 1]
+      const hi = COLOR_STOPS[i]
+      const k = (t - lo.t) / (hi.t - lo.t)
+      const r = Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * k)
+      const g = Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * k)
+      const b = Math.round(lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * k)
+      return `rgb(${r},${g},${b})`
+    }
   }
+  const last = COLOR_STOPS[COLOR_STOPS.length - 1].rgb
+  return `rgb(${last.join(',')})`
 }

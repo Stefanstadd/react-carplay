@@ -157,7 +157,9 @@ function formatTime(s: number) {
 function HUHeader({ phone }: { phone: PhoneState }) {
   const { dayDate, time } = formatClock(useClock())
   const battery = phone.connected ? phone.batteryPct ?? 0 : 0
-  const fillW = Math.max(0, (battery / 100) * 19).toFixed(1)
+  // Box is 25.5 wide between x=0.75..26.25.  Inside the 1.5px border the
+  // fillable area starts at x=2 and ends at x=25, so max width 23.
+  const fillW = Math.max(0, (battery / 100) * 23).toFixed(1)
   return (
     <header className="hu-header">
       <div className="hu-header-clock">
@@ -264,7 +266,7 @@ import {
   QUICK_BTN_ICON_SIZE,
   QUICK_BTN_CELL_SIZE,
 } from './headunit.config'
-import { useAudioVisualizer } from './audioVisualizer'
+import { useAudioVisualizer, barColor } from './audioVisualizer'
 
 // Album art fallback chain.  AVRCP rarely carries cover art (and BlueZ
 // doesn't expose what little there is), so we look it up online: iTunes
@@ -416,9 +418,7 @@ function MusicView({
           {Array.from({ length: VIZ_CONFIG.bars }, (_, i) => {
             const h = vizBars[i] || 0
             const p = vizPeaks[i] || 0
-            const t = Math.max(0, Math.min(1, (h - VIZ_CONFIG.mixLo) / (VIZ_CONFIG.mixHi - VIZ_CONFIG.mixLo)))
-            const dimPct = ((1 - t) * 100).toFixed(0)
-            const brigPct = (t * 100).toFixed(0)
+            const bg = barColor(h, VIZ_CONFIG.colorCurve)
             const glowPx = (4 + 14 * h) * VIZ_CONFIG.glowStrength
             const glowAlpha = (0.18 + 0.5 * h) * VIZ_CONFIG.glowStrength
             return (
@@ -427,8 +427,11 @@ function MusicView({
                   className="hu-eq-bar"
                   style={{
                     height: `${Math.max(2, h * 100)}%`,
-                    background: `color-mix(in srgb, var(--hu-green-dim) ${dimPct}%, var(--hu-green) ${brigPct}%)`,
-                    boxShadow: glowPx > 0.1 ? `0 0 ${glowPx.toFixed(1)}px rgba(0, 255, 10, ${glowAlpha.toFixed(2)})` : 'none',
+                    background: bg,
+                    boxShadow:
+                      glowPx > 0.1
+                        ? `0 0 ${glowPx.toFixed(1)}px rgba(0, 255, 10, ${glowAlpha.toFixed(2)})`
+                        : 'none',
                   }}
                 />
                 {p > 0.02 && (
@@ -1413,8 +1416,6 @@ function CallPopup({
 export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData }: HeadUnitProps) {
   const bt = useBluetooth()
   const [activeView, setActiveView] = useState<ViewName>('music')
-  const [prevView, setPrevView] = useState<ViewName | null>(null)
-  const [slideDir, setSlideDir] = useState<'left' | 'right'>('right')
   const [ss, setSS] = useState(getScaleState)
   const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
   // Whether the in-call full screen is showing (vs. the small popup).
@@ -1488,21 +1489,8 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   }, [])
 
   const handleSelect = useCallback((v: ViewName) => {
-    setActiveView((curr) => {
-      if (v === curr) return curr
-      const ci = CYCLE.indexOf(curr)
-      const ni = CYCLE.indexOf(v)
-      setSlideDir(ni > ci ? 'left' : 'right')
-      setPrevView(curr)
-      return v
-    })
+    setActiveView(v)
   }, [])
-
-  useEffect(() => {
-    if (prevView === null) return
-    const t = setTimeout(() => setPrevView(null), 360)
-    return () => clearTimeout(t)
-  }, [prevView, activeView])
 
   const renderView = (v: ViewName) => {
     switch (v) {
@@ -1517,9 +1505,6 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
     }
   }
 
-  const outClass = slideDir === 'left' ? 'hu-slide-out-left' : 'hu-slide-out-right'
-  const inClass = slideDir === 'left' ? 'hu-slide-in-right' : 'hu-slide-in-left'
-
   const showFullCall = callFull && (bt.call.status === 'active' || bt.call.status === 'dialing')
   const showPopup = !showFullCall && bt.call.status !== 'idle'
 
@@ -1533,15 +1518,22 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
           <div className="hu-scanlines" aria-hidden="true" />
           <HUHeader phone={bt.phone} />
           <main className="hu-content">
-            <div className="hu-screen-stack">
-              {prevView && (
-                <div key={`out-${prevView}`} className={`hu-screen-slot ${outClass}`}>
-                  {renderView(prevView)}
+            {/* Slide-strip carousel — all 4 views stay mounted so their
+                local state (visualizer rings, phone tab selection, scan
+                state, etc.) survives screen switches.  The strip is
+                translated horizontally so the active screen sits in the
+                viewport; transition gives the slide animation. */}
+            <div
+              className="hu-screen-strip"
+              style={{
+                transform: `translateX(${-CYCLE.indexOf(activeView) * 100}%)`,
+              }}
+            >
+              {CYCLE.map((v) => (
+                <div key={v} className="hu-screen-slot">
+                  {renderView(v)}
                 </div>
-              )}
-              <div key={`in-${activeView}`} className={`hu-screen-slot ${prevView ? inClass : ''}`}>
-                {renderView(activeView)}
-              </div>
+              ))}
             </div>
           </main>
           <NavBar active={activeView} onSelect={handleSelect} onSettings={onOpenSettings} />

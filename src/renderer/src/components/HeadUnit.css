@@ -155,11 +155,28 @@ img.hu-numpad-call-icon {
   overflow: hidden;
 }
 
+/* Carousel strip — 4 screens, each 100% wide.  Translating the strip
+   horizontally slides the active screen into view while keeping the
+   others mounted (no state loss on screen switch). */
+.hu-screen-strip {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  transition: transform 340ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
 .hu-screen-slot {
-  position: absolute;
-  inset: 0;
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* ─── Slide animations ─────────────────────────────────────────────────── */
@@ -983,9 +1000,12 @@ img.hu-numpad-call-icon {
 /* ─── In-call full-screen overlay ──────────────────────────────────────── */
 .hu-incall-overlay {
   position: absolute;
-  /* Sit ABOVE the navbar so the user can't accidentally tap underneath. */
-  inset: 90px 0 0 0; /* below the header */
+  /* Fills .hu-content (which already sits below the header).  border-top
+     gives the in-call screen the same green divider every other screen
+     has between the top bar and the content. */
+  inset: 0;
   background: var(--hu-bg-deep);
+  border-top: 1px solid var(--hu-green-mid);
   z-index: 50;
   display: flex;
 }
@@ -1069,7 +1089,7 @@ img.hu-numpad-call-icon {
   height: 160px;
   background: transparent;
   color: var(--hu-green);
-  border: 2px solid var(--hu-green);
+  border: none;
   font-family: 'VT323', monospace;
   font-size: 26px;
   letter-spacing: 0.14em;
@@ -1100,26 +1120,28 @@ img.hu-numpad-call-icon {
 
 .hu-incall-hangup {
   background: var(--hu-miss);
-  border-color: var(--hu-miss);
+  border: none;
 }
 
 .hu-incall-hangup:hover,
 .hu-incall-hangup:focus-visible {
   background: #ff7070;
-  border-color: #ff7070;
 }
 
 .hu-incall-hangup-icon {
+  /* Keep the phone icon upright — earlier 135deg rotation made it look
+     misaligned.  Red background already signals "end call". */
   filter: brightness(0);
-  transform: rotate(135deg);
+  transform: none;
 }
 
 /* ─── Floating call popup (incoming / minimised in-call) ───────────────── */
 .hu-call-popup {
   position: absolute;
-  /* Sit above the navbar but below the full in-call overlay. */
+  /* Anchored to the top so it slides in under the header when a call
+     arrives — easier to spot than at the bottom of the screen. */
+  top: 28px;
   right: 28px;
-  bottom: 150px;
   z-index: 40;
   background: var(--hu-bg-panel);
   border: 2px solid var(--hu-green);
