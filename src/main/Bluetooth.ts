@@ -129,11 +129,30 @@ export class BluetoothManager {
   private contacts: ContactsState = { synced: false, syncing: false, contacts: [] }
   private recents: RecentCallsState = { synced: false, syncing: false, calls: [] }
 
+  // PBAP serialization — iPhone only allows one OBEX session at a time.
+  // syncContacts + syncRecentCalls chain off the same promise so they
+  // never collide.  500 ms gap after each so the phone releases the old
+  // session before we open a new one.
+  private pbapChain: Promise<unknown> = Promise.resolve()
+
   // periodic media-position refresh from the player
   private positionTimer: NodeJS.Timeout | null = null
 
   constructor(getWindow: () => BrowserWindow | undefined) {
     this.getWindow = getWindow
+  }
+
+  /** Run a PBAP/obex operation after any in-flight one finishes. */
+  private chainPbap<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.pbapChain
+      .catch(() => undefined)
+      .then(() => fn())
+      .then(async (v) => {
+        await new Promise((r) => setTimeout(r, 500))
+        return v
+      })
+    this.pbapChain = next.catch(() => undefined)
+    return next
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────────────────────
@@ -741,7 +760,11 @@ export class BluetoothManager {
 
   // ─── obex — PBAP phonebook sync ───────────────────────────────────────────
 
-  private async syncContacts() {
+  private syncContacts(): Promise<void> {
+    return this.chainPbap(() => this.syncContactsInner())
+  }
+
+  private async syncContactsInner() {
     if (!this.sessionBus) {
       this.contacts.lastError = 'session bus unavailable (no user D-Bus)'
       this.pushContacts()
@@ -821,8 +844,13 @@ export class BluetoothManager {
 
   /** Pull combined call history (incoming + outgoing + missed) over PBAP.
    *  iPhones expose this as the "cch" folder.  Each vCard includes
-   *  X-IRMC-CALL-DATETIME for the timestamp.  */
-  private async syncRecentCalls() {
+   *  X-IRMC-CALL-DATETIME for the timestamp.  Serialised via chainPbap
+   *  so it never collides with syncContacts. */
+  private syncRecentCalls(): Promise<void> {
+    return this.chainPbap(() => this.syncRecentCallsInner())
+  }
+
+  private async syncRecentCallsInner() {
     if (!this.sessionBus) {
       this.recents.lastError = 'session bus unavailable'
       this.pushRecents()
