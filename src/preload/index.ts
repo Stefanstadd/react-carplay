@@ -10,6 +10,7 @@ export interface BtApi {
   onMedia:    (cb: ApiCallback) => void
   onCall:     (cb: ApiCallback) => void
   onContacts: (cb: ApiCallback) => void
+  onRecents:  (cb: ApiCallback) => void
   onDevices:  (cb: ApiCallback) => void
 
   requestState:  () => void
@@ -20,6 +21,7 @@ export interface BtApi {
   hangup:        () => void
   mute:          (on: boolean) => void
   syncContacts:  () => void
+  syncRecents:   () => void
   scan:          (on: boolean) => void
   connect:       (address: string) => void
   disconnect:    (address: string) => void
@@ -42,6 +44,7 @@ const bt: BtApi = {
   onMedia:    (cb) => ipcRenderer.on('bt:media',    cb),
   onCall:     (cb) => ipcRenderer.on('bt:call',     cb),
   onContacts: (cb) => ipcRenderer.on('bt:contacts', cb),
+  onRecents:  (cb) => ipcRenderer.on('bt:recents',  cb),
   onDevices:  (cb) => ipcRenderer.on('bt:devices',  cb),
 
   requestState: ()         => ipcRenderer.send('bt:requestState'),
@@ -52,6 +55,7 @@ const bt: BtApi = {
   hangup:       ()         => ipcRenderer.send('bt:hangup'),
   mute:         (on)       => ipcRenderer.send('bt:mute', on),
   syncContacts: ()         => ipcRenderer.send('bt:syncContacts'),
+  syncRecents:  ()         => ipcRenderer.send('bt:syncRecents'),
   scan:         (on)       => ipcRenderer.send('bt:scan', on),
   connect:      (address)  => ipcRenderer.send('bt:connect', address),
   disconnect:   (address)  => ipcRenderer.send('bt:disconnect', address),

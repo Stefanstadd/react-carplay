@@ -66,10 +66,25 @@ export interface ContactsState {
   lastError?: string
 }
 
+export interface RecentCall {
+  name?: string
+  number: string
+  time: number       // epoch ms
+  dir: 'in' | 'out' | 'miss'
+}
+
+export interface RecentCallsState {
+  synced: boolean
+  syncing: boolean
+  calls: RecentCall[]
+  lastError?: string
+}
+
 const DEFAULT_PHONE: PhoneState   = { connected: false }
 const DEFAULT_MEDIA: MediaState   = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
 const DEFAULT_CALL:  CallState    = { status: 'idle', durationSec: 0, muted: false }
 const DEFAULT_CTS:   ContactsState = { synced: false, syncing: false, contacts: [] }
+const DEFAULT_RCS:   RecentCallsState = { synced: false, syncing: false, calls: [] }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +93,7 @@ export function useBluetooth() {
   const [media,    setMedia]    = useState<MediaState>(DEFAULT_MEDIA)
   const [call,     setCall]     = useState<CallState>(DEFAULT_CALL)
   const [contacts, setContacts] = useState<ContactsState>(DEFAULT_CTS)
+  const [recents,  setRecents]  = useState<RecentCallsState>(DEFAULT_RCS)
   const [devices,  setDevices]  = useState<BtDevice[]>([])
   // Timestamp (ms) of the last user-driven seek/prev/next.  For 800 ms
   // after that we ignore positionSec updates from main, otherwise the
@@ -98,22 +114,29 @@ export function useBluetooth() {
       setMedia((prev) => {
         const next = d ?? DEFAULT_MEDIA
         const sameTrack = next.title === prev.title && next.artist === prev.artist
-        const recentlySeeked = Date.now() - userSeekAtRef.current < 800
-        const smallDrift =
-          sameTrack && Math.abs((next.positionSec ?? 0) - prev.positionSec) < 2
-        // Trust local positionSec over main when the user just seeked OR
-        // when the diff is small (BlueZ polls 1Hz; our local tick is 10Hz
-        // so the local value is always ahead by up to 1 s — that's not
-        // a real seek, it's just clock drift).
-        if (recentlySeeked || smallDrift) {
+        const sinceSeek = Date.now() - userSeekAtRef.current
+        const incomingPos = next.positionSec ?? 0
+        // After a user seek/prev/next, the iPhone takes a couple of
+        // seconds to actually reset its Position.  During that window,
+        // BlueZ keeps polling the OLD position — if we accept it, the
+        // bar snaps back.  Suppress until either (a) 4 s pass, or
+        // (b) BlueZ reports a low position (<5 s) which means the phone
+        // actually navigated.
+        if (sinceSeek < 4000 && incomingPos > 5) {
+          return { ...next, positionSec: prev.positionSec }
+        }
+        // Tiny drift on same track — our 10 Hz local tick is more
+        // accurate than BlueZ's 1 Hz poll, suppress jitter.
+        if (sameTrack && Math.abs(incomingPos - prev.positionSec) < 2) {
           return { ...next, positionSec: prev.positionSec }
         }
         return next
       })
     })
-    bt.onCall    ((_: any, d: CallState)     => setCall(d ?? DEFAULT_CALL))
-    bt.onContacts((_: any, d: ContactsState) => setContacts(d ?? DEFAULT_CTS))
-    bt.onDevices ((_: any, d: BtDevice[])    => setDevices(d ?? []))
+    bt.onCall    ((_: any, d: CallState)         => setCall(d ?? DEFAULT_CALL))
+    bt.onContacts((_: any, d: ContactsState)     => setContacts(d ?? DEFAULT_CTS))
+    bt.onRecents ((_: any, d: RecentCallsState)  => setRecents(d ?? DEFAULT_RCS))
+    bt.onDevices ((_: any, d: BtDevice[])        => setDevices(d ?? []))
 
     bt.requestState?.()
   }, [])
@@ -155,7 +178,7 @@ export function useBluetooth() {
   const bt = (window as any).api?.bt
 
   return {
-    phone, media, call, contacts, devices,
+    phone, media, call, contacts, recents, devices,
 
     // Media transport.  prev/next optimistically snap position to 0 and
     // mark a "user just seeked" timestamp so the BlueZ position poller
@@ -187,8 +210,9 @@ export function useBluetooth() {
     mute:    (on: boolean)     => bt?.mute?.(on),
     toggleMute: ()             => bt?.mute?.(!call.muted),
 
-    // Contacts
+    // Contacts + recents
     syncContacts: () => bt?.syncContacts?.(),
+    syncRecents:  () => bt?.syncRecents?.(),
 
     // Devices
     scan:       (on: boolean)  => bt?.scan?.(on),

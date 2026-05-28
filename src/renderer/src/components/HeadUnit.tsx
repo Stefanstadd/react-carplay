@@ -832,15 +832,13 @@ function GaugesView({ vehicleData }: { vehicleData?: VehicleData }) {
 
 // ─── Phone View ───────────────────────────────────────────────────────────────
 
-type PhoneTab = 'contacts' | 'recent' | 'call'
+type PhoneTab = 'recent' | 'call'
 
 const PHONE_TAB_ICONS: Record<PhoneTab, string> = {
-  contacts: iconContacts,
   recent: iconRecent,
   call: iconPhone
 }
 const PHONE_TAB_LABEL: Record<PhoneTab, string> = {
-  contacts: 'CONTACTS',
   recent: 'RECENT',
   call: 'CALL'
 }
@@ -884,27 +882,19 @@ function formatRecentTime(ts: number): string {
 
 function PhoneView({
   bt,
-  recents
 }: {
   bt: ReturnType<typeof useBluetooth>
-  recents: RecentEntry[]
 }) {
-  const [tab, setTab] = useState<PhoneTab>('contacts')
+  const [tab, setTab] = useState<PhoneTab>('call')
   const [dial, setDial] = useState('')
-  // Currently-selected contact / recent — tap to select, tap CALL to dial.
-  // Switching tabs clears the selection so it doesn't bleed across screens.
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
+  // Currently-selected match/recent — tap to select, tap CALL to dial.
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
   const [selectedRecentIdx, setSelectedRecentIdx] = useState<number | null>(null)
 
   useEffect(() => {
-    setSelectedContactId(null)
+    setSelectedMatchId(null)
     setSelectedRecentIdx(null)
   }, [tab])
-
-  const dialMatches = useMemo(
-    () => filterContactsByDial(bt.contacts.contacts, dial).slice(0, 8),
-    [bt.contacts.contacts, dial]
-  )
 
   const onCallContact = (c: Contact) => {
     const num = c.numbers[0]?.number
@@ -921,7 +911,7 @@ function PhoneView({
       <div className="hu-sidebar">
         <div className="hu-panel-label">PHONE</div>
         <div className="hu-phone-sidebar-tabs">
-          {(['contacts', 'recent', 'call'] as PhoneTab[]).map((t) => (
+          {(['recent', 'call'] as PhoneTab[]).map((t) => (
             <button
               key={t}
               className={`hu-list-btn${tab === t ? ' hu-list-btn-active' : ''}`}
@@ -935,9 +925,17 @@ function PhoneView({
 
         <div style={{ flex: 1 }} />
 
-        {tab === 'contacts' && bt.phone.connected && (
-          <button className="hu-list-btn" onClick={bt.syncContacts}>
-            <span>{bt.contacts.syncing ? 'SYNCING…' : 'SYNC'}</span>
+        {bt.phone.connected && (
+          <button
+            className="hu-list-btn"
+            onClick={() => {
+              bt.syncContacts()
+              bt.syncRecents()
+            }}
+          >
+            <span>
+              {bt.contacts.syncing || bt.recents.syncing ? 'SYNCING…' : 'SYNC'}
+            </span>
           </button>
         )}
       </div>
@@ -948,26 +946,17 @@ function PhoneView({
             <div className="hu-empty-state">
               <div className="hu-empty-title">NO PHONE CONNECTED</div>
               <div className="hu-empty-sub">
-                Pair a phone in the Devices screen to use contacts and calling.
+                Pair a phone in the Devices screen to use the dialer + recent calls.
               </div>
             </div>
           )}
 
-          {bt.phone.connected && tab === 'contacts' && (
-            <ContactsList
-              contacts={bt.contacts.contacts}
-              synced={bt.contacts.synced}
-              syncing={bt.contacts.syncing}
-              lastError={bt.contacts.lastError}
-              selectedId={selectedContactId}
-              onSelect={(id) => setSelectedContactId((prev) => (prev === id ? null : id))}
-              onCall={onCallContact}
-            />
-          )}
-
           {bt.phone.connected && tab === 'recent' && (
             <RecentsList
-              recents={recents}
+              recents={bt.recents.calls}
+              syncing={bt.recents.syncing}
+              synced={bt.recents.synced}
+              lastError={bt.recents.lastError}
               selectedIdx={selectedRecentIdx}
               onSelect={(i) => setSelectedRecentIdx((prev) => (prev === i ? null : i))}
               onCall={(n) => bt.dial(n)}
@@ -978,100 +967,17 @@ function PhoneView({
             <DialerView
               dial={dial}
               setDial={setDial}
-              matches={dialMatches}
+              contacts={bt.contacts.contacts}
+              selectedMatchId={selectedMatchId}
+              onSelectMatch={(id) =>
+                setSelectedMatchId((prev) => (prev === id ? null : id))
+              }
               onCall={onCallDial}
               onCallContact={onCallContact}
             />
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-function ContactsList({
-  contacts,
-  synced,
-  syncing,
-  lastError,
-  selectedId,
-  onSelect,
-  onCall
-}: {
-  contacts: Contact[]
-  synced: boolean
-  syncing: boolean
-  lastError?: string
-  selectedId: string | null
-  onSelect: (id: string) => void
-  onCall: (c: Contact) => void
-}) {
-  if (lastError && !syncing) {
-    return (
-      <div className="hu-empty-state">
-        <div className="hu-empty-title">SYNC FAILED</div>
-        <div className="hu-empty-sub">{lastError}</div>
-        <div className="hu-empty-sub" style={{ fontSize: 22, opacity: 0.7 }}>
-          On iPhone: Settings → Bluetooth → tap (i) next to the head unit → enable Sync Contacts.
-          Then tap SYNC again.
-        </div>
-      </div>
-    )
-  }
-  if (!synced && !syncing && contacts.length === 0) {
-    return (
-      <div className="hu-empty-state">
-        <div className="hu-empty-title">CONTACTS NOT SYNCED</div>
-        <div className="hu-empty-sub">
-          Tap SYNC in the sidebar to import contacts from your phone (PBAP).
-        </div>
-      </div>
-    )
-  }
-  if (syncing && contacts.length === 0) {
-    return (
-      <div className="hu-empty-state">
-        <div className="hu-empty-title">SYNCING…</div>
-      </div>
-    )
-  }
-  if (contacts.length === 0) {
-    return (
-      <div className="hu-empty-state">
-        <div className="hu-empty-title">NO CONTACTS</div>
-      </div>
-    )
-  }
-
-  // Group by first letter (A-Z, then '#' for everything else).
-  const grouped: Record<string, Contact[]> = {}
-  for (const c of contacts) {
-    const ch = (c.name[0] ?? '#').toUpperCase()
-    const key = /[A-Z]/.test(ch) ? ch : '#'
-    ;(grouped[key] ??= []).push(c)
-  }
-  const sections = Object.keys(grouped).sort((a, b) => {
-    if (a === '#') return 1
-    if (b === '#') return -1
-    return a.localeCompare(b)
-  })
-
-  return (
-    <div className="hu-list">
-      {sections.map((letter) => (
-        <div key={letter}>
-          <div className="hu-list-section">{letter}</div>
-          {grouped[letter].map((c) => (
-            <ContactRow
-              key={c.id}
-              contact={c}
-              selected={c.id === selectedId}
-              onSelect={() => onSelect(c.id)}
-              onCall={() => onCall(c)}
-            />
-          ))}
-        </div>
-      ))}
     </div>
   )
 }
@@ -1120,18 +1026,52 @@ function RecentsList({
   recents,
   selectedIdx,
   onSelect,
+  syncing,
+  synced,
+  lastError,
   onCall
 }: {
-  recents: RecentEntry[]
+  recents: RecentCall[]
+  syncing: boolean
+  synced: boolean
+  lastError?: string
   selectedIdx: number | null
   onSelect: (i: number) => void
   onCall: (n: string) => void
 }) {
+  if (lastError && !syncing) {
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">SYNC FAILED</div>
+        <div className="hu-empty-sub">{lastError}</div>
+        <div className="hu-empty-sub" style={{ fontSize: 22, opacity: 0.7 }}>
+          On iPhone: Settings → Bluetooth → tap (i) next to the head unit →
+          enable Sync Contacts.  Recent calls share the same toggle.
+        </div>
+      </div>
+    )
+  }
+  if (syncing && recents.length === 0) {
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">SYNCING…</div>
+      </div>
+    )
+  }
+  if (!synced && recents.length === 0) {
+    return (
+      <div className="hu-empty-state">
+        <div className="hu-empty-title">RECENT CALLS NOT SYNCED</div>
+        <div className="hu-empty-sub">
+          Tap SYNC in the sidebar to import call history from your phone.
+        </div>
+      </div>
+    )
+  }
   if (recents.length === 0) {
     return (
       <div className="hu-empty-state">
         <div className="hu-empty-title">NO RECENT CALLS</div>
-        <div className="hu-empty-sub">Calls you make or receive will appear here.</div>
       </div>
     )
   }
@@ -1193,17 +1133,40 @@ const KEY_LETTERS: Record<string, string> = {
 function DialerView({
   dial,
   setDial,
-  matches,
+  contacts,
+  selectedMatchId,
+  onSelectMatch,
   onCall,
   onCallContact
 }: {
   dial: string
   setDial: (v: string | ((p: string) => string)) => void
-  matches: Contact[]
+  contacts: Contact[]
+  selectedMatchId: string | null
+  onSelectMatch: (id: string) => void
   onCall: () => void
   onCallContact: (c: Contact) => void
 }) {
-  const [matchSelected, setMatchSelected] = useState<string | null>(null)
+  // Filter + group by first letter.  When no digits typed, every section
+  // is shown; as the user types, only sections whose contacts still
+  // match remain visible.
+  const grouped = useMemo(() => {
+    const matches = filterContactsByDial(contacts, dial)
+    const g: Record<string, Contact[]> = {}
+    for (const c of matches) {
+      const ch = (c.name[0] ?? '#').toUpperCase()
+      const key = /[A-Z]/.test(ch) ? ch : '#'
+      ;(g[key] ??= []).push(c)
+    }
+    return g
+  }, [contacts, dial])
+
+  const letters = Object.keys(grouped).sort((a, b) => {
+    if (a === '#') return 1
+    if (b === '#') return -1
+    return a.localeCompare(b)
+  })
+  const matchCount = letters.reduce((n, l) => n + grouped[l].length, 0)
 
   return (
     <div className="hu-dialer">
@@ -1243,41 +1206,29 @@ function DialerView({
 
       <div className="hu-dial-matches">
         <div className="hu-panel-label" style={{ marginBottom: 12 }}>
-          {dial ? `MATCHES (${matches.length})` : 'CONTACTS'}
+          {dial ? `MATCHES (${matchCount})` : `CONTACTS (${matchCount})`}
         </div>
-        {matches.length === 0 ? (
+        {letters.length === 0 ? (
           <div className="hu-empty-sub" style={{ paddingTop: 16 }}>
             No matches
           </div>
         ) : (
-          matches.map((c) => {
-            const selected = c.id === matchSelected
-            return (
-              <div
-                key={c.id}
-                className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
-                onClick={() => setMatchSelected((prev) => (prev === c.id ? null : c.id))}
-              >
-                <div className="hu-avatar">{c.name[0]}</div>
-                <div className="hu-list-info">
-                  <div className="hu-list-name">{c.name}</div>
-                  <div className="hu-list-sub">{c.numbers[0]?.number}</div>
-                </div>
-                {selected && (
-                  <button
-                    className="hu-call-icon-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onCallContact(c)
-                    }}
-                    aria-label="Call"
-                  >
-                    <img src={iconPhone} alt="call" className="hu-call-icon-img" />
-                  </button>
-                )}
+          <div className="hu-list">
+            {letters.map((letter) => (
+              <div key={letter}>
+                <div className="hu-list-section">{letter}</div>
+                {grouped[letter].map((c) => (
+                  <ContactRow
+                    key={c.id}
+                    contact={c}
+                    selected={c.id === selectedMatchId}
+                    onSelect={() => onSelectMatch(c.id)}
+                    onCall={() => onCallContact(c)}
+                  />
+                ))}
               </div>
-            )
-          })
+            ))}
+          </div>
         )}
       </div>
     </div>

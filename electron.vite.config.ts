@@ -39,6 +39,15 @@ export default defineConfig({
         ]
       }
     },
+    // Polling-based file watcher — required because nano (especially sudo
+    // nano) writes atomically (rename), which changes the inode and breaks
+    // inotify watchers.  Polling at 500 ms catches the change regardless.
+    server: {
+      watch: {
+        usePolling: true,
+        interval: 500
+      }
+    },
     plugins: [react()]
   }
 })

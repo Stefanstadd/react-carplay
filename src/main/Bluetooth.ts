@@ -70,6 +70,20 @@ export interface ContactsState {
   lastError?: string
 }
 
+export interface RecentCall {
+  name?: string
+  number: string
+  time: number              // epoch ms
+  dir: 'in' | 'out' | 'miss'
+}
+
+export interface RecentCallsState {
+  synced: boolean
+  syncing: boolean
+  calls: RecentCall[]
+  lastError?: string
+}
+
 // ─── D-Bus constants ─────────────────────────────────────────────────────────
 
 const BLUEZ_BUS         = 'org.bluez'
@@ -113,6 +127,7 @@ export class BluetoothManager {
   private media: MediaState = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
   private call:  CallState  = { status: 'idle', durationSec: 0, muted: false }
   private contacts: ContactsState = { synced: false, syncing: false, contacts: [] }
+  private recents: RecentCallsState = { synced: false, syncing: false, calls: [] }
 
   // periodic media-position refresh from the player
   private positionTimer: NodeJS.Timeout | null = null
@@ -183,6 +198,7 @@ export class BluetoothManager {
     ipcMain.on('bt:hangup',   ()                => this.hangup())
     ipcMain.on('bt:mute',     (_e, on: boolean) => this.setMuted(on))
     ipcMain.on('bt:syncContacts', () => this.syncContacts())
+    ipcMain.on('bt:syncRecents',  () => this.syncRecentCalls())
     ipcMain.on('bt:scan',     (_e, on: boolean) => this.scan(on))
     ipcMain.on('bt:connect',    (_e, a: string) => this.connectDevice(a))
     ipcMain.on('bt:disconnect', (_e, a: string) => this.disconnectDevice(a))
@@ -199,6 +215,7 @@ export class BluetoothManager {
       w.webContents.send('bt:media',    this.media)
       w.webContents.send('bt:call',     this.call)
       w.webContents.send('bt:contacts', this.contacts)
+      w.webContents.send('bt:recents',  this.recents)
       w.webContents.send('bt:devices',  this.deviceList())
     } catch (err) {
       // window may be closing — ignore
@@ -209,6 +226,7 @@ export class BluetoothManager {
   private pushMedia()    { this.getWindow()?.webContents?.send('bt:media',    this.media) }
   private pushCall()     { this.getWindow()?.webContents?.send('bt:call',     this.call) }
   private pushContacts() { this.getWindow()?.webContents?.send('bt:contacts', this.contacts) }
+  private pushRecents()  { this.getWindow()?.webContents?.send('bt:recents',  this.recents) }
   private pushDevices()  { this.getWindow()?.webContents?.send('bt:devices',  this.deviceList()) }
 
   private phoneState(): PhoneState {
@@ -302,9 +320,11 @@ export class BluetoothManager {
         this.activePlayerPath = null
         this.media = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
         this.contacts = { synced: false, syncing: false, contacts: [] }
+        this.recents = { synced: false, syncing: false, calls: [] }
         this.pushPhone()
         this.pushMedia()
         this.pushContacts()
+        this.pushRecents()
       }
       this.pushDevices()
     }
@@ -324,11 +344,28 @@ export class BluetoothManager {
         const d = this.devicePaths.get(path); if (!d) return
         const c = unwrapVariants(changed)
         const wasActive = this.activePhonePath === path
+        const wasConnected = d.connected
         if ('Name'      in c) d.name      = String(c.Name)
         if ('Alias'     in c) d.name      = d.name || String(c.Alias)
         if ('Connected' in c) d.connected = !!c.Connected
         if ('Paired'    in c) d.paired    = !!c.Paired
         if ('Trusted'   in c) d.trusted   = !!c.Trusted
+        // On a fresh reconnect, BlueZ doesn't always re-emit
+        // InterfacesAdded for sub-objects (MediaPlayer1, Battery1) that
+        // existed before the disconnect — only the device's Connected
+        // flag flips.  Re-walk GetManagedObjects under this device to
+        // re-discover those interfaces so music + battery come back.
+        // Also reset contacts/recents so auto-sync re-fires.
+        if (!wasConnected && d.connected) {
+          console.log('[bt] reconnect detected for', d.name, '— refreshing')
+          this.contacts = { synced: false, syncing: false, contacts: [] }
+          this.recents  = { synced: false, syncing: false, calls: [] }
+          this.pushContacts()
+          this.pushRecents()
+          this.refreshInterfacesUnder(path).catch((err) =>
+            console.warn('[bt] refresh after reconnect failed', err)
+          )
+        }
         this.maybePromoteToActivePhone(path)
         this.pushDevices()
         // Push phone state when ANYTHING about the active phone changes —
@@ -341,9 +378,11 @@ export class BluetoothManager {
             // metadata and contacts that were tied to it.
             this.media = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
             this.contacts = { synced: false, syncing: false, contacts: [] }
+            this.recents = { synced: false, syncing: false, calls: [] }
             this.activePlayerPath = null
             this.pushMedia()
             this.pushContacts()
+            this.pushRecents()
           }
           this.pushPhone()
         }
@@ -355,12 +394,28 @@ export class BluetoothManager {
     try {
       const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
       try { obj.getInterface(IFACE_BATTERY) } catch { return } // no battery1 on this object
+      // One-time initial read in case the value was set before our subscribe.
+      try {
+        const p0 = obj.getInterface(IFACE_PROPS)
+        const v = await p0.Get(IFACE_BATTERY, 'Percentage')
+        const pct = Number(unwrapVariant(v))
+        const d0 = this.devicePaths.get(path)
+        if (d0 && !isNaN(pct)) {
+          d0.batteryPct = pct
+          console.log('[bt] battery initial read', d0.name, pct, '%')
+          this.pushDevices()
+          if (path === this.activePhonePath) this.pushPhone()
+        }
+      } catch { /* property not yet available */ }
       const p = obj.getInterface(IFACE_PROPS)
       p.on('PropertiesChanged', (iface: string, changed: any) => {
         if (iface !== IFACE_BATTERY) return
         const d = this.devicePaths.get(path); if (!d) return
         const c = unwrapVariants(changed)
-        if ('Percentage' in c) d.batteryPct = Number(c.Percentage)
+        if ('Percentage' in c) {
+          d.batteryPct = Number(c.Percentage)
+          console.log('[bt] battery updated', d.name, d.batteryPct, '%')
+        }
         this.pushDevices()
         if (path === this.activePhonePath) this.pushPhone()
       })
@@ -432,12 +487,17 @@ export class BluetoothManager {
     if (this.activePhonePath === path) return
     this.activePhonePath = path
     console.log('[bt] active phone:', d.name, d.address)
-    // Auto-sync contacts so the user doesn't have to tap SYNC each time
-    // the phone connects.  Small delay so PBAP/obex has time to wake up.
+    // Auto-sync contacts + recent calls so they appear without manual taps.
+    // Small delay so PBAP/obex has time to wake up after pairing.
     setTimeout(() => {
-      if (this.activePhonePath === path && !this.contacts.synced && !this.contacts.syncing) {
+      if (this.activePhonePath !== path) return
+      if (!this.contacts.synced && !this.contacts.syncing) {
         console.log('[bt] auto-syncing contacts for', d.name)
-        this.syncContacts().catch((err) => console.warn('[bt] auto-sync failed', err))
+        this.syncContacts().catch((err) => console.warn('[bt] auto-sync contacts failed', err))
+      }
+      if (!this.recents.synced && !this.recents.syncing) {
+        console.log('[bt] auto-syncing recent calls for', d.name)
+        this.syncRecentCalls().catch((err) => console.warn('[bt] auto-sync recents failed', err))
       }
     }, 2000)
   }
@@ -486,6 +546,27 @@ export class BluetoothManager {
       }
     } catch { /* */ }
     return null
+  }
+
+  /** After a device reconnects, walk GetManagedObjects under it and
+   *  re-run onObjectAdded for each sub-interface — needed because
+   *  BlueZ doesn't always re-emit InterfacesAdded for previously-known
+   *  MediaPlayer1 / Battery1 objects. */
+  private async refreshInterfacesUnder(devicePath: string) {
+    if (!this.systemBus) return
+    try {
+      const root = await this.systemBus.getProxyObject(BLUEZ_BUS, BLUEZ_ROOT)
+      const om   = root.getInterface(IFACE_OBJMGR)
+      const all  = await om.GetManagedObjects()
+      const prefix = devicePath + '/'
+      for (const [p, ifaces] of Object.entries(all)) {
+        if (p === devicePath || p.startsWith(prefix)) {
+          await this.onObjectAdded(p, ifaces as any)
+        }
+      }
+    } catch (err) {
+      console.warn('[bt] refreshInterfacesUnder failed', err)
+    }
   }
 
   private async deviceOp(addr: string, op: 'Connect' | 'Disconnect' | 'Pair' | 'Trust') {
@@ -738,6 +819,87 @@ export class BluetoothManager {
     }
   }
 
+  /** Pull combined call history (incoming + outgoing + missed) over PBAP.
+   *  iPhones expose this as the "cch" folder.  Each vCard includes
+   *  X-IRMC-CALL-DATETIME for the timestamp.  */
+  private async syncRecentCalls() {
+    if (!this.sessionBus) {
+      this.recents.lastError = 'session bus unavailable'
+      this.pushRecents()
+      return
+    }
+    if (!this.activePhonePath) {
+      this.recents.lastError = 'no phone connected'
+      this.pushRecents()
+      return
+    }
+    const phone = this.devicePaths.get(this.activePhonePath)
+    if (!phone) return
+
+    this.recents.syncing = true
+    this.recents.lastError = undefined
+    this.pushRecents()
+
+    const tmpFile = path.join(os.tmpdir(), `headunit-pbap-cch-${Date.now()}.vcf`)
+    let sessionPath: string | null = null
+
+    try {
+      console.log('[bt] PBAP cch: opening obex Client1 …')
+      const obj = await this.sessionBus.getProxyObject(OBEX_BUS, '/org/bluez/obex')
+      const client = obj.getInterface(IFACE_OBEX_MGR)
+
+      sessionPath = await client.CreateSession(
+        phone.address,
+        { Target: new this.dbus.Variant('s', 'pbap') }
+      )
+      const sobj = await this.sessionBus.getProxyObject(OBEX_BUS, sessionPath!)
+      const pb = sobj.getInterface(IFACE_PBAP)
+
+      // Select the combined call history folder.
+      try {
+        await pb.Select('int', 'cch')
+      } catch {
+        // Some phones don't expose 'cch' — fall back to pulling separately
+        // and merging.
+        await pb.Select('int', 'ich')
+      }
+
+      console.log('[bt] PBAP cch: PullAll →', tmpFile)
+      const result = await pb.PullAll(tmpFile, {
+        Format: new this.dbus.Variant('s', 'vcard30'),
+        MaxCount: new this.dbus.Variant('q', 50),
+      })
+      const transferPath: string = Array.isArray(result) ? result[0] : result
+      const transferProps: any = Array.isArray(result) ? result[1] : {}
+      const actualFile = String(unwrapVariant(transferProps?.Filename) || tmpFile)
+
+      await this.waitForObexTransfer(transferPath)
+      const vcfText = await readFileSafe(actualFile)
+      try { fs.unlinkSync(actualFile) } catch { /* */ }
+
+      const calls = parseCallHistoryVcards(vcfText)
+      console.log(`[bt] PBAP cch: parsed ${calls.length} recent calls`)
+
+      this.recents = {
+        synced: true, syncing: false,
+        calls: calls.sort((a, b) => b.time - a.time),
+      }
+      this.pushRecents()
+    } catch (err) {
+      console.warn('[bt] PBAP cch sync failed', err)
+      this.recents.syncing = false
+      this.recents.lastError = (err as Error).message ?? String(err) ?? 'pbap error'
+      this.pushRecents()
+    } finally {
+      if (sessionPath) {
+        try {
+          const obj = await this.sessionBus.getProxyObject(OBEX_BUS, '/org/bluez/obex')
+          await obj.getInterface(IFACE_OBEX_MGR).RemoveSession(sessionPath)
+        } catch { /* */ }
+      }
+    }
+  }
+
   /** Resolves when an obex Transfer1 reaches Status="complete", rejects on "error" or timeout. */
   private waitForObexTransfer(transferPath: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
@@ -867,6 +1029,63 @@ function parseVcardList(text: string): Contact[] {
     }
   })
   return items
+}
+
+/** Parse a multi-vCard call-history file (PBAP cch/ich/och/mch).
+ *  Each vCard has an X-IRMC-CALL-DATETIME extension + a TEL number.
+ *  iPhone tags MISSED/RECEIVED/DIALED in the parameter. */
+function parseCallHistoryVcards(text: string): RecentCall[] {
+  const blocks: string[] = []
+  let current: string[] = []
+  for (const ln of text.split(/\r?\n/)) {
+    if (/^BEGIN:VCARD/i.test(ln)) current = [ln]
+    else if (/^END:VCARD/i.test(ln)) { current.push(ln); blocks.push(current.join('\n')); current = [] }
+    else if (current.length > 0) current.push(ln)
+  }
+
+  const calls: RecentCall[] = []
+  for (const block of blocks) {
+    // Unfold continued lines (lines starting with space/tab continue prev).
+    const unfolded: string[] = []
+    for (const ln of block.replace(/\r/g, '').split('\n')) {
+      if ((ln.startsWith(' ') || ln.startsWith('\t')) && unfolded.length > 0) {
+        unfolded[unfolded.length - 1] += ln.slice(1)
+      } else {
+        unfolded.push(ln)
+      }
+    }
+
+    let name = ''
+    let number = ''
+    let time = 0
+    let dir: RecentCall['dir'] = 'out'
+
+    for (const ln of unfolded) {
+      if (/^FN:/i.test(ln)) name = ln.slice(3).trim()
+      else if (/^TEL/i.test(ln)) {
+        const colon = ln.indexOf(':')
+        if (colon !== -1 && !number) number = ln.slice(colon + 1).trim()
+      } else if (/^X-IRMC-CALL-DATETIME/i.test(ln)) {
+        const colon = ln.indexOf(':')
+        if (colon !== -1) {
+          const params = ln.slice(0, colon).toUpperCase()
+          const dt = ln.slice(colon + 1).trim() // e.g. 20240315T134055
+          // Parse YYYYMMDDTHHMMSS
+          const m = dt.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/)
+          if (m) {
+            time = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
+          }
+          // Apple/some phones tag MISSED/RECEIVED/DIALED on the line.
+          if (params.includes('MISSED'))   dir = 'miss'
+          else if (params.includes('RECEIVED') || params.includes('INCOMING')) dir = 'in'
+          else if (params.includes('DIALED')   || params.includes('OUTGOING')) dir = 'out'
+        }
+      }
+    }
+
+    if (number) calls.push({ name: name || undefined, number, time, dir })
+  }
+  return calls
 }
 
 /** Tiny vCard 3.0 parser — extracts FN + TEL entries + PHOTO if present. */

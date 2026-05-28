@@ -1000,12 +1000,13 @@ img.hu-numpad-call-icon {
 /* ─── In-call full-screen overlay ──────────────────────────────────────── */
 .hu-incall-overlay {
   position: absolute;
-  /* Fills .hu-content (which already sits below the header).  border-top
-     gives the in-call screen the same green divider every other screen
-     has between the top bar and the content. */
-  inset: 0;
+  /* Sit BELOW the header (91 px: 90 px header height + 1 px border).
+     Header + clock + battery stay visible during a call. */
+  top: 91px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: var(--hu-bg-deep);
-  border-top: 1px solid var(--hu-green-mid);
   z-index: 50;
   display: flex;
 }
@@ -1306,15 +1307,17 @@ img.hu-numpad-call-icon {
 
 /* ─── List section headers (A / B / C …) ──────────────────────────────── */
 .hu-list-section {
-  font-size: 28px;
+  font-size: 40px;
+  font-weight: bold;
   color: var(--hu-green);
-  letter-spacing: 0.20em;
-  padding: 16px 8px 6px;
+  letter-spacing: 0.22em;
+  padding: 18px 10px 8px;
   border-bottom: 1px solid var(--hu-green-mid);
   background: var(--hu-bg-panel);
   position: sticky;
   top: 0;
   z-index: 1;
+  text-shadow: 0 0 12px rgba(0, 255, 10, 0.55);
 }
 
 /* ─── Selected list row (tap-to-select, then tap CALL to dial) ────────── */
