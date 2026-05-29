@@ -167,12 +167,15 @@ export class BluetoothManager {
     }
 
     try {
-      // dbus-next is in optionalDependencies — only present on Linux installs.
-      // @ts-ignore — module may not be installed in this environment
-      const mod = await import('dbus-next')
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mod = require('dbus-next')
       this.dbus = (mod as any).default ?? mod
-    } catch (err) {
-      console.warn('[bt] dbus-next not installed — Bluetooth disabled. apt-get install + npm install on the Pi.', err)
+    } catch (err: any) {
+      if (err?.code === 'MODULE_NOT_FOUND') {
+        console.error('[bt] dbus-next not found in the bundle — rebuild the AppImage after running npm install')
+      } else {
+        console.error('[bt] dbus-next failed to load:', err?.code, err?.message)
+      }
       this.pushAll()
       return
     }
