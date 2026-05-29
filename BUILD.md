@@ -8,8 +8,8 @@ All commands below run from the project root (`~/react-carplay` on the Pi).
 npm install
 ```
 
-This pulls the Node dependencies including `dbus-next` (only installs on
-Linux — it's an `optionalDependency`).
+This pulls the Node dependencies including `dbus-next` (pure JavaScript —
+installs on all platforms, only does anything at runtime on Linux).
 
 ## Development — hot-reload while editing
 
@@ -69,6 +69,35 @@ npm run dev           # for iteration
 # or
 npm run build:armLinux  # for the packaged AppImage
 ```
+
+## Auto-start on boot (Raspberry Pi)
+
+After building the AppImage, register it as an XDG autostart entry so it
+launches automatically when the desktop session starts:
+
+```bash
+sudo bash -c 'cat > /etc/xdg/autostart/carplay.desktop' <<'EOF'
+[Desktop Entry]
+Name=Carplay
+Exec=/home/pi/react-carplay/dist/react-carplay-4.0.5-arm64.AppImage
+Type=Application
+EOF
+```
+
+Replace `pi` with your actual username if different, and update the version
+number (`4.0.5`) when `package.json` is bumped.  The filename pattern comes
+from `electron-builder.yml`: `${name}-${version}-${arch}.AppImage`.
+
+To disable autostart:
+
+```bash
+sudo rm /etc/xdg/autostart/carplay.desktop
+```
+
+The `.desktop` file is the same mechanism used by `setup-pi.sh` for the
+pre-built release AppImage — swap the `Exec=` path if you move the file.
+
+---
 
 If `git pull` reports a merge conflict on a file you edited locally, the
 cleanest recovery is:

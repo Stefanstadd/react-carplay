@@ -32,6 +32,7 @@
     "@mui/icons-material": "^5.14.11",
     "@mui/material": "^5.14.11",
     "buffer": "^6.0.3",
+    "dbus-next": "^0.10.2",
     "electron-is-dev": "^2.0.0",
     "electron-typescript-ipc": "^3.0.0",
     "events": "^3.3.0",
@@ -73,7 +74,6 @@
   },
   "optionalDependencies": {
     "socketcan": "^4.0.4",
-    "socketmost": "^2.0.6",
-    "dbus-next": "^0.10.2"
+    "socketmost": "^2.0.6"
   }
 }
