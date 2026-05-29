@@ -164,7 +164,10 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
   app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-  systemPreferences.askForMediaAccess("microphone")
+  // askForMediaAccess is macOS-only; calling it on Linux throws TypeError
+  if (process.platform === 'darwin') {
+    systemPreferences.askForMediaAccess('microphone').catch(() => undefined)
+  }
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     details.responseHeaders!['Cross-Origin-Opener-Policy'] = ['same-origin'];
     details.responseHeaders!['Cross-Origin-Embedder-Policy'] = ['require-corp'];
@@ -179,6 +182,13 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
+// Prevent a second instance from starting (e.g. autostart + manual launch).
+// The second instance exits immediately; the first receives 'second-instance'.
+if (!app.requestSingleInstanceLock()) {
+  console.log('[app] another instance is already running — exiting')
+  app.exit(0)
+}
+
 app.commandLine.appendSwitch('enable-experimental-web-platform-features');
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required")
 app.whenReady().then(() => {

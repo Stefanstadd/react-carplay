@@ -708,6 +708,7 @@ export class BluetoothManager {
       durationSec: 0,
       muted:     this.call.muted,
     }
+    console.log('[bt] call:', this.call.status, num || '(no number)')
     this.pushCall()
 
     try {

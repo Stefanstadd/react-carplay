@@ -273,7 +273,30 @@ import { useAudioVisualizer, barColor } from './audioVisualizer'
 // first (best match for major-label music), then Deezer (covers a lot of
 // what iTunes misses, including Spotify-exclusive / Canvas tracks).
 // Several query shapes are tried per service before giving up.
-const artCache = new Map<string, string | null>()
+//
+// The cache is persisted to localStorage (URL strings only, no image bytes).
+// On next launch, Electron's Chromium disk cache serves those URLs without
+// a network round-trip, so previously-seen art still shows when offline.
+const ART_CACHE_LS_KEY = 'hu.artCache.v1'
+const ART_CACHE_MAX    = 400
+
+const artCache: Map<string, string | null> = (() => {
+  try {
+    const raw = localStorage.getItem(ART_CACHE_LS_KEY)
+    if (raw) return new Map(JSON.parse(raw) as [string, string | null][])
+  } catch { /* corrupted */ }
+  return new Map()
+})()
+
+function persistArtEntry(key: string, url: string) {
+  artCache.set(key, url)
+  try {
+    // Map preserves insertion order — keep the newest MAX entries
+    const entries = Array.from(artCache.entries()).filter(([, v]) => v !== null)
+    const trimmed = entries.length > ART_CACHE_MAX ? entries.slice(-ART_CACHE_MAX) : entries
+    localStorage.setItem(ART_CACHE_LS_KEY, JSON.stringify(trimmed))
+  } catch { /* quota exceeded — skip persist */ }
+}
 
 /** Strip "(feat. ...)", "[Remix]", " - Remaster", and Spotify's
  * " • Video beschikbaar" / " • Music Video" Canvas annotations that
@@ -357,7 +380,7 @@ function useArt(
         const hit = await searchItunes(q)
         if (hit) {
           console.log('[art] iTunes hit for query:', q)
-          if (!cancelled) { artCache.set(key, hit); setArt(hit) }
+          if (!cancelled) { persistArtEntry(key, hit); setArt(hit) }
           return
         }
       }
@@ -365,7 +388,7 @@ function useArt(
         const hit = await searchDeezer(q)
         if (hit) {
           console.log('[art] Deezer hit for query:', q)
-          if (!cancelled) { artCache.set(key, hit); setArt(hit) }
+          if (!cancelled) { persistArtEntry(key, hit); setArt(hit) }
           return
         }
       }

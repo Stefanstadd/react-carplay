@@ -1,3 +1,4 @@
+import { createServer as createHttpServer } from 'http'
 import { ExtraConfig } from "./Globals";
 import { Server } from 'socket.io'
 import { EventEmitter } from 'events'
@@ -18,11 +19,20 @@ export class Socket extends EventEmitter {
     super()
     this.config = config
     this.saveSettings = saveSettings
-    this.io = new Server({
-      cors: {
-        origin: '*'
+
+    // Create the HTTP server explicitly so we can attach an error handler
+    // before listen() — socket.io's internal server has no error listener
+    // and EADDRINUSE would propagate as an uncaught exception.
+    const httpServer = createHttpServer()
+    httpServer.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn('[socket] port 4000 already in use — remote socket server disabled')
+      } else {
+        console.error('[socket] http server error:', err)
       }
     })
+
+    this.io = new Server(httpServer, { cors: { origin: '*' } })
 
     this.io.on(MessageNames.Connection, (socket) => {
       this.sendSettings()
@@ -40,7 +50,7 @@ export class Socket extends EventEmitter {
       })
     })
 
-    this.io.listen(4000)
+    httpServer.listen(4000)
   }
 
   sendSettings() {
