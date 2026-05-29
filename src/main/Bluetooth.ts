@@ -649,7 +649,7 @@ export class BluetoothManager {
 
   // ─── ofono — calls + HFP ───────────────────────────────────────────────────
 
-  private async initOFono() {
+  private async initOFono(attempt = 0): Promise<void> {
     if (!this.systemBus) return
     try {
       const obj = await this.systemBus.getProxyObject(OFONO_BUS, '/')
@@ -676,11 +676,19 @@ export class BluetoothManager {
         }
       })
     } catch (err) {
-      console.warn(
-        '[bt] ofono not available — incoming/outgoing calls will not work.\n' +
-        '     Fix: sudo apt-get install ofono && sudo systemctl enable --now ofono\n' +
-        '     err:', (err as Error).message
-      )
+      // ofonod may not be ready yet at boot — retry with backoff before giving up.
+      const MAX_ATTEMPTS = 10
+      if (attempt < MAX_ATTEMPTS) {
+        const delaySec = Math.min((attempt + 1) * 2, 20) // 2 s, 4 s, … 20 s
+        console.warn(`[bt] ofono not ready (attempt ${attempt + 1}/${MAX_ATTEMPTS}) — retrying in ${delaySec}s`)
+        setTimeout(() => this.initOFono(attempt + 1), delaySec * 1000)
+      } else {
+        console.warn(
+          '[bt] ofono not available after retries — calls will not work.\n' +
+          '     Fix: sudo apt-get install ofono && sudo systemctl enable --now ofono\n' +
+          '     err:', (err as Error).message
+        )
+      }
     }
   }
 
