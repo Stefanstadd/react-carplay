@@ -474,6 +474,23 @@ export class BluetoothManager {
       // phones don't push Position alongside Track, so do it here.
       if (trackChanged && !('Position' in props)) this.media.positionSec = 0
       this.media.hasMetadata = !!(this.media.title || this.media.artist || this.media.album)
+
+      // AVRCP cover art — BlueZ 5.64+ stores it as a temp file when the
+      // phone sends art over AVRCP 1.6.  Clear old art on every track
+      // change so the renderer doesn't show stale artwork for new tracks.
+      this.media.artworkSrc = undefined
+      const coverUri = t.CoverArt ?? t.Image
+      if (coverUri) {
+        const filePath = String(coverUri).replace(/^file:\/\//, '')
+        try {
+          const buf = fs.readFileSync(filePath)
+          const mime = filePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'
+          this.media.artworkSrc = `data:${mime};base64,${buf.toString('base64')}`
+          console.log('[bt] cover art loaded from AVRCP:', filePath, `(${buf.length} bytes)`)
+        } catch {
+          // File already cleaned up by BlueZ — renderer will fall back to online lookup
+        }
+      }
     }
   }
 
@@ -659,7 +676,11 @@ export class BluetoothManager {
         }
       })
     } catch (err) {
-      console.warn('[bt] ofono not available — calls disabled (install + start ofonod). err:', (err as Error).message)
+      console.warn(
+        '[bt] ofono not available — incoming/outgoing calls will not work.\n' +
+        '     Fix: sudo apt-get install ofono && sudo systemctl enable --now ofono\n' +
+        '     err:', (err as Error).message
+      )
     }
   }
 
