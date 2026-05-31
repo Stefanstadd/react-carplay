@@ -504,7 +504,9 @@ export class BluetoothManager {
       const dur = t.Duration !== undefined ? Math.floor(Number(t.Duration) / 1000) : 0
       if (dur > 0) {
         this.media.durationSec = dur
-      } else if (trackChanged) {
+      } else {
+        // No Duration in Track dict → live/radio source. Always clear so the
+        // renderer doesn't inherit the previous song's duration.
         this.media.durationSec = 0
       }
       // When the track changes (next/previous), position resets to 0 — most
@@ -538,7 +540,13 @@ export class BluetoothManager {
       const p   = obj.getInterface(IFACE_PROPS)
       const v   = await p.Get(IFACE_PLAYER, 'Position')
       const pos = Math.floor(Number(unwrapVariant(v)) / 1000)
-      if (pos !== this.media.positionSec) {
+      // If position has overshot the known duration the source is live/unbounded
+      // (e.g. a radio stream that never sent a Duration-less Track update).
+      // Clear duration so the renderer shows --:-- instead of a full bar.
+      if (this.media.durationSec > 0 && pos > this.media.durationSec + 10) {
+        this.media.durationSec = 0
+        this.pushMedia()
+      } else if (pos !== this.media.positionSec) {
         this.media.positionSec = pos
         this.pushMedia()
       }
