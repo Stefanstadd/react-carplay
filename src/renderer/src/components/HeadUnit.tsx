@@ -24,7 +24,9 @@ import {
 // CSS animation that translates it from 0 to -overflowPx.  No animation
 // when the text fits.
 function MarqueeText({
-  children, className, speedPxPerSec = 60,
+  children,
+  className,
+  speedPxPerSec = 60
 }: {
   children: React.ReactNode
   className?: string
@@ -52,7 +54,7 @@ function MarqueeText({
     overflow > 0
       ? ({
           ['--marquee-end' as any]: `-${overflow}px`,
-          ['--marquee-dur' as any]: `${Math.max(6, (overflow / speedPxPerSec) * 2.4)}s`,
+          ['--marquee-dur' as any]: `${Math.max(6, (overflow / speedPxPerSec) * 2.4)}s`
         } as React.CSSProperties)
       : undefined
 
@@ -265,7 +267,7 @@ import {
   ALBUM_ART_SIZE,
   TITLE_SCROLL_SPEED,
   QUICK_BTN_ICON_SIZE,
-  QUICK_BTN_CELL_SIZE,
+  QUICK_BTN_CELL_SIZE
 } from './headunit.config'
 import { useAudioVisualizer, barColor } from './audioVisualizer'
 
@@ -279,13 +281,15 @@ import { useAudioVisualizer, barColor } from './audioVisualizer'
 // On next launch, Electron's Chromium disk cache serves those URLs without
 // a network round-trip, so previously-seen art still shows when offline.
 const ART_CACHE_LS_KEY = 'hu.artCache.v1'
-const ART_CACHE_MAX    = 400
+const ART_CACHE_MAX = 400
 
 const artCache: Map<string, string | null> = (() => {
   try {
     const raw = localStorage.getItem(ART_CACHE_LS_KEY)
     if (raw) return new Map(JSON.parse(raw) as [string, string | null][])
-  } catch { /* corrupted */ }
+  } catch {
+    /* corrupted */
+  }
   return new Map()
 })()
 
@@ -296,25 +300,29 @@ function persistArtEntry(key: string, url: string) {
     const entries = Array.from(artCache.entries()).filter(([, v]) => v !== null)
     const trimmed = entries.length > ART_CACHE_MAX ? entries.slice(-ART_CACHE_MAX) : entries
     localStorage.setItem(ART_CACHE_LS_KEY, JSON.stringify(trimmed))
-  } catch { /* quota exceeded — skip persist */ }
+  } catch {
+    /* quota exceeded — skip persist */
+  }
 }
 
 /** Strip "(feat. ...)", "[Remix]", " - Remaster", and Spotify's
  * " • Video beschikbaar" / " • Music Video" Canvas annotations that
  * confuse the iTunes/Deezer search. */
 function cleanForSearch(s: string): string {
-  return s
-    // Spotify appends "• <something>" to the artist or title for tracks
-    // that have a Canvas video.  In any language.  Strip everything from
-    // the bullet onward.
-    .replace(/\s*[•·]\s*.*$/u, '')
-    .replace(/\s*\([^)]*\)/g, '')
-    .replace(/\s*\[[^\]]*\]/g, '')
-    .replace(/\s*-\s*(remaster(ed)?|remix|edit|version|mix|live|mono|stereo).*$/i, '')
-    .replace(/\s+feat\.?.*$/i, '')
-    .replace(/\s+ft\.?.*$/i, '')
-    .replace(/\s+,.*$/, '')
-    .trim()
+  return (
+    s
+      // Spotify appends "• <something>" to the artist or title for tracks
+      // that have a Canvas video.  In any language.  Strip everything from
+      // the bullet onward.
+      .replace(/\s*[•·]\s*.*$/u, '')
+      .replace(/\s*\([^)]*\)/g, '')
+      .replace(/\s*\[[^\]]*\]/g, '')
+      .replace(/\s*-\s*(remaster(ed)?|remix|edit|version|mix|live|mono|stereo).*$/i, '')
+      .replace(/\s+feat\.?.*$/i, '')
+      .replace(/\s+ft\.?.*$/i, '')
+      .replace(/\s+,.*$/, '')
+      .trim()
+  )
 }
 
 async function searchItunes(query: string): Promise<string | null> {
@@ -327,21 +335,23 @@ async function searchItunes(query: string): Promise<string | null> {
       const url100 = result?.artworkUrl100 as string | undefined
       if (url100) return url100.replace(/100x100bb/, '600x600bb')
     }
-  } catch { /* network / parse fail */ }
+  } catch {
+    /* network / parse fail */
+  }
   return null
 }
 
 async function searchDeezer(query: string): Promise<string | null> {
   try {
-    const r = await fetch(
-      `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=5`
-    )
+    const r = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=5`)
     const data = await r.json()
     for (const result of data?.data ?? []) {
       const big = result?.album?.cover_xl ?? result?.album?.cover_big ?? result?.album?.cover_medium
       if (big) return big as string
     }
-  } catch { /* network / parse fail */ }
+  } catch {
+    /* network / parse fail */
+  }
   return null
 }
 
@@ -367,12 +377,12 @@ function useArt(
       return
     }
     let cancelled = false
-    const cleanTitle  = cleanForSearch(title)
+    const cleanTitle = cleanForSearch(title)
     const cleanArtist = cleanForSearch(artist)
     const queries = [
       `${cleanArtist} ${cleanTitle}`,
       album ? `${cleanArtist} ${album}` : null,
-      `${cleanArtist} ${album ?? ''} ${cleanTitle}`,
+      `${cleanArtist} ${album ?? ''} ${cleanTitle}`
     ].filter(Boolean) as string[]
 
     ;(async () => {
@@ -381,7 +391,10 @@ function useArt(
         const hit = await searchItunes(q)
         if (hit) {
           console.log('[art] iTunes hit for query:', q)
-          if (!cancelled) { persistArtEntry(key, hit); setArt(hit) }
+          if (!cancelled) {
+            persistArtEntry(key, hit)
+            setArt(hit)
+          }
           return
         }
       }
@@ -389,15 +402,23 @@ function useArt(
         const hit = await searchDeezer(q)
         if (hit) {
           console.log('[art] Deezer hit for query:', q)
-          if (!cancelled) { persistArtEntry(key, hit); setArt(hit) }
+          if (!cancelled) {
+            persistArtEntry(key, hit)
+            setArt(hit)
+          }
           return
         }
       }
       console.warn('[art] no hit on any service for', artist, '—', title)
-      if (!cancelled) { artCache.set(key, null); setArt(undefined) }
+      if (!cancelled) {
+        artCache.set(key, null)
+        setArt(undefined)
+      }
     })()
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [title, artist, album, embedded])
   return art
 }
@@ -455,14 +476,11 @@ function MusicView({
                     boxShadow:
                       glowPx > 0.1
                         ? `0 0 ${glowPx.toFixed(1)}px rgba(0, 255, 10, ${glowAlpha.toFixed(2)})`
-                        : 'none',
+                        : 'none'
                   }}
                 />
                 {p > 0.02 && (
-                  <div
-                    className="hu-eq-peak"
-                    style={{ bottom: `${(p * 100).toFixed(2)}%` }}
-                  />
+                  <div className="hu-eq-peak" style={{ bottom: `${(p * 100).toFixed(2)}%` }} />
                 )}
               </div>
             )
@@ -490,7 +508,7 @@ function MusicView({
         className="hu-quick-area hu-quick-grid"
         style={{
           ['--quick-cell' as any]: `${QUICK_BTN_CELL_SIZE}px`,
-          ['--quick-icon' as any]: `${QUICK_BTN_ICON_SIZE}px`,
+          ['--quick-icon' as any]: `${QUICK_BTN_ICON_SIZE}px`
         }}
       >
         <button className="hu-quick-btn" onClick={onLaunchCarplay} aria-label="CarPlay">
@@ -505,13 +523,6 @@ function MusicView({
           aria-label="Recent Calls"
         >
           <img src={iconRecent} alt="" className="hu-quick-btn-img" />
-        </button>
-        <button
-          className="hu-quick-btn"
-          onClick={() => onSelectView('phone')}
-          aria-label="Contacts"
-        >
-          <img src={iconContacts} alt="" className="hu-quick-btn-img" />
         </button>
       </div>
 
@@ -560,7 +571,9 @@ function MusicView({
           <div className="hu-music-via">
             {phoneConnected ? 'via Bluetooth' : 'Bluetooth Disconnected'}
           </div>
-          <MarqueeText className="hu-music-title" speedPxPerSec={TITLE_SCROLL_SPEED}>{title}</MarqueeText>
+          <MarqueeText className="hu-music-title" speedPxPerSec={TITLE_SCROLL_SPEED}>
+            {title}
+          </MarqueeText>
           <div className="hu-music-artist">{artist}</div>
           <div className="hu-music-album">{album}</div>
         </div>
@@ -904,11 +917,7 @@ function formatRecentTime(ts: number): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`
 }
 
-function PhoneView({
-  bt,
-}: {
-  bt: ReturnType<typeof useBluetooth>
-}) {
+function PhoneView({ bt }: { bt: ReturnType<typeof useBluetooth> }) {
   const scroll = useScrollContainer<HTMLDivElement>()
   const [tab, setTab] = useState<PhoneTab>('call')
   const [dial, setDial] = useState('')
@@ -958,15 +967,17 @@ function PhoneView({
               bt.syncRecents()
             }}
           >
-            <span>
-              {bt.contacts.syncing || bt.recents.syncing ? 'SYNCING…' : 'SYNC'}
-            </span>
+            <span>{bt.contacts.syncing || bt.recents.syncing ? 'SYNCING…' : 'SYNC'}</span>
           </button>
         )}
       </div>
 
       <div className="hu-main-area">
-        <div className="hu-phone-content" ref={scroll.ref} {...scroll.handlers}>
+        <div
+          className="hu-phone-content"
+          ref={tab === 'recent' ? scroll.ref : undefined}
+          {...(tab === 'recent' ? scroll.handlers : {})}
+        >
           {!bt.phone.connected && (
             <div className="hu-empty-state">
               <div className="hu-empty-title">NO PHONE CONNECTED</div>
@@ -994,9 +1005,7 @@ function PhoneView({
               setDial={setDial}
               contacts={bt.contacts.contacts}
               selectedMatchId={selectedMatchId}
-              onSelectMatch={(id) =>
-                setSelectedMatchId((prev) => (prev === id ? null : id))
-              }
+              onSelectMatch={(id) => setSelectedMatchId((prev) => (prev === id ? null : id))}
               onCall={onCallDial}
               onCallContact={onCallContact}
             />
@@ -1016,8 +1025,15 @@ function PhoneView({
 function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
   const ref = useRef<T>(null)
   const st = useRef({
-    active: false, captured: false, pointerId: -1,
-    startY: 0, startScroll: 0, lastY: 0, lastT: 0, vel: 0, rafId: 0,
+    active: false,
+    captured: false,
+    pointerId: -1,
+    startY: 0,
+    startScroll: 0,
+    lastY: 0,
+    lastT: 0,
+    vel: 0,
+    rafId: 0
   })
 
   const stopMomentum = () => {
@@ -1028,10 +1044,12 @@ function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
   const onPointerDown = useCallback((e: React.PointerEvent<T>) => {
     stopMomentum()
     const c = st.current
-    c.active = true; c.captured = false
+    c.active = true
+    c.captured = false
     c.pointerId = e.pointerId
     c.startY = c.lastY = e.clientY
-    c.lastT = e.timeStamp; c.vel = 0
+    c.lastT = e.timeStamp
+    c.vel = 0
     c.startScroll = ref.current?.scrollTop ?? 0
   }, [])
 
@@ -1040,7 +1058,8 @@ function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
     if (!c.active || e.pointerId !== c.pointerId) return
     const dt = e.timeStamp - c.lastT
     if (dt > 0) c.vel = (e.clientY - c.lastY) / dt
-    c.lastY = e.clientY; c.lastT = e.timeStamp
+    c.lastY = e.clientY
+    c.lastT = e.timeStamp
     const totalDy = e.clientY - c.startY
     if (!c.captured && Math.abs(totalDy) > 8) {
       ref.current?.setPointerCapture(e.pointerId)
@@ -1055,7 +1074,7 @@ function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
     c.active = false
     if (!c.captured || !ref.current) return
     const el = ref.current
-    let v = c.vel * 16  // px per frame at ~60 fps
+    let v = c.vel * 16 // px per frame at ~60 fps
     const tick = () => {
       el.scrollTop -= v
       v *= 0.92
@@ -1072,25 +1091,23 @@ function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
   return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel } }
 }
 
-// Distinguishes a tap (finger down + up in place) from a scroll (finger
-// moves > 8 px vertically). Replaces onClick on list rows so that a scroll
-// gesture never accidentally selects an item.
+// Distinguishes a tap from a scroll. Records startY on pointerdown, fires
+// onTap on pointerup only if the finger moved ≤ 8 px vertically AND the
+// pointerdown was seen on this row (startY !== null). If the scroll container
+// captured the pointer, onPointerUp never reaches the row at all — this is a
+// belt-and-suspenders fallback for when capture doesn't prevent the event.
 function useTap(onTap: () => void) {
-  const startY = useRef(0)
-  const scrolled = useRef(false)
+  const startY = useRef<number | null>(null)
   return {
     onPointerDown(e: React.PointerEvent) {
       startY.current = e.clientY
-      scrolled.current = false
     },
-    onPointerMove(e: React.PointerEvent) {
-      if (Math.abs(e.clientY - startY.current) > 8) scrolled.current = true
-    },
-    onPointerUp() {
-      if (!scrolled.current) onTap()
+    onPointerUp(e: React.PointerEvent) {
+      if (startY.current !== null && Math.abs(e.clientY - startY.current) <= 8) onTap()
+      startY.current = null
     },
     onPointerCancel() {
-      scrolled.current = true
+      startY.current = null
     },
   }
 }
@@ -1123,7 +1140,10 @@ function ContactRow({
       {selected && (
         <button
           className="hu-call-icon-btn"
-          onClick={(e) => { e.stopPropagation(); onCall() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onCall()
+          }}
           aria-label="Call"
         >
           <img src={iconPhone} alt="call" className="hu-call-icon-img" />
@@ -1156,8 +1176,8 @@ function RecentsList({
         <div className="hu-empty-title">SYNC FAILED</div>
         <div className="hu-empty-sub">{lastError}</div>
         <div className="hu-empty-sub" style={{ fontSize: 22, opacity: 0.7 }}>
-          On iPhone: Settings → Bluetooth → tap (i) next to the head unit →
-          enable Sync Contacts.  Recent calls share the same toggle.
+          On iPhone: Settings → Bluetooth → tap (i) next to the head unit → enable Sync Contacts.
+          Recent calls share the same toggle.
         </div>
       </div>
     )
@@ -1205,7 +1225,7 @@ function RecentRow({
   recent: r,
   selected,
   onSelect,
-  onCall,
+  onCall
 }: {
   recent: RecentCall
   selected: boolean
@@ -1226,7 +1246,10 @@ function RecentRow({
       {selected && (
         <button
           className="hu-call-icon-btn"
-          onClick={(e) => { e.stopPropagation(); onCall() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onCall()
+          }}
           aria-label="Call"
         >
           <img src={iconPhone} alt="call" className="hu-call-icon-img" />
@@ -1602,7 +1625,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
             <div
               className="hu-screen-strip"
               style={{
-                transform: `translateX(${-CYCLE.indexOf(activeView) * 100}%)`,
+                transform: `translateX(${-CYCLE.indexOf(activeView) * 100}%)`
               }}
             >
               {CYCLE.map((v) => (
