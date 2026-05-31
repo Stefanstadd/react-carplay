@@ -824,7 +824,7 @@ img.hu-numpad-call-icon {
 .hu-call-time {
   margin-left: auto;
   font-size: 30px;
-  color: var(--hu-green-dim);
+  color: var(--hu-green-mid);
   flex-shrink: 0;
 }
 
