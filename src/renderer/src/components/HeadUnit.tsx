@@ -557,7 +557,7 @@ function MusicView({
         </div>
         <div className="hu-music-text">
           <div className="hu-music-via">
-            {phoneConnected ? `via ${media.playerName ?? 'Bluetooth'}` : 'Bluetooth Disconnected'}
+            {phoneConnected ? 'via Bluetooth' : 'Bluetooth Disconnected'}
           </div>
           <MarqueeText className="hu-music-title" speedPxPerSec={TITLE_SCROLL_SPEED}>{title}</MarqueeText>
           <div className="hu-music-artist">{artist}</div>

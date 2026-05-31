@@ -35,7 +35,6 @@ export interface MediaState {
   durationSec: number
   positionSec: number
   playing: boolean
-  playerName?: string
 }
 
 export type CallStatus = 'idle' | 'incoming' | 'dialing' | 'active' | 'held'

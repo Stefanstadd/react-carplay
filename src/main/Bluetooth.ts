@@ -43,7 +43,6 @@ export interface MediaState {
   durationSec: number
   positionSec: number
   playing: boolean
-  playerName?: string
 }
 
 export type CallStatus = 'idle' | 'incoming' | 'dialing' | 'active' | 'held'
@@ -460,7 +459,6 @@ export class BluetoothManager {
 
   private applyPlayerProps(props: Record<string, any>) {
     if ('Status' in props) this.media.playing = String(props.Status) === 'playing'
-    if ('Name'   in props) this.media.playerName = String(props.Name)
     if ('Position' in props) this.media.positionSec = Math.floor(Number(props.Position) / 1000)
     if ('Track' in props) {
       const t = unwrapVariants(props.Track)
@@ -471,7 +469,11 @@ export class BluetoothManager {
       this.media.artist = newArtist
       this.media.album  = t.Album !== undefined ? String(t.Album) : this.media.album
       const dur = t.Duration !== undefined ? Math.floor(Number(t.Duration) / 1000) : 0
-      if (dur > 0) this.media.durationSec = dur
+      if (dur > 0) {
+        this.media.durationSec = dur
+      } else if (trackChanged) {
+        this.media.durationSec = 0
+      }
       // When the track changes (next/previous), position resets to 0 — most
       // phones don't push Position alongside Track, so do it here.
       if (trackChanged && !('Position' in props)) this.media.positionSec = 0
