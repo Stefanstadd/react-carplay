@@ -823,8 +823,8 @@ img.hu-numpad-call-icon {
 
 .hu-call-time {
   margin-left: auto;
-  font-size: 28px;
-  color: var(--hu-green-mid);
+  font-size: 36px;
+  color: var(--hu-green);
   flex-shrink: 0;
 }
 
@@ -1290,7 +1290,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-numpad-letters {
-  font-size: 32px;
+  font-size: 24px;
   color: var(--hu-green-mid);
   letter-spacing: 0.18em;
   line-height: 1;
