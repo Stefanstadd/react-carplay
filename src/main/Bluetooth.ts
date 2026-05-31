@@ -387,6 +387,9 @@ export class BluetoothManager {
           this.refreshInterfacesUnder(path).catch((err) =>
             console.warn('[bt] refresh after reconnect failed', err)
           )
+          // HFP battery negotiation can finish seconds after Connected fires.
+          // Poll Get(Battery1.Percentage) until we get a real value.
+          this.pollBattery(path)
         }
         this.maybePromoteToActivePhone(path)
         this.pushDevices()
@@ -415,37 +418,9 @@ export class BluetoothManager {
   private async subscribeBatteryProps(path: string) {
     try {
       const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
-      try { obj.getInterface(IFACE_BATTERY) } catch { return } // no battery1 on this object
-      // One-time initial read in case the value was set before our subscribe.
-      try {
-        const p0 = obj.getInterface(IFACE_PROPS)
-        const v = await p0.Get(IFACE_BATTERY, 'Percentage')
-        const pct = Number(unwrapVariant(v))
-        const d0 = this.devicePaths.get(path)
-        if (d0 && !isNaN(pct)) {
-          d0.batteryPct = pct
-          console.log('[bt] battery initial read', d0.name, pct, '%')
-          this.pushDevices()
-          if (path === this.activePhonePath) this.pushPhone()
-        }
-      } catch {
-        // Percentage not yet available — HFP negotiation may still be in progress.
-        // Retry after 3 s to catch the common first-connect race.
-        setTimeout(async () => {
-          try {
-            const p0 = obj.getInterface(IFACE_PROPS)
-            const v2 = await p0.Get(IFACE_BATTERY, 'Percentage')
-            const pct2 = Number(unwrapVariant(v2))
-            const d2 = this.devicePaths.get(path)
-            if (d2 && !isNaN(pct2) && d2.batteryPct === undefined) {
-              d2.batteryPct = pct2
-              console.log('[bt] battery retry read', d2.name, pct2, '%')
-              this.pushDevices()
-              if (path === this.activePhonePath) this.pushPhone()
-            }
-          } catch { /* still not available, PropertiesChanged will handle it */ }
-        }, 3000)
-      }
+      // Subscribe to PropertiesChanged unconditionally — covers the case where
+      // Battery1 is added later and its Percentage changes after the initial read.
+      // The handler filters on iface === IFACE_BATTERY so non-battery events are ignored.
       const p = obj.getInterface(IFACE_PROPS)
       p.on('PropertiesChanged', (iface: string, changed: any) => {
         if (iface !== IFACE_BATTERY) return
@@ -458,7 +433,45 @@ export class BluetoothManager {
         this.pushDevices()
         if (path === this.activePhonePath) this.pushPhone()
       })
+      // One-time initial read.
+      try {
+        const v = await p.Get(IFACE_BATTERY, 'Percentage')
+        const pct = Number(unwrapVariant(v))
+        const d0 = this.devicePaths.get(path)
+        if (d0 && !isNaN(pct) && pct > 0) {
+          d0.batteryPct = pct
+          console.log('[bt] battery initial read', d0.name, pct, '%')
+          this.pushDevices()
+          if (path === this.activePhonePath) this.pushPhone()
+        }
+      } catch { /* Battery1 not on this path yet — PropertiesChanged or poll will handle it */ }
     } catch { /* */ }
+  }
+
+  /** Poll Get(Battery1.Percentage) after connect — HFP negotiation can take several
+   *  seconds so the initial read in subscribeBatteryProps may arrive too early. */
+  private pollBattery(path: string, attempt = 0) {
+    const delays = [1500, 3000, 6000, 12000, 20000]
+    if (attempt >= delays.length) return
+    setTimeout(async () => {
+      const d = this.devicePaths.get(path)
+      if (!d?.connected) return
+      if (d.batteryPct !== undefined && d.batteryPct > 0) return
+      try {
+        const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
+        const p0  = obj.getInterface(IFACE_PROPS)
+        const v   = await p0.Get(IFACE_BATTERY, 'Percentage')
+        const pct = Number(unwrapVariant(v))
+        if (!isNaN(pct) && pct > 0) {
+          d.batteryPct = pct
+          console.log('[bt] battery poll', d.name, pct, '%', 'attempt', attempt)
+          this.pushDevices()
+          if (path === this.activePhonePath) this.pushPhone()
+          return
+        }
+      } catch { /* Battery1 not ready yet */ }
+      this.pollBattery(path, attempt + 1)
+    }, delays[attempt])
   }
 
   private async subscribePlayerProps(path: string) {
