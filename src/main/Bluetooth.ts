@@ -123,6 +123,7 @@ export class BluetoothManager {
   // ofono
   private activeModemPath: string | null = null
   private activeCallPath: string | null = null
+  private vcmSubscribedModem: string | null = null
 
   // outbound state
   private media: MediaState = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
@@ -326,6 +327,10 @@ export class BluetoothManager {
       this.applyPlayerProps(props)
       await this.subscribePlayerProps(path)
       this.pushMedia()
+      // GetManagedObjects never includes Position (dynamic property) — fetch it
+      // immediately so the renderer catches up to a song already in progress
+      // (e.g. connected at 1:36, would otherwise show 0:00 until the 1 Hz poll fires).
+      this.refreshPlayerPosition().catch(() => undefined)
     }
     if (interfaces[IFACE_BATTERY] && !interfaces[IFACE_DEVICE] && this.devicePaths.has(path)) {
       const b = unwrapVariants(interfaces[IFACE_BATTERY])
@@ -558,8 +563,11 @@ export class BluetoothManager {
       } else {
         this.livePosCtr = 0
       }
-      // Also clear if position has overshot the known duration.
-      if (this.media.durationSec > 0 && pos > this.media.durationSec + 10) {
+      // Clear duration when position overshoots — catches live sources whose
+      // AVRCP metadata still carries the previous song's Duration while position
+      // keeps advancing past it.  +5 s margin avoids false triggers on normal
+      // track changes where the position update arrives slightly before the new Track.
+      if (this.media.durationSec > 0 && pos > this.media.durationSec + 5) {
         this.media.durationSec = 0
         this.pushMedia()
       } else if (pos !== this.media.positionSec) {
@@ -720,18 +728,19 @@ export class BluetoothManager {
       if (Array.isArray(modems) && modems.length > 0) {
         this.activeModemPath = String(modems[0][0])
         console.log('[bt] ofono modem:', this.activeModemPath)
-        await this.subscribeVCM(this.activeModemPath)
+        this.pollSubscribeVCM(this.activeModemPath)
       }
-      mgr.on('ModemAdded', async (path: string) => {
+      mgr.on('ModemAdded', (path: string) => {
         if (!this.activeModemPath) {
           this.activeModemPath = path
-          await this.subscribeVCM(path)
+          this.pollSubscribeVCM(path)
         }
       })
       mgr.on('ModemRemoved', (path: string) => {
         if (this.activeModemPath === path) {
           this.activeModemPath = null
           this.activeCallPath = null
+          if (this.vcmSubscribedModem === path) this.vcmSubscribedModem = null
           this.call = { status: 'idle', durationSec: 0, muted: false }
           this.pushCall()
         }
@@ -753,18 +762,53 @@ export class BluetoothManager {
     }
   }
 
+  /** Attempt to subscribe to VCM once — throws on failure so pollSubscribeVCM can retry. */
   private async subscribeVCM(modemPath: string) {
-    try {
-      const obj = await this.systemBus.getProxyObject(OFONO_BUS, modemPath)
-      const vcm = obj.getInterface(IFACE_VCM)
+    if (this.vcmSubscribedModem === modemPath) return   // already set up for this modem
+    const obj = await this.systemBus.getProxyObject(OFONO_BUS, modemPath)
+    const vcm = obj.getInterface(IFACE_VCM)
 
-      const calls = await vcm.GetCalls()
-      if (Array.isArray(calls)) {
-        for (const [cpath, props] of calls) this.adoptCall(cpath, unwrapVariants(props))
+    const calls = await vcm.GetCalls()
+    if (Array.isArray(calls)) {
+      for (const [cpath, props] of calls) this.adoptCall(cpath, unwrapVariants(props))
+    }
+    vcm.on('CallAdded',   (cpath: string, props: any) => this.adoptCall(cpath, unwrapVariants(props)))
+    vcm.on('CallRemoved', (cpath: string)             => this.releaseCall(cpath))
+
+    // CallVolume.PropertyChanged — keeps call.muted in sync when the phone or
+    // network changes the mute state independently of our own setMuted() calls.
+    try {
+      const cv = obj.getInterface(IFACE_CALLVOL)
+      cv.on('PropertyChanged', (name: string, value: any) => {
+        if (name === 'Muted') {
+          const muted = !!unwrapVariant(value)
+          if (muted !== this.call.muted) {
+            this.call.muted = muted
+            this.pushCall()
+          }
+        }
+      })
+    } catch { /* CallVolume optional on some modems */ }
+
+    this.vcmSubscribedModem = modemPath
+    console.log('[bt] VCM subscribed on', modemPath)
+  }
+
+  /** Retry subscribeVCM with backoff — VCM may not be introspectable immediately
+   *  when a modem first appears (HFP negotiation still in progress). */
+  private pollSubscribeVCM(modemPath: string, attempt = 0) {
+    const delays = [0, 2000, 5000, 10000]
+    if (attempt >= delays.length) return
+    const go = async () => {
+      try {
+        await this.subscribeVCM(modemPath)
+      } catch (err) {
+        console.warn(`[bt] VCM subscribe attempt ${attempt + 1} failed — retrying`, (err as Error).message)
+        this.pollSubscribeVCM(modemPath, attempt + 1)
       }
-      vcm.on('CallAdded',   (cpath: string, props: any) => this.adoptCall(cpath, unwrapVariants(props)))
-      vcm.on('CallRemoved', (cpath: string)             => this.releaseCall(cpath))
-    } catch (err) { console.warn('[bt] VCM subscribe failed', err) }
+    }
+    if (delays[attempt] === 0) go()
+    else setTimeout(go, delays[attempt])
   }
 
   private async adoptCall(path: string, props: Record<string, any>) {
@@ -782,9 +826,11 @@ export class BluetoothManager {
 
     try {
       const obj = await this.systemBus.getProxyObject(OFONO_BUS, path)
-      const p   = obj.getInterface(IFACE_PROPS)
-      p.on('PropertiesChanged', (name2: string, value: any) => {
-        if (name2 === 'State') {
+      // ofono emits PropertyChanged(string name, variant value) on the VoiceCall
+      // interface — NOT org.freedesktop.DBus.Properties.PropertiesChanged.
+      const vc = obj.getInterface(IFACE_VOICECALL)
+      vc.on('PropertyChanged', (propName: string, value: any) => {
+        if (propName === 'State') {
           this.call.status = callStatusFromOfono(String(unwrapVariant(value)))
           this.pushCall()
         }
@@ -801,14 +847,27 @@ export class BluetoothManager {
 
   private async dial(num: string) {
     if (!this.activeModemPath) {
-      console.warn('[bt] dial: no modem (ofono running?  HFP connected?)')
+      console.warn('[bt] dial: no active modem — ofono running and HFP connected?')
+      return
+    }
+    // ofono expects digits + optional leading '+'; strip everything else.
+    const sanitized = num.replace(/[^\d+]/g, '')
+    if (!sanitized) {
+      console.warn('[bt] dial: number empty after sanitization from', JSON.stringify(num))
       return
     }
     try {
       const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeModemPath)
       const vcm = obj.getInterface(IFACE_VCM)
-      await vcm.Dial(num, 'default')
-    } catch (err) { console.warn('[bt] dial failed', err) }
+      await vcm.Dial(sanitized, '')   // '' = use network/subscription default
+      console.log('[bt] dialing', sanitized)
+      // Push optimistic dialing state so the in-call screen opens immediately,
+      // even if CallAdded is delayed.  adoptCall will overwrite this when it fires.
+      if (this.call.status === 'idle') {
+        this.call = { status: 'dialing', contact: { number: sanitized }, durationSec: 0, muted: false }
+        this.pushCall()
+      }
+    } catch (err) { console.warn('[bt] dial failed:', (err as Error).message ?? err) }
   }
 
   private async answer() {
@@ -847,9 +906,10 @@ export class BluetoothManager {
     if (!this.activeModemPath) return
     try {
       const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeModemPath)
-      const p   = obj.getInterface(IFACE_PROPS)
-      await p.Set(IFACE_CALLVOL, 'Muted', new this.dbus.Variant('b', on))
-    } catch (err) { console.warn('[bt] mute failed', err) }
+      // ofono uses its own SetProperty method, not org.freedesktop.DBus.Properties.Set
+      const cv = obj.getInterface(IFACE_CALLVOL)
+      await cv.SetProperty('Muted', new this.dbus.Variant('b', on))
+    } catch (err) { console.warn('[bt] mute failed:', (err as Error).message ?? err) }
   }
 
   // ─── obex — PBAP phonebook sync ───────────────────────────────────────────

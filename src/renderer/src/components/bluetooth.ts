@@ -109,9 +109,13 @@ export function useBluetooth() {
         const next = d ?? DEFAULT_MEDIA
         const trackChanged = next.title !== prev.title || next.artist !== prev.artist
         if (!trackChanged) {
-          // Same track: local 10 Hz counter is authoritative.
-          // Never let BlueZ's 1 Hz poll override it — that's what caused
-          // the progress bar to snap back after seek/prev.
+          // Accept main's position when it's significantly ahead of local —
+          // this handles the initial-connection case where the song was already
+          // at e.g. 1:36 but we initialised at 0:00 (BlueZ's GetManagedObjects
+          // doesn't include Position so the first push is always 0).
+          if (next.positionSec > prev.positionSec + 10) return next
+          // Same track, small drift: local 10 Hz counter is authoritative.
+          // Never let BlueZ's 1 Hz poll snap the bar back after a seek.
           return { ...next, positionSec: prev.positionSec }
         }
         return next
