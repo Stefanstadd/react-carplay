@@ -533,10 +533,10 @@ function MusicView({
           style={{ ['--art-size' as any]: `${ALBUM_ART_SIZE}px` }}
         >
           <img
-            src={artworkSrc}
+            src={artworkSrc ?? iconBluetooth}
             alt=""
-            crossOrigin="anonymous"
-            className="hu-art-img"
+            {...(artworkSrc ? { crossOrigin: 'anonymous' as const } : {})}
+            className={`hu-art-img${artworkSrc ? '' : ' hu-art-img--fallback'}`}
             onError={(e) => {
               const img = e.currentTarget as HTMLImageElement
               if (img.src !== iconBluetooth) {
