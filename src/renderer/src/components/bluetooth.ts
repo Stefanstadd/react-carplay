@@ -4,7 +4,7 @@
 // window.api.bt.* and re-exposes them as a React hook.  On dev (Windows)
 // the IPC bridge is absent — the hook just returns the disconnected default.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -95,12 +95,6 @@ export function useBluetooth() {
   const [contacts, setContacts] = useState<ContactsState>(DEFAULT_CTS)
   const [recents,  setRecents]  = useState<RecentCallsState>(DEFAULT_RCS)
   const [devices,  setDevices]  = useState<BtDevice[]>([])
-  // Timestamp (ms) of the last user-driven seek/prev/next.  For 800 ms
-  // after that we ignore positionSec updates from main, otherwise the
-  // BlueZ position poller snaps the bar back to the OLD position while
-  // the phone hasn't actually responded yet (= the visible "0 → old → 1"
-  // flicker on previous-button press).
-  const userSeekAtRef = useRef(0)
 
   useEffect(() => {
     const bt = (window as any).api?.bt
@@ -113,21 +107,11 @@ export function useBluetooth() {
     bt.onMedia((_: any, d: MediaState) => {
       setMedia((prev) => {
         const next = d ?? DEFAULT_MEDIA
-        const sameTrack = next.title === prev.title && next.artist === prev.artist
-        const sinceSeek = Date.now() - userSeekAtRef.current
-        const incomingPos = next.positionSec ?? 0
-        // After a user seek/prev/next, the iPhone takes a couple of
-        // seconds to actually reset its Position.  During that window,
-        // BlueZ keeps polling the OLD position — if we accept it, the
-        // bar snaps back.  Suppress until either (a) 4 s pass, or
-        // (b) BlueZ reports a low position (<5 s) which means the phone
-        // actually navigated.
-        if (sinceSeek < 4000 && incomingPos > 5) {
-          return { ...next, positionSec: prev.positionSec }
-        }
-        // Tiny drift on same track — our 10 Hz local tick is more
-        // accurate than BlueZ's 1 Hz poll, suppress jitter.
-        if (sameTrack && Math.abs(incomingPos - prev.positionSec) < 2) {
+        const trackChanged = next.title !== prev.title || next.artist !== prev.artist
+        if (!trackChanged) {
+          // Same track: local 10 Hz counter is authoritative.
+          // Never let BlueZ's 1 Hz poll override it — that's what caused
+          // the progress bar to snap back after seek/prev.
           return { ...next, positionSec: prev.positionSec }
         }
         return next
@@ -180,25 +164,19 @@ export function useBluetooth() {
   return {
     phone, media, call, contacts, recents, devices,
 
-    // Media transport.  prev/next optimistically snap position to 0 and
-    // mark a "user just seeked" timestamp so the BlueZ position poller
-    // doesn't yank us back to the old time during the next 800 ms.
     mediaPlay:    () => bt?.mediaCmd?.('play'),
     mediaPause:   () => bt?.mediaCmd?.('pause'),
     mediaToggle:  () => bt?.mediaCmd?.(media.playing ? 'pause' : 'play'),
     mediaNext: () => {
       bt?.mediaCmd?.('next')
-      userSeekAtRef.current = Date.now()
       setMedia((p) => ({ ...p, positionSec: 0 }))
     },
     mediaPrev: () => {
       bt?.mediaCmd?.('previous')
-      userSeekAtRef.current = Date.now()
       setMedia((p) => ({ ...p, positionSec: 0 }))
     },
     mediaSeek: (sec: number) => {
       bt?.mediaCmd?.(`seek:${Math.max(0, Math.floor(sec))}`)
-      userSeekAtRef.current = Date.now()
       setMedia((p) => ({ ...p, positionSec: Math.max(0, sec) }))
     },
 
