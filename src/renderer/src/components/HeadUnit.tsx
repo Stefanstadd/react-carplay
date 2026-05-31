@@ -8,6 +8,7 @@ import iconSettings from '../assets/icons/settings.png'
 import iconContacts from '../assets/icons/contacts.png'
 import iconRecent from '../assets/icons/recent.png'
 import iconCarplay from '../assets/icons/carplay.png'
+import iconBluetooth from '../assets/icons/Bluetooth.png'
 import {
   useBluetooth,
   filterContactsByDial,
@@ -531,41 +532,18 @@ function MusicView({
           className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}
           style={{ ['--art-size' as any]: `${ALBUM_ART_SIZE}px` }}
         >
-          {artworkSrc ? (
-            <img
-              src={artworkSrc}
-              alt=""
-              crossOrigin="anonymous"
-              className="hu-art-img"
-              onError={(e) => {
-                // Image was returned but failed to load (network, CORS, CORP).
-                // Hide so the SVG fallback shows instead of broken alt text.
-                ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                console.warn('[art] image failed to load', artworkSrc)
-              }}
-            />
-          ) : (
-            <svg
-              viewBox="0 0 80 80"
-              width="100%"
-              height="100%"
-              opacity="0.6"
-              shapeRendering="crispEdges"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              <rect
-                x="14"
-                y="14"
-                width="52"
-                height="52"
-                fill="none"
-                stroke="#00ff0a"
-                strokeWidth="3"
-              />
-              <rect x="36" y="34" width="8" height="14" fill="#00ff0a" />
-              <rect x="44" y="32" width="2" height="14" fill="#00ff0a" />
-            </svg>
-          )}
+          <img
+            src={artworkSrc}
+            alt={iconBluetooth}
+            crossOrigin="anonymous"
+            className="hu-art-img"
+            onError={(e) => {
+              // Image was returned but failed to load (network, CORS, CORP).
+              // Hide so the SVG fallback shows instead of broken alt text.
+              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+              console.warn('[art] image failed to load', artworkSrc)
+            }}
+          />
         </div>
         <div className="hu-music-text">
           <div className="hu-music-via">
@@ -1108,7 +1086,7 @@ function useTap(onTap: () => void) {
     },
     onPointerCancel() {
       startY.current = null
-    },
+    }
   }
 }
 
