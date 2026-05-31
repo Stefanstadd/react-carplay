@@ -1251,11 +1251,17 @@ function parseCallHistoryVcards(text: string): RecentCall[] {
         const colon = ln.indexOf(':')
         if (colon !== -1) {
           const params = ln.slice(0, colon).toUpperCase()
-          const dt = ln.slice(colon + 1).trim() // e.g. 20240315T134055
-          // Parse YYYYMMDDTHHMMSS
-          const m = dt.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/)
+          const dt = ln.slice(colon + 1).trim() // e.g. 20240315T134055 or 20240315T124055Z
+          // Parse YYYYMMDDTHHMMSS[Z]
+          const m = dt.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)/)
           if (m) {
-            time = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
+            // iOS stores timestamps in device local time without a Z suffix.
+            // Only treat as UTC when the Z is explicitly present.
+            if (m[7] === 'Z') {
+              time = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])
+            } else {
+              time = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime()
+            }
           }
           // Apple/some phones tag MISSED/RECEIVED/DIALED on the line.
           if (params.includes('MISSED'))   dir = 'miss'
