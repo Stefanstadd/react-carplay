@@ -1290,7 +1290,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-numpad-letters {
-  font-size: 16px;
+  font-size: 32px;
   color: var(--hu-green-mid);
   letter-spacing: 0.18em;
   line-height: 1;
@@ -1316,6 +1316,7 @@ img.hu-numpad-call-icon {
   padding: 18px 10px 8px;
   border-bottom: 1px solid var(--hu-green-mid);
   background: var(--hu-bg-panel);
+  text-align: left;
   position: sticky;
   top: 0;
   z-index: 1;
