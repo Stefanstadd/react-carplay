@@ -534,14 +534,16 @@ function MusicView({
         >
           <img
             src={artworkSrc}
-            alt={iconBluetooth}
+            alt=""
             crossOrigin="anonymous"
             className="hu-art-img"
             onError={(e) => {
-              // Image was returned but failed to load (network, CORS, CORP).
-              // Hide so the SVG fallback shows instead of broken alt text.
-              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-              console.warn('[art] image failed to load', artworkSrc)
+              const img = e.currentTarget as HTMLImageElement
+              if (img.src !== iconBluetooth) {
+                img.removeAttribute('crossOrigin')
+                img.src = iconBluetooth
+                img.classList.add('hu-art-img--fallback')
+              }
             }}
           />
         </div>

@@ -489,6 +489,11 @@ img.hu-numpad-call-icon {
   height: 100%;
   object-fit: cover;
 }
+.hu-art-img--fallback {
+  object-fit: contain;
+  padding: 20%;
+  opacity: 0.5;
+}
 
 .hu-music-text {
   display: flex;
