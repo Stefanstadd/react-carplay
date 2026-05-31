@@ -909,6 +909,7 @@ function PhoneView({
 }: {
   bt: ReturnType<typeof useBluetooth>
 }) {
+  const scroll = useScrollContainer<HTMLDivElement>()
   const [tab, setTab] = useState<PhoneTab>('call')
   const [dial, setDial] = useState('')
   // Currently-selected match/recent — tap to select, tap CALL to dial.
@@ -965,7 +966,7 @@ function PhoneView({
       </div>
 
       <div className="hu-main-area">
-        <div className="hu-phone-content">
+        <div className="hu-phone-content" ref={scroll.ref} {...scroll.handlers}>
           {!bt.phone.connected && (
             <div className="hu-empty-state">
               <div className="hu-empty-title">NO PHONE CONNECTED</div>
@@ -1004,6 +1005,71 @@ function PhoneView({
       </div>
     </div>
   )
+}
+
+// Manual touch scroll for containers that sit under the global
+// touchAction:'none' (set on the App root to protect the CarPlay canvas).
+// Native browser scroll is disabled there; we re-implement it via pointer
+// events.  Once a scroll is detected (> 8 px vertical) the container calls
+// setPointerCapture so future move/up events bypass the child rows entirely —
+// that prevents any useTap from firing at the end of a drag.
+function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
+  const ref = useRef<T>(null)
+  const st = useRef({
+    active: false, captured: false, pointerId: -1,
+    startY: 0, startScroll: 0, lastY: 0, lastT: 0, vel: 0, rafId: 0,
+  })
+
+  const stopMomentum = () => {
+    if (st.current.rafId) cancelAnimationFrame(st.current.rafId)
+    st.current.rafId = 0
+  }
+
+  const onPointerDown = useCallback((e: React.PointerEvent<T>) => {
+    stopMomentum()
+    const c = st.current
+    c.active = true; c.captured = false
+    c.pointerId = e.pointerId
+    c.startY = c.lastY = e.clientY
+    c.lastT = e.timeStamp; c.vel = 0
+    c.startScroll = ref.current?.scrollTop ?? 0
+  }, [])
+
+  const onPointerMove = useCallback((e: React.PointerEvent<T>) => {
+    const c = st.current
+    if (!c.active || e.pointerId !== c.pointerId) return
+    const dt = e.timeStamp - c.lastT
+    if (dt > 0) c.vel = (e.clientY - c.lastY) / dt
+    c.lastY = e.clientY; c.lastT = e.timeStamp
+    const totalDy = e.clientY - c.startY
+    if (!c.captured && Math.abs(totalDy) > 8) {
+      ref.current?.setPointerCapture(e.pointerId)
+      c.captured = true
+    }
+    if (c.captured && ref.current) ref.current.scrollTop = c.startScroll - totalDy
+  }, [])
+
+  const onPointerUp = useCallback((e: React.PointerEvent<T>) => {
+    const c = st.current
+    if (!c.active || e.pointerId !== c.pointerId) return
+    c.active = false
+    if (!c.captured || !ref.current) return
+    const el = ref.current
+    let v = c.vel * 16  // px per frame at ~60 fps
+    const tick = () => {
+      el.scrollTop -= v
+      v *= 0.92
+      c.rafId = Math.abs(v) > 0.5 ? requestAnimationFrame(tick) : 0
+    }
+    c.rafId = requestAnimationFrame(tick)
+  }, [])
+
+  const onPointerCancel = useCallback((e: React.PointerEvent<T>) => {
+    if (e.pointerId === st.current.pointerId) st.current.active = false
+    stopMomentum()
+  }, [])
+
+  return { ref, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel } }
 }
 
 // Distinguishes a tap (finger down + up in place) from a scroll (finger
@@ -1205,6 +1271,7 @@ function DialerView({
   onCall: () => void
   onCallContact: (c: Contact) => void
 }) {
+  const scroll = useScrollContainer<HTMLDivElement>()
   // Filter + group by first letter.  When no digits typed, every section
   // is shown; as the user types, only sections whose contacts still
   // match remain visible.
@@ -1262,7 +1329,7 @@ function DialerView({
         </div>
       </div>
 
-      <div className="hu-dial-matches">
+      <div className="hu-dial-matches" ref={scroll.ref} {...scroll.handlers}>
         <div className="hu-panel-label" style={{ marginBottom: 12 }}>
           {dial ? `MATCHES (${matchCount})` : `CONTACTS (${matchCount})`}
         </div>
