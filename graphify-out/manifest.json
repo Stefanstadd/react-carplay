@@ -1,0 +1,357 @@
+{
+  "C:\\Users\\stefa\\react-carplay\\electron.vite.config.ts": {
+    "mtime": 1779993894.6692932,
+    "ast_hash": "fe88f624756960ca8f88b0af5a3d8ace",
+    "semantic_hash": "fe88f624756960ca8f88b0af5a3d8ace"
+  },
+  "C:\\Users\\stefa\\react-carplay\\package.json": {
+    "mtime": 1779626380.2925045,
+    "ast_hash": "a920749d262ffa8b1287dad83c36c3cd",
+    "semantic_hash": "a920749d262ffa8b1287dad83c36c3cd"
+  },
+  "C:\\Users\\stefa\\react-carplay\\setup-pi.sh": {
+    "mtime": 1779275665.759597,
+    "ast_hash": "bd0abb4abfd04cf20c6bb32d05c4e1c4",
+    "semantic_hash": "bd0abb4abfd04cf20c6bb32d05c4e1c4"
+  },
+  "C:\\Users\\stefa\\react-carplay\\tsconfig.json": {
+    "mtime": 1779275665.7824626,
+    "ast_hash": "b3eb9eae9804c3caa6e95afdbbf17583",
+    "semantic_hash": "b3eb9eae9804c3caa6e95afdbbf17583"
+  },
+  "C:\\Users\\stefa\\react-carplay\\tsconfig.node.json": {
+    "mtime": 1779275665.7824626,
+    "ast_hash": "e99185acceda2a58efc324a05faf16c0",
+    "semantic_hash": "e99185acceda2a58efc324a05faf16c0"
+  },
+  "C:\\Users\\stefa\\react-carplay\\tsconfig.web.json": {
+    "mtime": 1779275665.7824626,
+    "ast_hash": "ba4be1b6edb9e8e372c2437ea658d453",
+    "semantic_hash": "ba4be1b6edb9e8e372c2437ea658d453"
+  },
+  "C:\\Users\\stefa\\react-carplay\\.vscode\\extensions.json": {
+    "mtime": 1779275665.7490523,
+    "ast_hash": "fa63530f8722933bc0bcc500a732bc84",
+    "semantic_hash": "fa63530f8722933bc0bcc500a732bc84"
+  },
+  "C:\\Users\\stefa\\react-carplay\\.vscode\\launch.json": {
+    "mtime": 1779275665.7490523,
+    "ast_hash": "ce36a4d6880364b244fcf6506454668a",
+    "semantic_hash": "ce36a4d6880364b244fcf6506454668a"
+  },
+  "C:\\Users\\stefa\\react-carplay\\.vscode\\settings.json": {
+    "mtime": 1779275665.750258,
+    "ast_hash": "f7bc9eea7e0e7c4524c32eb6c9cb1b53",
+    "semantic_hash": "f7bc9eea7e0e7c4524c32eb6c9cb1b53"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\main\\AudioCapture.ts": {
+    "mtime": 1779818042.7994564,
+    "ast_hash": "9efb5388e302a5b3827f79c2930b6470",
+    "semantic_hash": "9efb5388e302a5b3827f79c2930b6470"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\main\\Bluetooth.ts": {
+    "mtime": 1779995160.2147658,
+    "ast_hash": "c882f20eb0a924995ffc472648add7b8",
+    "semantic_hash": "c882f20eb0a924995ffc472648add7b8"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\main\\Canbus.ts": {
+    "mtime": 1779363476.4672458,
+    "ast_hash": "24712e8a0753d1585848f095f7de0d1b",
+    "semantic_hash": "24712e8a0753d1585848f095f7de0d1b"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\main\\Globals.ts": {
+    "mtime": 1779275665.76061,
+    "ast_hash": "90404f70bd31fe438efed164bab77bd4",
+    "semantic_hash": "90404f70bd31fe438efed164bab77bd4"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\main\\index.ts": {
+    "mtime": 1779818055.1542222,
+    "ast_hash": "e3074f97190f10a6c633267aacc65a13",
+    "semantic_hash": "e3074f97190f10a6c633267aacc65a13"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\main\\PiMost.ts": {
+    "mtime": 1779275665.76061,
+    "ast_hash": "8d0ea110ef9ce09e3253bf2e3d36afba",
+    "semantic_hash": "8d0ea110ef9ce09e3253bf2e3d36afba"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\main\\Socket.ts": {
+    "mtime": 1779275665.7616136,
+    "ast_hash": "8df8ab69ab6b1da7eb4633a985770186",
+    "semantic_hash": "8df8ab69ab6b1da7eb4633a985770186"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\preload\\index.d.ts": {
+    "mtime": 1779275665.7626162,
+    "ast_hash": "f1ba7b3c738cf2a24a24705c6ed2829c",
+    "semantic_hash": "f1ba7b3c738cf2a24a24705c6ed2829c"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\preload\\index.ts": {
+    "mtime": 1779994124.3179455,
+    "ast_hash": "d1ba9249aecfcf92c20ab63ac978a501",
+    "semantic_hash": "d1ba9249aecfcf92c20ab63ac978a501"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\public\\audio.worklet.js": {
+    "mtime": 1779275665.7656465,
+    "ast_hash": "f096a0c974feade312f0d3bf02ad526e",
+    "semantic_hash": "f096a0c974feade312f0d3bf02ad526e"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\App.tsx": {
+    "mtime": 1779568106.4157095,
+    "ast_hash": "d8f213336a520b8171390fe475db9b5c",
+    "semantic_hash": "d8f213336a520b8171390fe475db9b5c"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\env.d.ts": {
+    "mtime": 1779275665.778827,
+    "ast_hash": "8f68c27c3fc38817b2726b20e2d4f1ee",
+    "semantic_hash": "8f68c27c3fc38817b2726b20e2d4f1ee"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\main.tsx": {
+    "mtime": 1779275665.7795045,
+    "ast_hash": "b97ffecd5054d0092bd434ac82f31cf4",
+    "semantic_hash": "b97ffecd5054d0092bd434ac82f31cf4"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\audioVisualizer.ts": {
+    "mtime": 1779903574.3807695,
+    "ast_hash": "82772f039b21831df5af41bfe26c8323",
+    "semantic_hash": "82772f039b21831df5af41bfe26c8323"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\bluetooth.ts": {
+    "mtime": 1779994186.3644743,
+    "ast_hash": "b9229bd832d91ba90f29c9fcd4d025cf",
+    "semantic_hash": "b9229bd832d91ba90f29c9fcd4d025cf"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\Camera.tsx": {
+    "mtime": 1779275665.7676518,
+    "ast_hash": "43e5b5e0f5bc1aa82fff9fbffaa73d8b",
+    "semantic_hash": "43e5b5e0f5bc1aa82fff9fbffaa73d8b"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\Canbus.tsx": {
+    "mtime": 1779275665.7676518,
+    "ast_hash": "34e7c597f9ed7a5e7c439e2745ab44c9",
+    "semantic_hash": "34e7c597f9ed7a5e7c439e2745ab44c9"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\Carplay.tsx": {
+    "mtime": 1779903762.9072025,
+    "ast_hash": "f64d3b7018dbfd750987fdec133eba9f",
+    "semantic_hash": "f64d3b7018dbfd750987fdec133eba9f"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\headunit.config.ts": {
+    "mtime": 1779903508.832041,
+    "ast_hash": "7647394c6d616048e72ba6834cfe7ef0",
+    "semantic_hash": "7647394c6d616048e72ba6834cfe7ef0"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\HeadUnit.tsx": {
+    "mtime": 1779994385.980197,
+    "ast_hash": "b27dab91d2a112e95c638735b351e512",
+    "semantic_hash": "b27dab91d2a112e95c638735b351e512"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\Home.tsx": {
+    "mtime": 1779275665.768654,
+    "ast_hash": "415a989d95ddca56862605195769798c",
+    "semantic_hash": "415a989d95ddca56862605195769798c"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\Info.tsx": {
+    "mtime": 1779275665.768654,
+    "ast_hash": "f0b51c8ddb45c6ff90051110171d79ca",
+    "semantic_hash": "f0b51c8ddb45c6ff90051110171d79ca"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\KeyBindings.tsx": {
+    "mtime": 1779275665.769659,
+    "ast_hash": "9eb05d23248dac2cf6474d32fba11ba3",
+    "semantic_hash": "9eb05d23248dac2cf6474d32fba11ba3"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\MostStream.tsx": {
+    "mtime": 1779275665.769659,
+    "ast_hash": "a2a4ad31f36f6330849f1c13e615ba4d",
+    "semantic_hash": "a2a4ad31f36f6330849f1c13e615ba4d"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\Nav.tsx": {
+    "mtime": 1779275665.7707782,
+    "ast_hash": "e41e408dfc621b88ef89ec27ce21f3d0",
+    "semantic_hash": "e41e408dfc621b88ef89ec27ce21f3d0"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\Settings.tsx": {
+    "mtime": 1779275665.7707782,
+    "ast_hash": "dfbc90d78f8c76e2150f61e5deacfdd9",
+    "semantic_hash": "dfbc90d78f8c76e2150f61e5deacfdd9"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\useCarplayAudio.ts": {
+    "mtime": 1779275665.7717807,
+    "ast_hash": "223a0ca2ab122b8dae8a5fd741e93772",
+    "semantic_hash": "223a0ca2ab122b8dae8a5fd741e93772"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\useCarplayTouch.ts": {
+    "mtime": 1779275665.772783,
+    "ast_hash": "65f1ab7c3da8bce8fd251b4cd6305875",
+    "semantic_hash": "65f1ab7c3da8bce8fd251b4cd6305875"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\pam\\Pam.tsx": {
+    "mtime": 1779275665.7717807,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\carplay.ts": {
+    "mtime": 1779275665.7737944,
+    "ast_hash": "c4fe24f5ad51e917368460e35bc6c5b1",
+    "semantic_hash": "c4fe24f5ad51e917368460e35bc6c5b1"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\CarPlay.worker.ts": {
+    "mtime": 1779275665.772783,
+    "ast_hash": "22ff6cd270314d54bc00d45c86e104a4",
+    "semantic_hash": "22ff6cd270314d54bc00d45c86e104a4"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\types.ts": {
+    "mtime": 1779275665.777813,
+    "ast_hash": "133d37b8ceb27c82b0612e363023cfbb",
+    "semantic_hash": "133d37b8ceb27c82b0612e363023cfbb"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\utils.ts": {
+    "mtime": 1779275665.777813,
+    "ast_hash": "5e77addb38b62c1b4b4a09a5f667e969",
+    "semantic_hash": "5e77addb38b62c1b4b4a09a5f667e969"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\render\\Render.worker.ts": {
+    "mtime": 1779654806.5607855,
+    "ast_hash": "1aec78d9da9f9951ef682e1460323522",
+    "semantic_hash": "1aec78d9da9f9951ef682e1460323522"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\render\\RenderEvents.ts": {
+    "mtime": 1779275665.774799,
+    "ast_hash": "6d372c0ac5c4bc977c901c2afba07669",
+    "semantic_hash": "6d372c0ac5c4bc977c901c2afba07669"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\render\\WebGL2Renderer.ts": {
+    "mtime": 1779275665.774799,
+    "ast_hash": "09d9d81cf35c33a4c345148395424d67",
+    "semantic_hash": "09d9d81cf35c33a4c345148395424d67"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\render\\WebGLRenderer.ts": {
+    "mtime": 1779275665.7758036,
+    "ast_hash": "7f548b8ae7a1a24449f2be4d60429cdd",
+    "semantic_hash": "7f548b8ae7a1a24449f2be4d60429cdd"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\render\\WebGPURenderer.ts": {
+    "mtime": 1779275665.7758036,
+    "ast_hash": "538dd2d066f306fad6ff6244cdbb5630",
+    "semantic_hash": "538dd2d066f306fad6ff6244cdbb5630"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\render\\lib\\h264-utils.ts": {
+    "mtime": 1779275665.7768104,
+    "ast_hash": "69f1abdb1b4a51224ea7f4420f4c94a2",
+    "semantic_hash": "69f1abdb1b4a51224ea7f4420f4c94a2"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\components\\worker\\render\\lib\\utils.ts": {
+    "mtime": 1779275665.777813,
+    "ast_hash": "51a7e9a90c5578b81820894bedd6e6c1",
+    "semantic_hash": "51a7e9a90c5578b81820894bedd6e6c1"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\store\\store.ts": {
+    "mtime": 1779275665.7795045,
+    "ast_hash": "a18d6bdba926f25c8ebf07e5bb4fffba",
+    "semantic_hash": "a18d6bdba926f25c8ebf07e5bb4fffba"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\worker\\carplay.ts": {
+    "mtime": 1779275665.7805061,
+    "ast_hash": "0945a00150b69152d5a688a7f8823d22",
+    "semantic_hash": "0945a00150b69152d5a688a7f8823d22"
+  },
+  "C:\\Users\\stefa\\react-carplay\\.prettierrc.yaml": {
+    "mtime": 1779275665.7480521,
+    "ast_hash": "7dd870474c10f94851965a656a94ec90",
+    "semantic_hash": "7dd870474c10f94851965a656a94ec90"
+  },
+  "C:\\Users\\stefa\\react-carplay\\BLUETOOTH.md": {
+    "mtime": 1779702703.155317,
+    "ast_hash": "d77778d1189bfee414124e62482e78e1",
+    "semantic_hash": "d77778d1189bfee414124e62482e78e1"
+  },
+  "C:\\Users\\stefa\\react-carplay\\BUILD.md": {
+    "mtime": 1779994521.5747435,
+    "ast_hash": "9aa3dbc5270bcc73402a38431142dee1",
+    "semantic_hash": "9aa3dbc5270bcc73402a38431142dee1"
+  },
+  "C:\\Users\\stefa\\react-carplay\\electron-builder.yml": {
+    "mtime": 1779275665.7533348,
+    "ast_hash": "b106477ce4d6b5f745c890469ab53a02",
+    "semantic_hash": "b106477ce4d6b5f745c890469ab53a02"
+  },
+  "C:\\Users\\stefa\\react-carplay\\README.md": {
+    "mtime": 1779275665.750258,
+    "ast_hash": "00a014fffdb69f0feab42f89f069c9a7",
+    "semantic_hash": "00a014fffdb69f0feab42f89f069c9a7"
+  },
+  "C:\\Users\\stefa\\react-carplay\\test.html": {
+    "mtime": 1779275665.7805061,
+    "ast_hash": "019b4f14cf7ef0842078effa7e3e04ce",
+    "semantic_hash": "019b4f14cf7ef0842078effa7e3e04ce"
+  },
+  "C:\\Users\\stefa\\react-carplay\\TODO.md": {
+    "mtime": 1779626484.5918343,
+    "ast_hash": "278d01fc3a09dec8b4cb98aa2a701f34",
+    "semantic_hash": "278d01fc3a09dec8b4cb98aa2a701f34"
+  },
+  "C:\\Users\\stefa\\react-carplay\\.github\\workflows\\node.js.yml": {
+    "mtime": 1779275665.7421572,
+    "ast_hash": "b4f5e380079167f503239c57229ad6fb",
+    "semantic_hash": "b4f5e380079167f503239c57229ad6fb"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\index.html": {
+    "mtime": 1779275665.76464,
+    "ast_hash": "cb8caae9406bec435a9c828919110786",
+    "semantic_hash": "cb8caae9406bec435a9c828919110786"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\public\\RingBuffer_LICENSE.txt": {
+    "mtime": 1779275665.76464,
+    "ast_hash": "55a288862ec4d1fd20f996344d511a1f",
+    "semantic_hash": "55a288862ec4d1fd20f996344d511a1f"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\public\\icon.png": {
+    "mtime": 1779275665.7636335,
+    "ast_hash": "a2cf889708d9c4959c6808b4584848e4",
+    "semantic_hash": "a2cf889708d9c4959c6808b4584848e4"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\public\\icon.png": {
+    "mtime": 1779275665.7656465,
+    "ast_hash": "a2cf889708d9c4959c6808b4584848e4",
+    "semantic_hash": "a2cf889708d9c4959c6808b4584848e4"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\carplay.png": {
+    "mtime": 1779541093.9150681,
+    "ast_hash": "8a4cf87cff14bebd132b824861c90ed5",
+    "semantic_hash": "8a4cf87cff14bebd132b824861c90ed5"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\contacts.png": {
+    "mtime": 1779541093.8561554,
+    "ast_hash": "1eae204fa32d27d58fb12c02c1247865",
+    "semantic_hash": "1eae204fa32d27d58fb12c02c1247865"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\gauges.png": {
+    "mtime": 1779541093.7477925,
+    "ast_hash": "d12beb288515f32e87fbca27c984cbd8",
+    "semantic_hash": "d12beb288515f32e87fbca27c984cbd8"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\mobile.png": {
+    "mtime": 1779541093.7177038,
+    "ast_hash": "6c01f246ab88f7f966d04d89aa6c791a",
+    "semantic_hash": "6c01f246ab88f7f966d04d89aa6c791a"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\music.png": {
+    "mtime": 1779541093.7748525,
+    "ast_hash": "94ab282e1af6cf4d6de46c56d055c15d",
+    "semantic_hash": "94ab282e1af6cf4d6de46c56d055c15d"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\phone.png": {
+    "mtime": 1779541093.7978413,
+    "ast_hash": "63852061bd940fbc1ab59ab4f2ee0ef1",
+    "semantic_hash": "63852061bd940fbc1ab59ab4f2ee0ef1"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\recent.png": {
+    "mtime": 1779541093.8847096,
+    "ast_hash": "80600cd49ec4513bce7de00029ca944e",
+    "semantic_hash": "80600cd49ec4513bce7de00029ca944e"
+  },
+  "C:\\Users\\stefa\\react-carplay\\src\\renderer\\src\\assets\\icons\\settings.png": {
+    "mtime": 1779567874.0334814,
+    "ast_hash": "f30dff9651cf19d90ff2132e93335925",
+    "semantic_hash": "f30dff9651cf19d90ff2132e93335925"
+  }
+}

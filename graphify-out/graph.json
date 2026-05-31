@@ -1,0 +1,3483 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "id": "ipc_audio_pipeline",
+        "label": "Audio PCM IPC Pipeline: parec \u2192 AudioCapture \u2192 IPC \u2192 Preload \u2192 AudioWorklet",
+        "nodes": [
+          "main_audiocapture",
+          "preload_index",
+          "renderer_audioworklet"
+        ],
+        "relation": "implement",
+        "confidence": "EXTRACTED",
+        "confidence_score": 0.95,
+        "source_file": "src/main/AudioCapture.ts"
+      },
+      {
+        "id": "bluetooth_dbus_bridge",
+        "label": "Bluetooth D-Bus Bridge: BluetoothManager \u2194 Preload BtApi \u2194 Renderer",
+        "nodes": [
+          "main_bluetooth",
+          "preload_index",
+          "renderer_app"
+        ],
+        "relation": "implement",
+        "confidence": "EXTRACTED",
+        "confidence_score": 0.95,
+        "source_file": "src/main/Bluetooth.ts"
+      },
+      {
+        "id": "main_orchestration",
+        "label": "Main Process Orchestration: index.ts instantiates Socket, Canbus, Bluetooth, AudioCapture",
+        "nodes": [
+          "main_index",
+          "main_socket",
+          "main_bluetooth",
+          "main_audiocapture",
+          "main_canbus"
+        ],
+        "relation": "participate_in",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "src/main/index.ts"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "label": "AudioCapture.ts",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L1",
+      "id": "audiocapture_ts",
+      "community": 5,
+      "norm_label": "audiocapture.ts"
+    },
+    {
+      "label": "DEFAULT_TARGETS",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L14",
+      "id": "main_audiocapture_default_targets",
+      "community": 5,
+      "norm_label": "default_targets"
+    },
+    {
+      "label": "AudioCapture",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L21",
+      "id": "main_audiocapture_audiocapture",
+      "community": 5,
+      "norm_label": "audiocapture"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L27",
+      "id": "main_audiocapture_audiocapture_constructor",
+      "community": 5,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": ".setTargets()",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L29",
+      "id": "main_audiocapture_audiocapture_settargets",
+      "community": 5,
+      "norm_label": ".settargets()"
+    },
+    {
+      "label": ".start()",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L35",
+      "id": "main_audiocapture_audiocapture_start",
+      "community": 5,
+      "norm_label": ".start()"
+    },
+    {
+      "label": ".stop()",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L43",
+      "id": "main_audiocapture_audiocapture_stop",
+      "community": 5,
+      "norm_label": ".stop()"
+    },
+    {
+      "label": ".restart()",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L52",
+      "id": "main_audiocapture_audiocapture_restart",
+      "community": 5,
+      "norm_label": ".restart()"
+    },
+    {
+      "label": ".spawnParec()",
+      "file_type": "code",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L57",
+      "id": "main_audiocapture_audiocapture_spawnparec",
+      "community": 5,
+      "norm_label": ".spawnparec()"
+    },
+    {
+      "label": "Bluetooth.ts",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1",
+      "id": "bluetooth_ts",
+      "community": 2,
+      "norm_label": "bluetooth.ts"
+    },
+    {
+      "label": "BtDevice",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L19",
+      "id": "main_bluetooth_btdevice",
+      "community": 2,
+      "norm_label": "btdevice"
+    },
+    {
+      "label": "PhoneState",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L29",
+      "id": "main_bluetooth_phonestate",
+      "community": 2,
+      "norm_label": "phonestate"
+    },
+    {
+      "label": "MediaState",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L37",
+      "id": "main_bluetooth_mediastate",
+      "community": 2,
+      "norm_label": "mediastate"
+    },
+    {
+      "label": "CallStatus",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L48",
+      "id": "main_bluetooth_callstatus",
+      "community": 2,
+      "norm_label": "callstatus"
+    },
+    {
+      "label": "CallContact",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L50",
+      "id": "main_bluetooth_callcontact",
+      "community": 2,
+      "norm_label": "callcontact"
+    },
+    {
+      "label": "CallState",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L52",
+      "id": "main_bluetooth_callstate",
+      "community": 2,
+      "norm_label": "callstate"
+    },
+    {
+      "label": "Contact",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L59",
+      "id": "main_bluetooth_contact",
+      "community": 2,
+      "norm_label": "contact"
+    },
+    {
+      "label": "ContactsState",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L66",
+      "id": "main_bluetooth_contactsstate",
+      "community": 2,
+      "norm_label": "contactsstate"
+    },
+    {
+      "label": "RecentCall",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L73",
+      "id": "main_bluetooth_recentcall",
+      "community": 2,
+      "norm_label": "recentcall"
+    },
+    {
+      "label": "RecentCallsState",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L80",
+      "id": "main_bluetooth_recentcallsstate",
+      "community": 2,
+      "norm_label": "recentcallsstate"
+    },
+    {
+      "label": "BluetoothManager",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L110",
+      "id": "main_bluetooth_bluetoothmanager",
+      "community": 0,
+      "norm_label": "bluetoothmanager"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L141",
+      "id": "main_bluetooth_bluetoothmanager_constructor",
+      "community": 0,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": ".chainPbap()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L146",
+      "id": "main_bluetooth_bluetoothmanager_chainpbap",
+      "community": 0,
+      "norm_label": ".chainpbap()"
+    },
+    {
+      "label": ".start()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L160",
+      "id": "main_bluetooth_bluetoothmanager_start",
+      "community": 0,
+      "norm_label": ".start()"
+    },
+    {
+      "label": ".stop()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L202",
+      "id": "main_bluetooth_bluetoothmanager_stop",
+      "community": 0,
+      "norm_label": ".stop()"
+    },
+    {
+      "label": ".registerIpc()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L211",
+      "id": "main_bluetooth_bluetoothmanager_registeripc",
+      "community": 0,
+      "norm_label": ".registeripc()"
+    },
+    {
+      "label": ".pushAll()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L229",
+      "id": "main_bluetooth_bluetoothmanager_pushall",
+      "community": 0,
+      "norm_label": ".pushall()"
+    },
+    {
+      "label": ".pushPhone()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L244",
+      "id": "main_bluetooth_bluetoothmanager_pushphone",
+      "community": 3,
+      "norm_label": ".pushphone()"
+    },
+    {
+      "label": ".pushMedia()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L245",
+      "id": "main_bluetooth_bluetoothmanager_pushmedia",
+      "community": 3,
+      "norm_label": ".pushmedia()"
+    },
+    {
+      "label": ".pushCall()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L246",
+      "id": "main_bluetooth_bluetoothmanager_pushcall",
+      "community": 0,
+      "norm_label": ".pushcall()"
+    },
+    {
+      "label": ".pushContacts()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L247",
+      "id": "main_bluetooth_bluetoothmanager_pushcontacts",
+      "community": 3,
+      "norm_label": ".pushcontacts()"
+    },
+    {
+      "label": ".pushRecents()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L248",
+      "id": "main_bluetooth_bluetoothmanager_pushrecents",
+      "community": 2,
+      "norm_label": ".pushrecents()"
+    },
+    {
+      "label": ".pushDevices()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L249",
+      "id": "main_bluetooth_bluetoothmanager_pushdevices",
+      "community": 3,
+      "norm_label": ".pushdevices()"
+    },
+    {
+      "label": ".phoneState()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L251",
+      "id": "main_bluetooth_bluetoothmanager_phonestate",
+      "community": 3,
+      "norm_label": ".phonestate()"
+    },
+    {
+      "label": ".deviceList()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L260",
+      "id": "main_bluetooth_bluetoothmanager_devicelist",
+      "community": 0,
+      "norm_label": ".devicelist()"
+    },
+    {
+      "label": ".initBlueZ()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L276",
+      "id": "main_bluetooth_bluetoothmanager_initbluez",
+      "community": 0,
+      "norm_label": ".initbluez()"
+    },
+    {
+      "label": ".onObjectAdded()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L295",
+      "id": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "community": 3,
+      "norm_label": ".onobjectadded()"
+    },
+    {
+      "label": ".onObjectRemoved()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L334",
+      "id": "main_bluetooth_bluetoothmanager_onobjectremoved",
+      "community": 3,
+      "norm_label": ".onobjectremoved()"
+    },
+    {
+      "label": ".subscribeDeviceProps()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L357",
+      "id": "main_bluetooth_bluetoothmanager_subscribedeviceprops",
+      "community": 3,
+      "norm_label": ".subscribedeviceprops()"
+    },
+    {
+      "label": ".subscribeBatteryProps()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L412",
+      "id": "main_bluetooth_bluetoothmanager_subscribebatteryprops",
+      "community": 3,
+      "norm_label": ".subscribebatteryprops()"
+    },
+    {
+      "label": ".subscribePlayerProps()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L444",
+      "id": "main_bluetooth_bluetoothmanager_subscribeplayerprops",
+      "community": 3,
+      "norm_label": ".subscribeplayerprops()"
+    },
+    {
+      "label": ".applyPlayerProps()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L457",
+      "id": "main_bluetooth_bluetoothmanager_applyplayerprops",
+      "community": 3,
+      "norm_label": ".applyplayerprops()"
+    },
+    {
+      "label": ".refreshPlayerPosition()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L477",
+      "id": "main_bluetooth_bluetoothmanager_refreshplayerposition",
+      "community": 2,
+      "norm_label": ".refreshplayerposition()"
+    },
+    {
+      "label": ".maybePromoteToActivePhone()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L495",
+      "id": "main_bluetooth_bluetoothmanager_maybepromotetoactivephone",
+      "community": 3,
+      "norm_label": ".maybepromotetoactivephone()"
+    },
+    {
+      "label": ".mediaCmd()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L526",
+      "id": "main_bluetooth_bluetoothmanager_mediacmd",
+      "community": 0,
+      "norm_label": ".mediacmd()"
+    },
+    {
+      "label": ".scan()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L546",
+      "id": "main_bluetooth_bluetoothmanager_scan",
+      "community": 0,
+      "norm_label": ".scan()"
+    },
+    {
+      "label": ".findAdapterPath()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L558",
+      "id": "main_bluetooth_bluetoothmanager_findadapterpath",
+      "community": 0,
+      "norm_label": ".findadapterpath()"
+    },
+    {
+      "label": ".refreshInterfacesUnder()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L574",
+      "id": "main_bluetooth_bluetoothmanager_refreshinterfacesunder",
+      "community": 3,
+      "norm_label": ".refreshinterfacesunder()"
+    },
+    {
+      "label": ".deviceOp()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L591",
+      "id": "main_bluetooth_bluetoothmanager_deviceop",
+      "community": 0,
+      "norm_label": ".deviceop()"
+    },
+    {
+      "label": ".connectDevice()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L606",
+      "id": "main_bluetooth_bluetoothmanager_connectdevice",
+      "community": 0,
+      "norm_label": ".connectdevice()"
+    },
+    {
+      "label": ".disconnectDevice()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L610",
+      "id": "main_bluetooth_bluetoothmanager_disconnectdevice",
+      "community": 0,
+      "norm_label": ".disconnectdevice()"
+    },
+    {
+      "label": ".forgetDevice()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L612",
+      "id": "main_bluetooth_bluetoothmanager_forgetdevice",
+      "community": 0,
+      "norm_label": ".forgetdevice()"
+    },
+    {
+      "label": ".pathForAddress()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L624",
+      "id": "main_bluetooth_bluetoothmanager_pathforaddress",
+      "community": 0,
+      "norm_label": ".pathforaddress()"
+    },
+    {
+      "label": ".initOFono()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L632",
+      "id": "main_bluetooth_bluetoothmanager_initofono",
+      "community": 0,
+      "norm_label": ".initofono()"
+    },
+    {
+      "label": ".subscribeVCM()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L663",
+      "id": "main_bluetooth_bluetoothmanager_subscribevcm",
+      "community": 0,
+      "norm_label": ".subscribevcm()"
+    },
+    {
+      "label": ".adoptCall()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L677",
+      "id": "main_bluetooth_bluetoothmanager_adoptcall",
+      "community": 0,
+      "norm_label": ".adoptcall()"
+    },
+    {
+      "label": ".releaseCall()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L701",
+      "id": "main_bluetooth_bluetoothmanager_releasecall",
+      "community": 0,
+      "norm_label": ".releasecall()"
+    },
+    {
+      "label": ".dial()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L708",
+      "id": "main_bluetooth_bluetoothmanager_dial",
+      "community": 0,
+      "norm_label": ".dial()"
+    },
+    {
+      "label": ".answer()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L720",
+      "id": "main_bluetooth_bluetoothmanager_answer",
+      "community": 0,
+      "norm_label": ".answer()"
+    },
+    {
+      "label": ".hangup()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L728",
+      "id": "main_bluetooth_bluetoothmanager_hangup",
+      "community": 0,
+      "norm_label": ".hangup()"
+    },
+    {
+      "label": ".reject()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L745",
+      "id": "main_bluetooth_bluetoothmanager_reject",
+      "community": 0,
+      "norm_label": ".reject()"
+    },
+    {
+      "label": ".setMuted()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L750",
+      "id": "main_bluetooth_bluetoothmanager_setmuted",
+      "community": 0,
+      "norm_label": ".setmuted()"
+    },
+    {
+      "label": ".syncContacts()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L763",
+      "id": "main_bluetooth_bluetoothmanager_synccontacts",
+      "community": 0,
+      "norm_label": ".synccontacts()"
+    },
+    {
+      "label": ".syncContactsInner()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L767",
+      "id": "main_bluetooth_bluetoothmanager_synccontactsinner",
+      "community": 2,
+      "norm_label": ".synccontactsinner()"
+    },
+    {
+      "label": ".syncRecentCalls()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L849",
+      "id": "main_bluetooth_bluetoothmanager_syncrecentcalls",
+      "community": 0,
+      "norm_label": ".syncrecentcalls()"
+    },
+    {
+      "label": ".syncRecentCallsInner()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L853",
+      "id": "main_bluetooth_bluetoothmanager_syncrecentcallsinner",
+      "community": 2,
+      "norm_label": ".syncrecentcallsinner()"
+    },
+    {
+      "label": ".waitForObexTransfer()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L932",
+      "id": "main_bluetooth_bluetoothmanager_waitforobextransfer",
+      "community": 2,
+      "norm_label": ".waitforobextransfer()"
+    },
+    {
+      "label": ".lookupContactName()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L971",
+      "id": "main_bluetooth_bluetoothmanager_lookupcontactname",
+      "community": 0,
+      "norm_label": ".lookupcontactname()"
+    },
+    {
+      "label": "unwrapVariants()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L986",
+      "id": "main_bluetooth_unwrapvariants",
+      "community": 3,
+      "norm_label": "unwrapvariants()"
+    },
+    {
+      "label": "unwrapVariant()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L993",
+      "id": "main_bluetooth_unwrapvariant",
+      "community": 2,
+      "norm_label": "unwrapvariant()"
+    },
+    {
+      "label": "PHONE_ICONS",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L998",
+      "id": "main_bluetooth_phone_icons",
+      "community": 2,
+      "norm_label": "phone_icons"
+    },
+    {
+      "label": "HFP_UUIDS",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L999",
+      "id": "main_bluetooth_hfp_uuids",
+      "community": 2,
+      "norm_label": "hfp_uuids"
+    },
+    {
+      "label": "isPhone()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1006",
+      "id": "main_bluetooth_isphone",
+      "community": 3,
+      "norm_label": "isphone()"
+    },
+    {
+      "label": "callStatusFromOfono()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1013",
+      "id": "main_bluetooth_callstatusfromofono",
+      "community": 0,
+      "norm_label": "callstatusfromofono()"
+    },
+    {
+      "label": "readFileSafe()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1026",
+      "id": "main_bluetooth_readfilesafe",
+      "community": 2,
+      "norm_label": "readfilesafe()"
+    },
+    {
+      "label": "parseVcardList()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1039",
+      "id": "main_bluetooth_parsevcardlist",
+      "community": 2,
+      "norm_label": "parsevcardlist()"
+    },
+    {
+      "label": "parseCallHistoryVcards()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1065",
+      "id": "main_bluetooth_parsecallhistoryvcards",
+      "community": 2,
+      "norm_label": "parsecallhistoryvcards()"
+    },
+    {
+      "label": "parseVcard()",
+      "file_type": "code",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1120",
+      "id": "main_bluetooth_parsevcard",
+      "community": 2,
+      "norm_label": "parsevcard()"
+    },
+    {
+      "label": "Canbus.ts",
+      "file_type": "code",
+      "source_file": "Canbus.ts",
+      "source_location": "L1",
+      "id": "canbus_ts",
+      "community": 1,
+      "norm_label": "canbus.ts"
+    },
+    {
+      "label": "CanMask",
+      "file_type": "code",
+      "source_file": "Canbus.ts",
+      "source_location": "L12",
+      "id": "main_canbus_canmask",
+      "community": 1,
+      "norm_label": "canmask"
+    },
+    {
+      "label": "Canbus",
+      "file_type": "code",
+      "source_file": "Canbus.ts",
+      "source_location": "L19",
+      "id": "main_canbus_canbus",
+      "community": 1,
+      "norm_label": "canbus"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "Canbus.ts",
+      "source_location": "L27",
+      "id": "main_canbus_canbus_constructor",
+      "community": 1,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": "Globals.ts",
+      "file_type": "code",
+      "source_file": "Globals.ts",
+      "source_location": "L1",
+      "id": "globals_ts",
+      "community": 1,
+      "norm_label": "globals.ts"
+    },
+    {
+      "label": "Most",
+      "file_type": "code",
+      "source_file": "Globals.ts",
+      "source_location": "L4",
+      "id": "main_globals_most",
+      "community": 1,
+      "norm_label": "most"
+    },
+    {
+      "label": "ExtraConfig",
+      "file_type": "code",
+      "source_file": "Globals.ts",
+      "source_location": "L8",
+      "id": "main_globals_extraconfig",
+      "community": 1,
+      "norm_label": "extraconfig"
+    },
+    {
+      "label": "KeyBindings",
+      "file_type": "code",
+      "source_file": "Globals.ts",
+      "source_location": "L19",
+      "id": "main_globals_keybindings",
+      "community": 1,
+      "norm_label": "keybindings"
+    },
+    {
+      "label": "CanMessage",
+      "file_type": "code",
+      "source_file": "Globals.ts",
+      "source_location": "L32",
+      "id": "main_globals_canmessage",
+      "community": 1,
+      "norm_label": "canmessage"
+    },
+    {
+      "label": "CanConfig",
+      "file_type": "code",
+      "source_file": "Globals.ts",
+      "source_location": "L38",
+      "id": "main_globals_canconfig",
+      "community": 1,
+      "norm_label": "canconfig"
+    },
+    {
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L1",
+      "id": "index_ts",
+      "community": 1,
+      "norm_label": "index.ts"
+    },
+    {
+      "label": "appPath",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L19",
+      "id": "main_index_apppath",
+      "community": 1,
+      "norm_label": "apppath"
+    },
+    {
+      "label": "DEFAULT_BINDINGS",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L24",
+      "id": "main_index_default_bindings",
+      "community": 1,
+      "norm_label": "default_bindings"
+    },
+    {
+      "label": "EXTRA_CONFIG",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L37",
+      "id": "main_index_extra_config",
+      "community": 1,
+      "norm_label": "extra_config"
+    },
+    {
+      "label": "configKeys",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L57",
+      "id": "main_index_configkeys",
+      "community": 1,
+      "norm_label": "configkeys"
+    },
+    {
+      "label": "defaultKeys",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L58",
+      "id": "main_index_defaultkeys",
+      "community": 1,
+      "norm_label": "defaultkeys"
+    },
+    {
+      "label": "handleSettingsReq()",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L86",
+      "id": "main_index_handlesettingsreq",
+      "community": 1,
+      "norm_label": "handlesettingsreq()"
+    },
+    {
+      "label": "createWindow()",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L95",
+      "id": "main_index_createwindow",
+      "community": 1,
+      "norm_label": "createwindow()"
+    },
+    {
+      "label": "saveSettings()",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L238",
+      "id": "main_index_savesettings",
+      "community": 1,
+      "norm_label": "savesettings()"
+    },
+    {
+      "label": "quit()",
+      "file_type": "code",
+      "source_file": "index.ts",
+      "source_location": "L252",
+      "id": "main_index_quit",
+      "community": 1,
+      "norm_label": "quit()"
+    },
+    {
+      "label": "PiMost.ts",
+      "file_type": "code",
+      "source_file": "PiMost.ts",
+      "source_location": "L1",
+      "id": "pimost_ts",
+      "community": 1,
+      "norm_label": "pimost.ts"
+    },
+    {
+      "label": "PiMost",
+      "file_type": "code",
+      "source_file": "PiMost.ts",
+      "source_location": "L5",
+      "id": "main_pimost_pimost",
+      "community": 1,
+      "norm_label": "pimost"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "PiMost.ts",
+      "source_location": "L9",
+      "id": "main_pimost_pimost_constructor",
+      "community": 1,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": ".stream()",
+      "file_type": "code",
+      "source_file": "PiMost.ts",
+      "source_location": "L20",
+      "id": "main_pimost_pimost_stream",
+      "community": 1,
+      "norm_label": ".stream()"
+    },
+    {
+      "label": "Socket.ts",
+      "file_type": "code",
+      "source_file": "Socket.ts",
+      "source_location": "L1",
+      "id": "socket_ts",
+      "community": 1,
+      "norm_label": "socket.ts"
+    },
+    {
+      "label": "MessageNames",
+      "file_type": "code",
+      "source_file": "Socket.ts",
+      "source_location": "L6",
+      "id": "main_socket_messagenames",
+      "community": 1,
+      "norm_label": "messagenames"
+    },
+    {
+      "label": "Socket",
+      "file_type": "code",
+      "source_file": "Socket.ts",
+      "source_location": "L13",
+      "id": "main_socket_socket",
+      "community": 1,
+      "norm_label": "socket"
+    },
+    {
+      "label": ".constructor()",
+      "file_type": "code",
+      "source_file": "Socket.ts",
+      "source_location": "L17",
+      "id": "main_socket_socket_constructor",
+      "community": 1,
+      "norm_label": ".constructor()"
+    },
+    {
+      "label": ".sendSettings()",
+      "file_type": "code",
+      "source_file": "Socket.ts",
+      "source_location": "L46",
+      "id": "main_socket_socket_sendsettings",
+      "community": 1,
+      "norm_label": ".sendsettings()"
+    },
+    {
+      "label": ".sendReverse()",
+      "file_type": "code",
+      "source_file": "Socket.ts",
+      "source_location": "L50",
+      "id": "main_socket_socket_sendreverse",
+      "community": 1,
+      "norm_label": ".sendreverse()"
+    },
+    {
+      "label": ".sendLights()",
+      "file_type": "code",
+      "source_file": "Socket.ts",
+      "source_location": "L54",
+      "id": "main_socket_socket_sendlights",
+      "community": 1,
+      "norm_label": ".sendlights()"
+    },
+    {
+      "label": "AudioCapture",
+      "file_type": "code",
+      "source_file": "src/main/AudioCapture.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "main_audiocapture",
+      "community": 4,
+      "norm_label": "audiocapture"
+    },
+    {
+      "label": "parec-based Audio Capture replacing getUserMedia",
+      "file_type": "rationale",
+      "source_file": "src/main/AudioCapture.ts",
+      "source_location": "line 1-9",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "rationale_audiocaptureparec",
+      "community": 4,
+      "norm_label": "parec-based audio capture replacing getusermedia"
+    },
+    {
+      "label": "BluetoothManager",
+      "file_type": "code",
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "main_bluetooth",
+      "community": 4,
+      "norm_label": "bluetoothmanager"
+    },
+    {
+      "label": "BlueZ/ofono/obex D-Bus Bridge Design",
+      "file_type": "rationale",
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 1-11",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "rationale_btdbusdesign",
+      "community": 4,
+      "norm_label": "bluez/ofono/obex d-bus bridge design"
+    },
+    {
+      "label": "PBAP Serialisation Lock (chainPbap)",
+      "file_type": "rationale",
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 132-156",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "rationale_pbapserialisation",
+      "community": 4,
+      "norm_label": "pbap serialisation lock (chainpbap)"
+    },
+    {
+      "label": "BtDevice Interface",
+      "file_type": "code",
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 19-27",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "type_btdevice",
+      "community": 4,
+      "norm_label": "btdevice interface"
+    },
+    {
+      "label": "MediaState Interface",
+      "file_type": "code",
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 37-46",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "type_mediastate",
+      "community": 4,
+      "norm_label": "mediastate interface"
+    },
+    {
+      "label": "CallState Interface",
+      "file_type": "code",
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 49-57",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "type_callstate",
+      "community": 4,
+      "norm_label": "callstate interface"
+    },
+    {
+      "label": "Canbus",
+      "file_type": "code",
+      "source_file": "src/main/Canbus.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "main_canbus",
+      "community": 4,
+      "norm_label": "canbus"
+    },
+    {
+      "label": "Globals (ExtraConfig, KeyBindings, CanConfig)",
+      "file_type": "code",
+      "source_file": "src/main/Globals.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "main_globals",
+      "community": 4,
+      "norm_label": "globals (extraconfig, keybindings, canconfig)"
+    },
+    {
+      "label": "ExtraConfig Type",
+      "file_type": "code",
+      "source_file": "src/main/Globals.ts",
+      "source_location": "line 8-17",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "type_extraconfig",
+      "community": 4,
+      "norm_label": "extraconfig type"
+    },
+    {
+      "label": "Main Process Entry",
+      "file_type": "code",
+      "source_file": "src/main/index.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "main_index",
+      "community": 4,
+      "norm_label": "main process entry"
+    },
+    {
+      "label": "COEP/CORP Headers for cross-origin resources",
+      "file_type": "rationale",
+      "source_file": "src/main/index.ts",
+      "source_location": "line 168-176",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "rationale_coepheaders",
+      "community": 4,
+      "norm_label": "coep/corp headers for cross-origin resources"
+    },
+    {
+      "label": "PiMost",
+      "file_type": "code",
+      "source_file": "src/main/PiMost.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "main_pimost",
+      "community": 4,
+      "norm_label": "pimost"
+    },
+    {
+      "label": "Socket (socket.io Server)",
+      "file_type": "code",
+      "source_file": "src/main/Socket.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "main_socket",
+      "community": 4,
+      "norm_label": "socket (socket.io server)"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "audiocapture_ts",
+      "target": "main_audiocapture_audiocapture",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "audiocapture_ts",
+      "target": "main_audiocapture_default_targets",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "audiocapture_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_audiocapture_audiocapture",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture",
+      "target": "main_audiocapture_audiocapture_constructor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture",
+      "target": "main_audiocapture_audiocapture_restart",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture",
+      "target": "main_audiocapture_audiocapture_settargets",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture",
+      "target": "main_audiocapture_audiocapture_spawnparec",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L35",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture",
+      "target": "main_audiocapture_audiocapture_start",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L43",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture",
+      "target": "main_audiocapture_audiocapture_stop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture_settargets",
+      "target": "main_audiocapture_audiocapture_restart",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture_start",
+      "target": "main_audiocapture_audiocapture_spawnparec",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "AudioCapture.ts",
+      "source_location": "L53",
+      "weight": 1.0,
+      "source": "main_audiocapture_audiocapture_restart",
+      "target": "main_audiocapture_audiocapture_stop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L110",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_bluetoothmanager",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_btdevice",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_callcontact",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_callstate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L48",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_callstatus",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1013",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_callstatusfromofono",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L59",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_contact",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L66",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_contactsstate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L999",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_hfp_uuids",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1006",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_isphone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L37",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_mediastate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1065",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_parsecallhistoryvcards",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1120",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_parsevcard",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1039",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_parsevcardlist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L998",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_phone_icons",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_phonestate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L1026",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_readfilesafe",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L73",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_recentcall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L80",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_recentcallsstate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L993",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_unwrapvariant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L986",
+      "weight": 1.0,
+      "source": "bluetooth_ts",
+      "target": "main_bluetooth_unwrapvariants",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "bluetooth_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_bluetooth_bluetoothmanager",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L677",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_adoptcall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L720",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_answer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L457",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_applyplayerprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L146",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_chainpbap",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L606",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_connectdevice",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L141",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_constructor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L260",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_devicelist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L591",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_deviceop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L708",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_dial",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L610",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_disconnectdevice",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L558",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_findadapterpath",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L612",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_forgetdevice",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L728",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_hangup",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L276",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_initbluez",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L632",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_initofono",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L971",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_lookupcontactname",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L495",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_maybepromotetoactivephone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L526",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_mediacmd",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L295",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L334",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_onobjectremoved",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L624",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pathforaddress",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L251",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_phonestate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L229",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pushall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L246",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pushcall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L247",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pushcontacts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L249",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pushdevices",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L245",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pushmedia",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L244",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pushphone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L248",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_pushrecents",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L574",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_refreshinterfacesunder",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L477",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_refreshplayerposition",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L211",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_registeripc",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L745",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_reject",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L701",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_releasecall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L546",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_scan",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L750",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_setmuted",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L160",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_start",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L202",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_stop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L412",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_subscribebatteryprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L357",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_subscribedeviceprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L444",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_subscribeplayerprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L663",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_subscribevcm",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L763",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_synccontacts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L767",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_synccontactsinner",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L849",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_syncrecentcalls",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L853",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_syncrecentcallsinner",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L932",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager",
+      "target": "main_bluetooth_bluetoothmanager_waitforobextransfer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L764",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_synccontacts",
+      "target": "main_bluetooth_bluetoothmanager_chainpbap",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L850",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_syncrecentcalls",
+      "target": "main_bluetooth_bluetoothmanager_chainpbap",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L193",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_start",
+      "target": "main_bluetooth_bluetoothmanager_initbluez",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L194",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_start",
+      "target": "main_bluetooth_bluetoothmanager_initofono",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L165",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_start",
+      "target": "main_bluetooth_bluetoothmanager_pushall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L161",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_start",
+      "target": "main_bluetooth_bluetoothmanager_registeripc",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L238",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_pushall",
+      "target": "main_bluetooth_bluetoothmanager_devicelist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L233",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_pushall",
+      "target": "main_bluetooth_bluetoothmanager_phonestate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L314",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_pushphone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L343",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectremoved",
+      "target": "main_bluetooth_bluetoothmanager_pushphone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L244",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_pushphone",
+      "target": "main_bluetooth_bluetoothmanager_phonestate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L426",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_subscribebatteryprops",
+      "target": "main_bluetooth_bluetoothmanager_pushphone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L321",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_pushmedia",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L344",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectremoved",
+      "target": "main_bluetooth_bluetoothmanager_pushmedia",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L486",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_refreshplayerposition",
+      "target": "main_bluetooth_bluetoothmanager_pushmedia",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L687",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_adoptcall",
+      "target": "main_bluetooth_bluetoothmanager_pushcall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L705",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_releasecall",
+      "target": "main_bluetooth_bluetoothmanager_pushcall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L752",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_setmuted",
+      "target": "main_bluetooth_bluetoothmanager_pushcall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L345",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectremoved",
+      "target": "main_bluetooth_bluetoothmanager_pushcontacts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L770",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_synccontactsinner",
+      "target": "main_bluetooth_bluetoothmanager_pushcontacts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L346",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectremoved",
+      "target": "main_bluetooth_bluetoothmanager_pushrecents",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L856",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_syncrecentcallsinner",
+      "target": "main_bluetooth_bluetoothmanager_pushrecents",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L314",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_pushdevices",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L348",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectremoved",
+      "target": "main_bluetooth_bluetoothmanager_pushdevices",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L249",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_pushdevices",
+      "target": "main_bluetooth_bluetoothmanager_devicelist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L425",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_subscribebatteryprops",
+      "target": "main_bluetooth_bluetoothmanager_pushdevices",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L283",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_initbluez",
+      "target": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L319",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_applyplayerprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L313",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_maybepromotetoactivephone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L312",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_subscribebatteryprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L311",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_subscribedeviceprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L320",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_bluetoothmanager_subscribeplayerprops",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L304",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_isphone",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L297",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "target": "main_bluetooth_unwrapvariants",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L583",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_refreshinterfacesunder",
+      "target": "main_bluetooth_bluetoothmanager_onobjectadded",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L420",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_subscribebatteryprops",
+      "target": "main_bluetooth_unwrapvariant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L461",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_applyplayerprops",
+      "target": "main_bluetooth_unwrapvariants",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L483",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_refreshplayerposition",
+      "target": "main_bluetooth_unwrapvariant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L549",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_scan",
+      "target": "main_bluetooth_bluetoothmanager_findadapterpath",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L616",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_forgetdevice",
+      "target": "main_bluetooth_bluetoothmanager_findadapterpath",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L607",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_connectdevice",
+      "target": "main_bluetooth_bluetoothmanager_deviceop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L592",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_deviceop",
+      "target": "main_bluetooth_bluetoothmanager_pathforaddress",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L610",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_disconnectdevice",
+      "target": "main_bluetooth_bluetoothmanager_deviceop",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L613",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_forgetdevice",
+      "target": "main_bluetooth_bluetoothmanager_pathforaddress",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L642",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_initofono",
+      "target": "main_bluetooth_bluetoothmanager_subscribevcm",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L670",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_subscribevcm",
+      "target": "main_bluetooth_bluetoothmanager_adoptcall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L670",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_subscribevcm",
+      "target": "main_bluetooth_unwrapvariants",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L680",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_adoptcall",
+      "target": "main_bluetooth_bluetoothmanager_lookupcontactname",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L682",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_adoptcall",
+      "target": "main_bluetooth_callstatusfromofono",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L747",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_reject",
+      "target": "main_bluetooth_bluetoothmanager_hangup",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L816",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_synccontactsinner",
+      "target": "main_bluetooth_bluetoothmanager_waitforobextransfer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L822",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_synccontactsinner",
+      "target": "main_bluetooth_parsevcardlist",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L819",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_synccontactsinner",
+      "target": "main_bluetooth_readfilesafe",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L813",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_synccontactsinner",
+      "target": "main_bluetooth_unwrapvariant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L904",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_syncrecentcallsinner",
+      "target": "main_bluetooth_bluetoothmanager_waitforobextransfer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L908",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_syncrecentcallsinner",
+      "target": "main_bluetooth_parsecallhistoryvcards",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L905",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_syncrecentcallsinner",
+      "target": "main_bluetooth_readfilesafe",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L902",
+      "weight": 1.0,
+      "source": "main_bluetooth_bluetoothmanager_syncrecentcallsinner",
+      "target": "main_bluetooth_unwrapvariant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "Bluetooth.ts",
+      "source_location": "L989",
+      "weight": 1.0,
+      "source": "main_bluetooth_unwrapvariants",
+      "target": "main_bluetooth_unwrapvariant",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "canbus_ts",
+      "target": "globals_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "canbus_ts",
+      "target": "main_canbus_canbus",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "canbus_ts",
+      "target": "main_canbus_canmask",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "canbus_ts",
+      "target": "main_globals_canconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "canbus_ts",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "canbus_ts",
+      "target": "socket_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "canbus_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_canbus_canbus",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "main_canbus_canbus",
+      "target": "main_canbus_canbus_constructor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "field",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L22",
+      "weight": 1.0,
+      "source": "main_canbus_canbus",
+      "target": "main_globals_canconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "field",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L26",
+      "weight": 1.0,
+      "source": "main_canbus_canbus",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "main_canbus_canbus_constructor",
+      "target": "main_globals_canconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "Canbus.ts",
+      "source_location": "L27",
+      "weight": 1.0,
+      "source": "main_canbus_canbus_constructor",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Globals.ts",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "globals_ts",
+      "target": "main_globals_canconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Globals.ts",
+      "source_location": "L32",
+      "weight": 1.0,
+      "source": "globals_ts",
+      "target": "main_globals_canmessage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Globals.ts",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "globals_ts",
+      "target": "main_globals_extraconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Globals.ts",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "globals_ts",
+      "target": "main_globals_keybindings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Globals.ts",
+      "source_location": "L4",
+      "weight": 1.0,
+      "source": "globals_ts",
+      "target": "main_globals_most",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "globals_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "socket_ts",
+      "target": "globals_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_globals_extraconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "field",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "main_socket_socket",
+      "target": "main_globals_extraconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "main_socket_socket_constructor",
+      "target": "main_globals_extraconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L1",
+      "weight": 1.0,
+      "source": "socket_ts",
+      "target": "main_globals_extraconfig",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_globals_keybindings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L19",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_apppath",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L57",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_configkeys",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L95",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_createwindow",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_default_bindings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L58",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_defaultkeys",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L37",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_extra_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L86",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_handlesettingsreq",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L252",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_quit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L238",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_index_savesettings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "index.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "index_ts",
+      "target": "socket_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "pimost_ts",
+      "target": "main_pimost_pimost",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "source": "pimost_ts",
+      "target": "main_socket_messagenames",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "source": "pimost_ts",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "source": "pimost_ts",
+      "target": "socket_ts",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "main_pimost_pimost",
+      "target": "main_pimost_pimost_constructor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "main_pimost_pimost",
+      "target": "main_pimost_pimost_stream",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "field",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L8",
+      "weight": 1.0,
+      "source": "main_pimost_pimost",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "context": "parameter_type",
+      "confidence": "EXTRACTED",
+      "source_file": "PiMost.ts",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "main_pimost_pimost_constructor",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L6",
+      "weight": 1.0,
+      "source": "socket_ts",
+      "target": "main_socket_messagenames",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "socket_ts",
+      "target": "main_socket_socket",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L17",
+      "weight": 1.0,
+      "source": "main_socket_socket",
+      "target": "main_socket_socket_constructor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L54",
+      "weight": 1.0,
+      "source": "main_socket_socket",
+      "target": "main_socket_socket_sendlights",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L50",
+      "weight": 1.0,
+      "source": "main_socket_socket",
+      "target": "main_socket_socket_sendreverse",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "Socket.ts",
+      "source_location": "L46",
+      "weight": 1.0,
+      "source": "main_socket_socket",
+      "target": "main_socket_socket_sendsettings",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "src/main/AudioCapture.ts",
+      "source_location": null,
+      "weight": 0.65,
+      "source": "main_audiocapture",
+      "target": "main_bluetooth"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/AudioCapture.ts",
+      "source_location": "line 1-9",
+      "weight": 1.0,
+      "source": "main_audiocapture",
+      "target": "rationale_audiocaptureparec"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts",
+      "source_location": "line 219-220",
+      "weight": 1.0,
+      "source": "main_index",
+      "target": "main_audiocapture"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 1-11",
+      "weight": 1.0,
+      "source": "main_bluetooth",
+      "target": "rationale_btdbusdesign"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 132-156",
+      "weight": 1.0,
+      "source": "main_bluetooth",
+      "target": "rationale_pbapserialisation"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 19-27",
+      "weight": 1.0,
+      "source": "main_bluetooth",
+      "target": "type_btdevice"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 49-57",
+      "weight": 1.0,
+      "source": "main_bluetooth",
+      "target": "type_callstate"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Bluetooth.ts",
+      "source_location": "line 37-46",
+      "weight": 1.0,
+      "source": "main_bluetooth",
+      "target": "type_mediastate"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts",
+      "source_location": "line 216-217",
+      "weight": 1.0,
+      "source": "main_index",
+      "target": "main_bluetooth"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Canbus.ts",
+      "source_location": "line 9",
+      "weight": 1.0,
+      "source": "main_canbus",
+      "target": "main_globals"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Canbus.ts",
+      "source_location": "line 56",
+      "weight": 1.0,
+      "source": "main_canbus",
+      "target": "main_socket"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts",
+      "source_location": "line 75",
+      "weight": 1.0,
+      "source": "main_index",
+      "target": "main_canbus"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts",
+      "source_location": "line 11",
+      "weight": 1.0,
+      "source": "main_index",
+      "target": "main_globals"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Socket.ts",
+      "source_location": "line 1",
+      "weight": 1.0,
+      "source": "main_socket",
+      "target": "main_globals"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Globals.ts",
+      "source_location": "line 8-17",
+      "weight": 1.0,
+      "source": "type_extraconfig",
+      "target": "main_globals"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts",
+      "source_location": "line 11",
+      "weight": 1.0,
+      "source": "main_index",
+      "target": "type_extraconfig"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/Socket.ts",
+      "source_location": "line 1",
+      "weight": 1.0,
+      "source": "main_socket",
+      "target": "type_extraconfig"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts",
+      "source_location": "line 71",
+      "weight": 1.0,
+      "source": "main_index",
+      "target": "main_socket"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts",
+      "source_location": "line 168-176",
+      "weight": 1.0,
+      "source": "main_index",
+      "target": "rationale_coepheaders"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/PiMost.ts",
+      "source_location": "line 15",
+      "weight": 1.0,
+      "source": "main_pimost",
+      "target": "main_socket"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "ipc_audio_pipeline",
+      "label": "Audio PCM IPC Pipeline: parec \u2192 AudioCapture \u2192 IPC \u2192 Preload \u2192 AudioWorklet",
+      "nodes": [
+        "main_audiocapture",
+        "preload_index",
+        "renderer_audioworklet"
+      ],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.95,
+      "source_file": "src/main/AudioCapture.ts"
+    },
+    {
+      "id": "bluetooth_dbus_bridge",
+      "label": "Bluetooth D-Bus Bridge: BluetoothManager \u2194 Preload BtApi \u2194 Renderer",
+      "nodes": [
+        "main_bluetooth",
+        "preload_index",
+        "renderer_app"
+      ],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 0.95,
+      "source_file": "src/main/Bluetooth.ts"
+    },
+    {
+      "id": "main_orchestration",
+      "label": "Main Process Orchestration: index.ts instantiates Socket, Canbus, Bluetooth, AudioCapture",
+      "nodes": [
+        "main_index",
+        "main_socket",
+        "main_bluetooth",
+        "main_audiocapture",
+        "main_canbus"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/main/index.ts"
+    }
+  ],
+  "built_at_commit": "dc2098ed9ff2ceb3bc92faa5a49c6993a6f4bc4f"
+}
