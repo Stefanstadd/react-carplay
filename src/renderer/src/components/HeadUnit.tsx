@@ -13,6 +13,7 @@ import {
   filterContactsByDial,
   formatDuration,
   type Contact,
+  type RecentCall,
   type PhoneState,
   type CallState,
   type BtDevice
@@ -1005,6 +1006,29 @@ function PhoneView({
   )
 }
 
+// Distinguishes a tap (finger down + up in place) from a scroll (finger
+// moves > 8 px vertically). Replaces onClick on list rows so that a scroll
+// gesture never accidentally selects an item.
+function useTap(onTap: () => void) {
+  const startY = useRef(0)
+  const scrolled = useRef(false)
+  return {
+    onPointerDown(e: React.PointerEvent) {
+      startY.current = e.clientY
+      scrolled.current = false
+    },
+    onPointerMove(e: React.PointerEvent) {
+      if (Math.abs(e.clientY - startY.current) > 8) scrolled.current = true
+    },
+    onPointerUp() {
+      if (!scrolled.current) onTap()
+    },
+    onPointerCancel() {
+      scrolled.current = true
+    },
+  }
+}
+
 function ContactRow({
   contact,
   selected,
@@ -1016,8 +1040,9 @@ function ContactRow({
   onSelect: () => void
   onCall: () => void
 }) {
+  const tap = useTap(onSelect)
   return (
-    <div className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`} onClick={onSelect}>
+    <div className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`} {...tap}>
       <div className="hu-avatar">
         {contact.photo ? (
           <img src={contact.photo} alt="" className="hu-avatar-img" />
@@ -1032,10 +1057,7 @@ function ContactRow({
       {selected && (
         <button
           className="hu-call-icon-btn"
-          onClick={(e) => {
-            e.stopPropagation()
-            onCall()
-          }}
+          onClick={(e) => { e.stopPropagation(); onCall() }}
           aria-label="Call"
         >
           <img src={iconPhone} alt="call" className="hu-call-icon-img" />
@@ -1100,37 +1122,50 @@ function RecentsList({
   }
   return (
     <div className="hu-list">
-      {recents.map((r, i) => {
-        const selected = i === selectedIdx
-        return (
-          <div
-            key={i}
-            className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`}
-            onClick={() => onSelect(i)}
-          >
-            <span className={`hu-call-dir hu-call-${r.dir}`}>
-              {r.dir === 'miss' ? '↘' : r.dir === 'in' ? '↙' : '↗'}
-            </span>
-            <div className="hu-list-info">
-              <div className="hu-list-name">{r.name ?? 'Unknown'}</div>
-              <div className="hu-list-sub">{r.number}</div>
-            </div>
-            <span className="hu-call-time">{formatRecentTime(r.time)}</span>
-            {selected && (
-              <button
-                className="hu-call-icon-btn"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onCall(r.number)
-                }}
-                aria-label="Call"
-              >
-                <img src={iconPhone} alt="call" className="hu-call-icon-img" />
-              </button>
-            )}
-          </div>
-        )
-      })}
+      {recents.map((r, i) => (
+        <RecentRow
+          key={i}
+          recent={r}
+          selected={i === selectedIdx}
+          onSelect={() => onSelect(i)}
+          onCall={() => onCall(r.number)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function RecentRow({
+  recent: r,
+  selected,
+  onSelect,
+  onCall,
+}: {
+  recent: RecentCall
+  selected: boolean
+  onSelect: () => void
+  onCall: () => void
+}) {
+  const tap = useTap(onSelect)
+  return (
+    <div className={`hu-list-row${selected ? ' hu-list-row-selected' : ''}`} {...tap}>
+      <span className={`hu-call-dir hu-call-${r.dir}`}>
+        {r.dir === 'miss' ? '↘' : r.dir === 'in' ? '↙' : '↗'}
+      </span>
+      <div className="hu-list-info">
+        <div className="hu-list-name">{r.name ?? 'Unknown'}</div>
+        <div className="hu-list-sub">{r.number}</div>
+      </div>
+      <span className="hu-call-time">{formatRecentTime(r.time)}</span>
+      {selected && (
+        <button
+          className="hu-call-icon-btn"
+          onClick={(e) => { e.stopPropagation(); onCall() }}
+          aria-label="Call"
+        >
+          <img src={iconPhone} alt="call" className="hu-call-icon-img" />
+        </button>
+      )}
     </div>
   )
 }

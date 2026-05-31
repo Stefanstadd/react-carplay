@@ -740,6 +740,8 @@ img.hu-numpad-call-icon {
   padding: 18px 8px;
   border-bottom: 1px solid var(--hu-divider);
   cursor: pointer;
+  touch-action: pan-y;
+  user-select: none;
   transition: background 120ms ease, color 120ms ease;
 }
 
