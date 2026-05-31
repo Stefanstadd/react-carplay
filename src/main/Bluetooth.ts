@@ -118,6 +118,7 @@ export class BluetoothManager {
   private devicePaths = new Map<string, BtDevice>()
   private activePhonePath: string | null = null
   private activePlayerPath: string | null = null
+  private livePosCtr = 0   // consecutive polls with position ≈ 0 while playing
 
   // ofono
   private activeModemPath: string | null = null
@@ -512,6 +513,7 @@ export class BluetoothManager {
       // When the track changes (next/previous), position resets to 0 — most
       // phones don't push Position alongside Track, so do it here.
       if (trackChanged && !('Position' in props)) this.media.positionSec = 0
+      if (trackChanged) this.livePosCtr = 0
       this.media.hasMetadata = !!(this.media.title || this.media.artist || this.media.album)
 
       // AVRCP cover art — BlueZ 5.64+ stores it as a temp file when the
@@ -540,9 +542,23 @@ export class BluetoothManager {
       const p   = obj.getInterface(IFACE_PROPS)
       const v   = await p.Get(IFACE_PLAYER, 'Position')
       const pos = Math.floor(Number(unwrapVariant(v)) / 1000)
-      // If position has overshot the known duration the source is live/unbounded
-      // (e.g. a radio stream that never sent a Duration-less Track update).
-      // Clear duration so the renderer shows --:-- instead of a full bar.
+      // Live-source detection: position stuck near zero while playing.
+      // Most live-radio apps either never update Position or reset it to 0
+      // for each stream. After 10 consecutive polls (≈10 s) with pos < 2 s
+      // while status=playing, treat as live and clear any stale duration.
+      if (this.media.playing && pos < 2) {
+        this.livePosCtr++
+        if (this.livePosCtr >= 10 && this.media.durationSec > 0) {
+          console.log('[bt] live source detected (position stuck at', pos, ') — clearing duration')
+          this.media.durationSec = 0
+          this.livePosCtr = 0
+          this.pushMedia()
+          return
+        }
+      } else {
+        this.livePosCtr = 0
+      }
+      // Also clear if position has overshot the known duration.
       if (this.media.durationSec > 0 && pos > this.media.durationSec + 10) {
         this.media.durationSec = 0
         this.pushMedia()
