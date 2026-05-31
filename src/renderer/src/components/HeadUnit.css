@@ -54,9 +54,9 @@
   background: repeating-linear-gradient(
     to bottom,
     transparent 0px,
-    transparent 3px,
-    rgba(0, 0, 0, 0.09) 4px,
-    rgba(0, 0, 0, 0.5) 5px
+    transparent 1px,
+    rgba(0, 0, 0, 0.2) 4px,
+    rgba(0, 0, 0, 0.5) 8px
   );
 }
 
@@ -550,7 +550,7 @@ img.hu-numpad-call-icon {
 
 .hu-music-album {
   font-size: 28px;
-  color: var(--hu-green-deep);
+  color: var(--hu-green-mid);
   line-height: 1.1;
 }
 

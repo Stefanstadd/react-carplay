@@ -43,6 +43,7 @@ export interface MediaState {
   durationSec: number
   positionSec: number
   playing: boolean
+  playerName?: string
 }
 
 export type CallStatus = 'idle' | 'incoming' | 'dialing' | 'active' | 'held'
@@ -459,6 +460,7 @@ export class BluetoothManager {
 
   private applyPlayerProps(props: Record<string, any>) {
     if ('Status' in props) this.media.playing = String(props.Status) === 'playing'
+    if ('Name'   in props) this.media.playerName = String(props.Name)
     if ('Position' in props) this.media.positionSec = Math.floor(Number(props.Position) / 1000)
     if ('Track' in props) {
       const t = unwrapVariants(props.Track)

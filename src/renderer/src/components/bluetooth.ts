@@ -35,6 +35,7 @@ export interface MediaState {
   durationSec: number
   positionSec: number
   playing: boolean
+  playerName?: string
 }
 
 export type CallStatus = 'idle' | 'incoming' | 'dialing' | 'active' | 'held'
@@ -156,7 +157,7 @@ export function useBluetooth() {
               ...prev,
               positionSec: prev.durationSec > 0
                 ? Math.min(prev.positionSec + dt, prev.durationSec)
-                : prev.positionSec + dt,
+                : prev.positionSec,
             }
           : prev
       )

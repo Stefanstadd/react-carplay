@@ -557,7 +557,7 @@ function MusicView({
         </div>
         <div className="hu-music-text">
           <div className="hu-music-via">
-            {phoneConnected ? 'via Bluetooth' : 'Bluetooth Disconnected'}
+            {phoneConnected ? `via ${media.playerName ?? 'Bluetooth'}` : 'Bluetooth Disconnected'}
           </div>
           <MarqueeText className="hu-music-title" speedPxPerSec={TITLE_SCROLL_SPEED}>{title}</MarqueeText>
           <div className="hu-music-artist">{artist}</div>
@@ -571,7 +571,7 @@ function MusicView({
             <div className="hu-progress-fill" style={{ width: `${progress * 100}%` }} />
           </div>
           <div className="hu-progress-times">
-            <span>{formatTime(media.positionSec)}</span>
+            <span>{media.durationSec > 0 ? formatTime(media.positionSec) : '--:--'}</span>
             <span>{media.durationSec > 0 ? formatTime(media.durationSec) : '--:--'}</span>
           </div>
         </div>
