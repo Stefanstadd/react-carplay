@@ -428,7 +428,24 @@ export class BluetoothManager {
           this.pushDevices()
           if (path === this.activePhonePath) this.pushPhone()
         }
-      } catch { /* property not yet available */ }
+      } catch {
+        // Percentage not yet available — HFP negotiation may still be in progress.
+        // Retry after 3 s to catch the common first-connect race.
+        setTimeout(async () => {
+          try {
+            const p0 = obj.getInterface(IFACE_PROPS)
+            const v2 = await p0.Get(IFACE_BATTERY, 'Percentage')
+            const pct2 = Number(unwrapVariant(v2))
+            const d2 = this.devicePaths.get(path)
+            if (d2 && !isNaN(pct2) && d2.batteryPct === undefined) {
+              d2.batteryPct = pct2
+              console.log('[bt] battery retry read', d2.name, pct2, '%')
+              this.pushDevices()
+              if (path === this.activePhonePath) this.pushPhone()
+            }
+          } catch { /* still not available, PropertiesChanged will handle it */ }
+        }, 3000)
+      }
       const p = obj.getInterface(IFACE_PROPS)
       p.on('PropertiesChanged', (iface: string, changed: any) => {
         if (iface !== IFACE_BATTERY) return
