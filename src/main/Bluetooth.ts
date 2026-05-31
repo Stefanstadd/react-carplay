@@ -315,6 +315,9 @@ export class BluetoothManager {
       await this.subscribeBatteryProps(path)
       this.maybePromoteToActivePhone(path)
       this.pushDevices(); this.pushPhone()
+      // If device is already connected but battery wasn't in managed objects,
+      // poll for it — HFP may not have negotiated Percentage yet.
+      if (dev.connected && dev.batteryPct === undefined) this.pollBattery(path)
     }
     if (interfaces[IFACE_PLAYER]) {
       const props = unwrapVariants(interfaces[IFACE_PLAYER])
