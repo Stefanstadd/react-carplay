@@ -1120,6 +1120,7 @@ function ContactRow({
       {selected && (
         <button
           className="hu-call-icon-btn"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
             onCall()
@@ -1226,6 +1227,7 @@ function RecentRow({
       {selected && (
         <button
           className="hu-call-icon-btn"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
             onCall()
