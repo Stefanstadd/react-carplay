@@ -19,6 +19,7 @@ import {
   type CallState,
   type BtDevice
 } from './bluetooth'
+import EQView from './EQView'
 
 // ─── MarqueeText: auto-scrolling text when it overflows its container ─────
 // Measures whether the inner span overflows and, if so, runs a ping-pong
@@ -427,10 +428,12 @@ function useArt(
 function MusicView({
   onLaunchCarplay,
   onSelectView,
+  onOpenEqualizer,
   bt
 }: {
   onLaunchCarplay: () => void
   onSelectView: (v: ViewName) => void
+  onOpenEqualizer: () => void
   bt: ReturnType<typeof useBluetooth>
 }) {
   const phoneConnected = bt.phone.connected
@@ -460,6 +463,23 @@ function MusicView({
   return (
     <div className="hu-screen hu-music-screen">
       <div className="hu-viz-area">
+        <button
+          className="hu-eq-gear-btn"
+          onClick={onOpenEqualizer}
+          aria-label="Open equalizer"
+        >
+          {/* 8-tooth gear, hollow centre — matches the pixel/retro aesthetic */}
+          <svg viewBox="0 0 32 32" width="40" height="40" shapeRendering="crispEdges">
+            <path
+              fill="currentColor"
+              d="M14 2h4v4h-4zM14 26h4v4h-4zM2 14h4v4H2zM26 14h4v4h-4z
+                 M5.5 5.5l2.8 2.8-2.8 2.8zM23.7 23.7l2.8 2.8-2.8 2.8z
+                 M5.5 26.5l2.8-2.8 2.8 2.8zM23.7 8.3l2.8-2.8 2.8 2.8z"
+            />
+            <circle cx="16" cy="16" r="9" fill="currentColor" />
+            <circle cx="16" cy="16" r="4" fill="var(--hu-bg-deep)" />
+          </svg>
+        </button>
         <div className="hu-eq-bars">
           {Array.from({ length: VIZ_CONFIG.bars }, (_, i) => {
             const h = vizBars[i] || 0
@@ -1502,6 +1522,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   // Whether the in-call full screen is showing (vs. the small popup).
   // Auto-opens when a call becomes active, can be minimised back.
   const [callFull, setCallFull] = useState(false)
+  const [eqOpen, setEqOpen] = useState(false)
 
   // Open the full call screen when an active call appears; reset when idle.
   useEffect(() => {
@@ -1576,7 +1597,14 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   const renderView = (v: ViewName) => {
     switch (v) {
       case 'music':
-        return <MusicView onLaunchCarplay={onLaunchCarplay} onSelectView={handleSelect} bt={bt} />
+        return (
+          <MusicView
+            onLaunchCarplay={onLaunchCarplay}
+            onSelectView={handleSelect}
+            onOpenEqualizer={() => setEqOpen(true)}
+            bt={bt}
+          />
+        )
       case 'devices':
         return <DevicesView onLaunchCarplay={onLaunchCarplay} bt={bt} />
       case 'gauges':
@@ -1625,6 +1653,8 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
             </div>
           )}
           {showPopup && <CallPopup call={bt.call} bt={bt} onOpen={() => setCallFull(true)} />}
+
+          {eqOpen && <EQView onClose={() => setEqOpen(false)} />}
         </div>
       </div>
     </div>

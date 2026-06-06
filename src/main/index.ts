@@ -11,11 +11,13 @@ import {Canbus} from "./Canbus"
 import { ExtraConfig, KeyBindings } from "./Globals";
 import { BluetoothManager } from "./Bluetooth";
 import { AudioCapture } from "./AudioCapture";
+import { Equalizer } from "./Equalizer";
 // import CarplayNode, {DEFAULT_CONFIG, CarplayMessage} from "node-carplay/node";
 
 let mainWindow: BrowserWindow
 let bluetooth: BluetoothManager | null = null
 let audioCapture: AudioCapture | null = null
+let equalizer: Equalizer | null = null
 const appPath: string = app.getPath('userData')
 const configPath: string = appPath + '/config.json'
 console.log(configPath)
@@ -228,6 +230,9 @@ app.whenReady().then(() => {
 
   audioCapture = new AudioCapture(() => mainWindow)
   audioCapture.start()
+
+  equalizer = new Equalizer(() => mainWindow)
+  equalizer.start()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

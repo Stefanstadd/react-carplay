@@ -28,6 +28,16 @@ export interface BtApi {
   forget:        (address: string) => void
 }
 
+export interface EqApi {
+  onState:         (cb: ApiCallback) => void
+  requestState:    () => void
+  setBands:        (bands: number[]) => void
+  setActivePreset: (name: string) => void
+  savePreset:      (name: string) => void
+  deletePreset:    (name: string) => void
+  setEnabled:      (enabled: boolean) => void
+}
+
 export interface Api {
   settings: (callback: ApiCallback) => void
   reverse: (callback: ApiCallback) => void
@@ -36,6 +46,7 @@ export interface Api {
   stream?: (stream: Stream) =>  void
   quit: () =>  void
   bt: BtApi
+  eq: EqApi
   onAudioPcm: (cb: (chunk: Uint8Array) => void) => void
 }
 
@@ -62,6 +73,16 @@ const bt: BtApi = {
   forget:       (address)  => ipcRenderer.send('bt:forget', address),
 }
 
+const eq: EqApi = {
+  onState:         (cb)    => ipcRenderer.on('eq:state', cb),
+  requestState:    ()      => ipcRenderer.send('eq:requestState'),
+  setBands:        (b)     => ipcRenderer.send('eq:setBands', b),
+  setActivePreset: (n)     => ipcRenderer.send('eq:setActivePreset', n),
+  savePreset:      (n)     => ipcRenderer.send('eq:savePreset', n),
+  deletePreset:    (n)     => ipcRenderer.send('eq:deletePreset', n),
+  setEnabled:      (e)     => ipcRenderer.send('eq:setEnabled', e),
+}
+
 // Custom APIs for renderer
 const api: Api = {
   settings: (callback: ApiCallback) => ipcRenderer.on('settings', callback),
@@ -71,6 +92,7 @@ const api: Api = {
   // stream: (stream: Stream) => ipcRenderer.send('startStream', stream),
   quit: () => ipcRenderer.send('quit'),
   bt,
+  eq,
   onAudioPcm: (cb: (chunk: Uint8Array) => void) => {
     ipcRenderer.on('audio:pcm', (_e, chunk: Uint8Array | Buffer) => cb(chunk as Uint8Array))
   },
