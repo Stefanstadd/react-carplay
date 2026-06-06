@@ -2,18 +2,21 @@
 // so it affects both Bluetooth A2DP and USB CarPlay audio output.
 //
 // State / persistence:
-//   ~/.config/headunit/eq.json   — band gains + active preset + custom presets
+//   ~/.config/headunit/eq.json    — band gains + active preset + custom presets
 //
 // System integration:
 //   ~/.config/pipewire/filter-chain.conf.d/headunit-eq.conf
 //     — generated config that loads libpipewire-module-filter-chain with a
 //       chain of biquad filters (lowshelf → 8× peaking → highshelf).  The
-//       chain is exposed as a virtual sink ("headunit_eq"); when active, it's
-//       made the default sink so every new audio stream gets EQ'd.
+//       chain is exposed as a virtual sink ("headunit_eq").  We make it the
+//       default sink so A2DP and USB CarPlay audio flow through it.
 //
-//   On every gain change we re-write the config and (debounced) restart
-//   pipewire so the new gains take effect.  The restart causes a ~1.5 s gap
-//   in audio so changes are coalesced 700 ms after the last user input.
+// Live updates (the important bit):
+//   On gain change we DO NOT restart pipewire — that drops the A2DP link and
+//   kills the music for a few seconds.  Instead we use `pw-cli set-param`
+//   against the filter-chain node to update the named per-band controls
+//   (e.g. "eq_band_3:Gain") in place.  pipewire reloads its filter only on
+//   first install (when the config file didn't exist before).
 
 import { ipcMain, BrowserWindow } from 'electron'
 import { exec } from 'child_process'
@@ -21,10 +24,9 @@ import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
 
-// ─── Types pushed to the renderer ────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 export type BiquadKind = 'lowshelf' | 'peaking' | 'highshelf'
-
 export interface BandSpec { frequency: number; kind: BiquadKind }
 
 export const BANDS: BandSpec[] = [
@@ -41,12 +43,14 @@ export const BANDS: BandSpec[] = [
 ]
 
 export const BAND_COUNT = BANDS.length
-export const GAIN_MIN = -6
-export const GAIN_MAX = 6
+export const GAIN_MIN = -12
+export const GAIN_MAX =  12
+
+const CHAIN_NODE_NAME = 'headunit_eq'    // node.name of the filter-chain sink
 
 export interface EQPreset {
   name: string
-  bands: number[]    // length === BAND_COUNT, values in [-6, +6], step 0.2
+  bands: number[]    // length === BAND_COUNT, values in [-12, +12], step 0.2
   builtin?: boolean
 }
 
@@ -82,6 +86,12 @@ export class Equalizer {
   private pipewireConfFile: string
 
   private applyTimer: NodeJS.Timeout | null = null
+  private lastAppliedBands: number[] = [...DEFAULT_STATE.bands]
+  /** PipeWire node-id of the filter-chain sink.  Cached to avoid re-running
+   *  pw-dump on every band change.  Cleared (and re-discovered) if pw-cli
+   *  reports a failure — the most common cause is pipewire having restarted. */
+  private chainNodeId: number | null = null
+  private discoverInFlight: Promise<number | null> | null = null
 
   constructor(getWindow: () => BrowserWindow | undefined) {
     this.getWindow = getWindow
@@ -91,16 +101,28 @@ export class Equalizer {
     this.pipewireConfFile = path.join(home, '.config', 'pipewire', 'filter-chain.conf.d', 'headunit-eq.conf')
 
     this.load()
+    this.lastAppliedBands = [...this.state.bands]
     this.registerIpc()
   }
 
   start() {
-    // Write the filter-chain config on boot so the EQ persists across system
-    // restarts.  No pipewire reload here — pipewire already loaded the config
-    // when it started.  If the values changed since last write, the next
-    // setBands/setActivePreset triggers a reload.
-    if (process.platform === 'linux') {
-      this.writePipewireConfig()
+    if (process.platform !== 'linux') {
+      this.push()
+      return
+    }
+    // On a brand-new install the filter-chain config doesn't exist yet, so
+    // pipewire isn't running our chain.  Detect that ONCE and trigger a
+    // single reload — every later change is a live pw-cli set-param.
+    const isFirstInstall = !fs.existsSync(this.pipewireConfFile)
+    this.writePipewireConfig()
+
+    if (isFirstInstall) {
+      console.log('[eq] first install — reloading pipewire to load filter-chain (one-time)')
+      this.reloadPipewire()
+    } else {
+      // Filter-chain should already be running.  Push current gains live so
+      // any value we changed while the app was offline shows up immediately.
+      setTimeout(() => this.applyLive(BANDS.map((_, i) => i)).catch(() => undefined), 500)
     }
     this.push()
   }
@@ -128,7 +150,7 @@ export class Equalizer {
     }
   }
 
-  // ─── IPC wiring ────────────────────────────────────────────────────────────
+  // ─── IPC ────────────────────────────────────────────────────────────────────
 
   private registerIpc() {
     ipcMain.on('eq:requestState', () => this.push())
@@ -136,9 +158,6 @@ export class Equalizer {
     ipcMain.on('eq:setBands', (_e, bands: number[]) => {
       if (!Array.isArray(bands) || bands.length !== BAND_COUNT) return
       this.state.bands = bands.map(clampGain)
-      // Once the user starts twisting bands manually, we're no longer on a
-      // named preset — null it so the UI shows "Custom".  Save preset later
-      // brings back a named entry.
       this.state.activePreset = matchPreset(this.state.bands, this.allPresets()) ?? '—'
       this.save()
       this.push()
@@ -158,7 +177,7 @@ export class Equalizer {
     ipcMain.on('eq:savePreset', (_e, name: string) => {
       const clean = String(name || '').trim().slice(0, 24)
       if (!clean) return
-      if (BUILTIN_PRESETS.find(p => p.name.toLowerCase() === clean.toLowerCase())) return  // can't shadow a builtin
+      if (BUILTIN_PRESETS.find(p => p.name.toLowerCase() === clean.toLowerCase())) return
       const without = this.state.customPresets.filter(p => p.name.toLowerCase() !== clean.toLowerCase())
       without.push({ name: clean, bands: [...this.state.bands] })
       this.state.customPresets = without
@@ -196,30 +215,96 @@ export class Equalizer {
     return [...BUILTIN_PRESETS, ...this.state.customPresets]
   }
 
-  // ─── System apply ──────────────────────────────────────────────────────────
+  // ─── Apply / live update ────────────────────────────────────────────────────
 
+  /** Schedule a live apply.  Short debounce coalesces bursts from press-and-hold
+   *  / drag without keeping the user waiting. */
   private scheduleApply() {
     if (this.applyTimer) clearTimeout(this.applyTimer)
-    // 700 ms after the last change — gives the user a moment to keep tweaking
-    // without forcing a pipewire restart for every ▲/▼ tap.
     this.applyTimer = setTimeout(() => {
       this.applyTimer = null
-      this.applyToSystem()
-    }, 700)
+      this.applyToSystem().catch(err => console.warn('[eq] apply failed:', err))
+    }, 60)
   }
 
-  private applyToSystem() {
-    if (process.platform !== 'linux') {
-      console.log('[eq] non-linux: skipping system apply')
+  private async applyToSystem() {
+    if (process.platform !== 'linux') return
+
+    // Always rewrite the config so the next boot picks up the latest gains
+    // (pipewire only re-reads it at start-up — we don't restart here).
+    this.writePipewireConfig()
+
+    // Find the bands whose values have changed and update each one live.
+    const changed: number[] = []
+    for (let i = 0; i < BAND_COUNT; i++) {
+      if (Math.abs((this.state.bands[i] ?? 0) - (this.lastAppliedBands[i] ?? 0)) > 0.001) {
+        changed.push(i)
+      }
+    }
+    if (changed.length === 0) return
+
+    await this.applyLive(changed)
+    this.lastAppliedBands = [...this.state.bands]
+  }
+
+  /** Push the given band indices' current gain values to the running
+   *  filter-chain node via `pw-cli set-param`.  No pipewire restart. */
+  private async applyLive(bandIndices: number[]) {
+    const id = await this.getChainNodeId()
+    if (id == null) {
+      console.warn('[eq] chain node not found — live update skipped (will write config and retry next reload)')
       return
     }
-    this.writePipewireConfig()
-    this.reloadPipewire()
+    // Build one Props payload that sets every changed band's Gain at once —
+    // the chain exposes per-band controls as "<node.name>:<control>".
+    const pairs = bandIndices
+      .map(i => `"eq_band_${i}:Gain" ${(this.state.bands[i] ?? 0).toFixed(2)}`)
+      .join(' ')
+    const cmd = `pw-cli set-param ${id} Props '{ params = [ ${pairs} ] }'`
+    await new Promise<void>((resolve) => {
+      exec(cmd, (err, _out, stderr) => {
+        if (err) {
+          console.warn('[eq] pw-cli set-param failed:', err.message, stderr?.trim())
+          // pipewire may have been restarted by the system — invalidate the
+          // cached node id so the next change re-discovers.
+          this.chainNodeId = null
+        }
+        resolve()
+      })
+    })
+  }
+
+  private getChainNodeId(): Promise<number | null> {
+    if (this.chainNodeId != null) return Promise.resolve(this.chainNodeId)
+    if (this.discoverInFlight) return this.discoverInFlight
+    this.discoverInFlight = new Promise<number | null>((resolve) => {
+      exec('pw-dump', { maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+        this.discoverInFlight = null
+        if (err) {
+          console.warn('[eq] pw-dump failed:', err.message)
+          resolve(null); return
+        }
+        try {
+          const dump = JSON.parse(stdout)
+          for (const o of dump) {
+            const name = o?.info?.props?.['node.name']
+            if (name === CHAIN_NODE_NAME) {
+              this.chainNodeId = Number(o.id)
+              console.log('[eq] filter-chain node id =', this.chainNodeId)
+              resolve(this.chainNodeId); return
+            }
+          }
+        } catch (e) {
+          console.warn('[eq] pw-dump parse failed:', (e as Error).message)
+        }
+        resolve(null)
+      })
+    })
+    return this.discoverInFlight
   }
 
   private writePipewireConfig() {
     if (!this.state.enabled) {
-      // Just remove the config so pipewire doesn't load any filter-chain at boot.
       try { if (fs.existsSync(this.pipewireConfFile)) fs.unlinkSync(this.pipewireConfFile) } catch { /* */ }
       return
     }
@@ -242,9 +327,8 @@ export class Equalizer {
     }
 
     const conf = `# Generated by Head Unit — do not edit by hand.
-# 10-band parametric EQ as a virtual sink.  Make this the default sink
-# (pactl set-default-sink headunit_eq) so A2DP / CarPlay USB audio is EQ'd
-# on its way to the real output.
+# 10-band parametric EQ exposed as a virtual sink (headunit_eq).
+# Make this the default sink so A2DP / CarPlay audio is EQ'd.
 context.modules = [
 { name = libpipewire-module-filter-chain
   args = {
@@ -259,14 +343,14 @@ ${linkLines.join('\n')}
       ]
     }
     capture.props = {
-      node.name        = "headunit_eq"
+      node.name        = "${CHAIN_NODE_NAME}"
       node.description = "Head Unit Equalizer"
       media.class      = Audio/Sink
       audio.channels   = 2
       audio.position   = [ FL FR ]
     }
     playback.props = {
-      node.name      = "headunit_eq_out"
+      node.name      = "${CHAIN_NODE_NAME}_out"
       node.passive   = true
       audio.channels = 2
       audio.position = [ FL FR ]
@@ -279,26 +363,28 @@ ${linkLines.join('\n')}
     try {
       fs.mkdirSync(path.dirname(this.pipewireConfFile), { recursive: true })
       fs.writeFileSync(this.pipewireConfFile, conf)
-      console.log('[eq] wrote pipewire config →', this.pipewireConfFile)
     } catch (err) {
       console.warn('[eq] failed to write pipewire config:', (err as Error).message)
     }
   }
 
+  /** One-time pipewire restart used ONLY on first install (filter-chain
+   *  config didn't exist before).  After this, every gain change goes
+   *  through pw-cli live updates and there are no more audio gaps. */
   private reloadPipewire() {
-    // Restart user-level pipewire so the new filter-chain config is read.
-    // Brief (~1.5 s) audio gap but doesn't require sudo.
     exec('systemctl --user restart pipewire pipewire-pulse wireplumber', (err) => {
       if (err) {
         console.warn('[eq] pipewire restart failed:', err.message)
         return
       }
-      console.log('[eq] pipewire reloaded')
-      // After the restart, make our EQ sink the default so new audio flows through it.
+      console.log('[eq] pipewire reloaded — filter-chain should be live')
       setTimeout(() => {
-        exec('pactl set-default-sink headunit_eq', (e) => {
+        exec(`pactl set-default-sink ${CHAIN_NODE_NAME}`, (e) => {
           if (e) console.warn('[eq] set-default-sink failed:', e.message)
         })
+        // Re-discover the new chain node id.
+        this.chainNodeId = null
+        this.getChainNodeId().catch(() => undefined)
       }, 800)
     })
   }
@@ -309,7 +395,6 @@ ${linkLines.join('\n')}
 function clampGain(v: any): number {
   const n = Number(v)
   if (!Number.isFinite(n)) return 0
-  // Snap to 0.2 dB grid to match the UI step size.
   const snapped = Math.round(n * 5) / 5
   return Math.max(GAIN_MIN, Math.min(GAIN_MAX, snapped))
 }
@@ -329,8 +414,6 @@ function sanitize(s: EQState): EQState {
   }
 }
 
-/** Returns the name of the preset whose band values exactly match `bands`,
- *  or undefined if no preset matches. */
 function matchPreset(bands: number[], presets: EQPreset[]): string | undefined {
   for (const p of presets) {
     let ok = true

@@ -463,23 +463,6 @@ function MusicView({
   return (
     <div className="hu-screen hu-music-screen">
       <div className="hu-viz-area">
-        <button
-          className="hu-eq-gear-btn"
-          onClick={onOpenEqualizer}
-          aria-label="Open equalizer"
-        >
-          {/* 8-tooth gear, hollow centre — matches the pixel/retro aesthetic */}
-          <svg viewBox="0 0 32 32" width="40" height="40" shapeRendering="crispEdges">
-            <path
-              fill="currentColor"
-              d="M14 2h4v4h-4zM14 26h4v4h-4zM2 14h4v4H2zM26 14h4v4h-4z
-                 M5.5 5.5l2.8 2.8-2.8 2.8zM23.7 23.7l2.8 2.8-2.8 2.8z
-                 M5.5 26.5l2.8-2.8 2.8 2.8zM23.7 8.3l2.8-2.8 2.8 2.8z"
-            />
-            <circle cx="16" cy="16" r="9" fill="currentColor" />
-            <circle cx="16" cy="16" r="4" fill="var(--hu-bg-deep)" />
-          </svg>
-        </button>
         <div className="hu-eq-bars">
           {Array.from({ length: VIZ_CONFIG.bars }, (_, i) => {
             const h = vizBars[i] || 0
@@ -544,6 +527,13 @@ function MusicView({
           aria-label="Recent Calls"
         >
           <img src={iconRecent} alt="" className="hu-quick-btn-img" />
+        </button>
+        <button
+          className="hu-quick-btn"
+          onClick={onOpenEqualizer}
+          aria-label="Equalizer"
+        >
+          <img src={iconSettings} alt="" className="hu-quick-btn-img" />
         </button>
       </div>
 
@@ -703,8 +693,7 @@ function DevicesView({
 }
 
 function DeviceRow({ d, bt }: { d: BtDevice; bt: ReturnType<typeof useBluetooth> }) {
-  const action = d.connected ? () => bt.disconnect(d.address) : () => bt.connect(d.address)
-  const label = d.connected ? 'CONN' : d.paired ? 'PAIRED' : 'NEW'
+  const tag = d.connected ? 'CONNECTED' : d.paired ? 'PAIRED' : 'NEW'
   return (
     <div className="hu-device-row">
       <svg viewBox="0 0 24 24" width="28" height="28" fill="#00ff0a" shapeRendering="crispEdges">
@@ -716,10 +705,30 @@ function DeviceRow({ d, bt }: { d: BtDevice; bt: ReturnType<typeof useBluetooth>
           <span className="hu-device-sub">{Math.round(d.batteryPct)}% battery</span>
         )}
       </div>
-      <span className="hu-device-tag">{label}</span>
-      <button className="hu-list-btn hu-device-action" onClick={action}>
-        {d.connected ? '✕' : '⟶'}
-      </button>
+      <span className="hu-device-tag">{tag}</span>
+      <div className="hu-device-actions">
+        {d.connected ? (
+          <button className="hu-device-action-btn" onClick={() => bt.disconnect(d.address)}>
+            DISCONNECT
+          </button>
+        ) : d.paired ? (
+          <button className="hu-device-action-btn" onClick={() => bt.connect(d.address)}>
+            CONNECT
+          </button>
+        ) : (
+          <button className="hu-device-action-btn" onClick={() => bt.connect(d.address)}>
+            PAIR
+          </button>
+        )}
+        {d.paired && (
+          <button
+            className="hu-device-action-btn hu-device-action-forget"
+            onClick={() => bt.forget(d.address)}
+          >
+            FORGET
+          </button>
+        )}
+      </div>
     </div>
   )
 }

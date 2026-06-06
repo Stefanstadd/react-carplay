@@ -22,8 +22,8 @@ export const EQ_BANDS: BandSpec[] = [
 ]
 
 export const BAND_COUNT = EQ_BANDS.length
-export const GAIN_MIN  = -6
-export const GAIN_MAX  =  6
+export const GAIN_MIN  = -12
+export const GAIN_MAX  =  12
 export const GAIN_STEP = 0.2
 
 export interface EQPreset {
@@ -86,6 +86,14 @@ export function useEqualizer() {
       next[idx] = clampGain((next[idx] ?? 0) + delta)
       eq?.setBands?.(next)
       setState(s => ({ ...s, bands: next }))   // optimistic so the UI feels instant
+    },
+
+    /** Set a single band to an absolute value (used by the drag handler). */
+    setBand: (idx: number, value: number) => {
+      const next = state.bands.slice()
+      next[idx] = clampGain(value)
+      eq?.setBands?.(next)
+      setState(s => ({ ...s, bands: next }))
     },
   }
 }

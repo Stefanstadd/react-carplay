@@ -309,7 +309,6 @@ img.hu-numpad-call-icon {
   min-height: 0;
   width: 80%;
   align-self: flex-end;
-  position: relative;        /* anchors the EQ gear button on the left */
 }
 
 .hu-quick-area {
@@ -653,6 +652,35 @@ img.hu-numpad-call-icon {
   text-align: center;
   font-size: 30px;
   padding: 12px 0;
+}
+
+.hu-device-actions {
+  display: flex;
+  gap: 12px;
+  margin-left: 18px;
+}
+
+.hu-device-action-btn {
+  background: transparent;
+  border: 1.5px solid var(--hu-green-dim);
+  color: var(--hu-green);
+  font-family: 'VT323', monospace;
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  padding: 10px 20px;
+  min-height: 48px;
+  min-width: 130px;
+  cursor: pointer;
+}
+.hu-device-action-btn:active {
+  background: var(--hu-green-deep);
+}
+.hu-device-action-forget {
+  color: var(--hu-warn);
+  border-color: var(--hu-warn);
+}
+.hu-device-action-forget:active {
+  background: rgba(255, 107, 26, 0.16);
 }
 
 /* ─── Gauges view ──────────────────────────────────────────────────────── */
@@ -1582,25 +1610,7 @@ img.hu-numpad-call-icon {
 .hu-eq-kb-key-wide { width: 160px; }
 .hu-eq-kb-key-accept { border-color: var(--hu-green); }
 
-/* ── Gear (EQ entry) button on the music view ──────────────────────────── */
-
-.hu-eq-gear-btn {
-  position: absolute;
-  left: 30px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 64px;
-  height: 64px;
-  min-width: 48px;
-  min-height: 48px;
-  background: transparent;
-  border: 1.5px solid var(--hu-green-dim);
-  color: var(--hu-green);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  z-index: 10;
+/* ── Plot wrap needs touch-action: none so finger drags don't scroll/zoom ── */
+.hu-eq-plot-wrap {
+  touch-action: none;
 }
-.hu-eq-gear-btn:active { background: var(--hu-green-deep); }

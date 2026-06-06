@@ -22,10 +22,14 @@ import {
 
 // ─── Canvas bar graph ────────────────────────────────────────────────────────
 
-const Y_TICKS = [-6, -4, -2, 0, 2, 4, 6]
+const Y_TICKS = [-12, -8, -4, 0, 4, 8, 12]
 const BAR_COLOR        = '#00ff00'
 const GRID_COLOR       = '#004400'
-const GRID_LABEL_COLOR = '#005c04'
+const GRID_LABEL_COLOR = '#00ff0a'   // bright green — matches body text
+
+// Canvas plot padding constants used by both the draw() function and the
+// drag handler so they stay in sync.
+const PAD_L = 70, PAD_R = 24, PAD_T = 24, PAD_B = 36
 
 function EQCanvas({ bands }: { bands: number[] }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -33,8 +37,6 @@ function EQCanvas({ bands }: { bands: number[] }) {
   useEffect(() => {
     const cvs = ref.current
     if (!cvs) return
-    // Lock the pixel buffer to the layout size so bars are crisp.  Done once
-    // here — the layout size never changes after the EQ opens.
     const rect = cvs.getBoundingClientRect()
     if (rect.width > 0 && rect.height > 0) {
       cvs.width  = Math.floor(rect.width)
@@ -53,25 +55,24 @@ function draw(cvs: HTMLCanvasElement, bands: number[]) {
   ctx.clearRect(0, 0, W, H)
 
   // ── Plot area
-  const padL = 70, padR = 24, padT = 24, padB = 36
-  const plotW = W - padL - padR
-  const plotH = H - padT - padB
-  const yFor = (db: number) => padT + plotH * (1 - (db - GAIN_MIN) / (GAIN_MAX - GAIN_MIN))
+  const plotW = W - PAD_L - PAD_R
+  const plotH = H - PAD_T - PAD_B
+  const yFor = (db: number) => PAD_T + plotH * (1 - (db - GAIN_MIN) / (GAIN_MAX - GAIN_MIN))
 
   // ── Grid lines + dB labels
-  ctx.strokeStyle = GRID_COLOR
   ctx.lineWidth = 1
-  ctx.font = '20px "VT323", monospace'
-  ctx.fillStyle = GRID_LABEL_COLOR
   ctx.textAlign = 'right'
   ctx.textBaseline = 'middle'
   for (const db of Y_TICKS) {
     const y = Math.round(yFor(db)) + 0.5
+    ctx.strokeStyle = GRID_COLOR
     ctx.beginPath()
-    ctx.moveTo(padL, y)
-    ctx.lineTo(W - padR, y)
+    ctx.moveTo(PAD_L, y)
+    ctx.lineTo(W - PAD_R, y)
     ctx.stroke()
-    ctx.fillText(`${db > 0 ? '+' : ''}${db}`, padL - 10, y)
+    ctx.fillStyle = GRID_LABEL_COLOR
+    ctx.font = '24px "VT323", monospace'
+    ctx.fillText(`${db > 0 ? '+' : ''}${db}`, PAD_L - 12, y)
   }
 
   // ── Bars (centered around the 0 dB baseline that yFor() computes per call)
@@ -80,7 +81,7 @@ function draw(cvs: HTMLCanvasElement, bands: number[]) {
   ctx.fillStyle = BAR_COLOR
   for (let i = 0; i < BAND_COUNT; i++) {
     const g = bands[i] ?? 0
-    const x = Math.round(padL + slot * i + (slot - barW) / 2)
+    const x = Math.round(PAD_L + slot * i + (slot - barW) / 2)
     const topY = yFor(Math.max(0, g))
     const botY = yFor(Math.min(0, g))
     const h = Math.max(2, botY - topY)
@@ -93,8 +94,8 @@ function draw(cvs: HTMLCanvasElement, bands: number[]) {
   ctx.textBaseline = 'top'
   ctx.font = '22px "VT323", monospace'
   for (let i = 0; i < BAND_COUNT; i++) {
-    const x = Math.round(padL + slot * i + slot / 2)
-    ctx.fillText(EQ_BANDS[i].label, x, H - padB + 6)
+    const x = Math.round(PAD_L + slot * i + slot / 2)
+    ctx.fillText(EQ_BANDS[i].label, x, H - PAD_B + 6)
   }
 }
 
@@ -198,8 +199,58 @@ interface EQViewProps {
 }
 
 export default function EQView({ onClose }: EQViewProps) {
-  const { state, bumpBand, setActivePreset, savePreset } = useEqualizer()
+  const { state, bumpBand, setBand, setActivePreset, savePreset } = useEqualizer()
   const [kbOpen, setKbOpen] = useState(false)
+
+  // ── Drag handling ──
+  // Touch any band and slide up/down — the bar follows the finger.  Pointer
+  // capture keeps the gesture tracked even if the finger leaves the band's
+  // original column.
+  const plotRef = useRef<HTMLDivElement>(null)
+  const dragState = useRef<{
+    bandIdx: number
+    plotTop: number
+    plotH: number
+  } | null>(null)
+
+  const gainFromY = (clientY: number): number => {
+    const ds = dragState.current
+    if (!ds) return 0
+    const norm = (clientY - ds.plotTop) / ds.plotH
+    const clamped = Math.max(0, Math.min(1, norm))
+    // Top of the plot is +max, bottom is -max.
+    return GAIN_MAX - clamped * (GAIN_MAX - GAIN_MIN)
+  }
+
+  const onPlotPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const wrap = plotRef.current
+    if (!wrap) return
+    const rect = wrap.getBoundingClientRect()
+    const plotLeft   = rect.left + PAD_L
+    const plotRight  = rect.right - PAD_R
+    const plotTop    = rect.top + PAD_T
+    const plotH      = rect.height - PAD_T - PAD_B
+    const plotW      = plotRight - plotLeft
+    const x = e.clientX - plotLeft
+    if (x < 0 || x > plotW || plotH <= 0) return
+    const slot = plotW / BAND_COUNT
+    const bandIdx = Math.min(BAND_COUNT - 1, Math.max(0, Math.floor(x / slot)))
+    dragState.current = { bandIdx, plotTop, plotH }
+    wrap.setPointerCapture(e.pointerId)
+    setBand(bandIdx, gainFromY(e.clientY))
+    e.preventDefault()
+  }
+
+  const onPlotPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current) return
+    setBand(dragState.current.bandIdx, gainFromY(e.clientY))
+  }
+
+  const onPlotPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current) return
+    plotRef.current?.releasePointerCapture(e.pointerId)
+    dragState.current = null
+  }
 
   const presets = allPresets(state)
   const activeIdx = Math.max(0, presets.findIndex(p => p.name === state.activePreset))
@@ -226,8 +277,15 @@ export default function EQView({ onClose }: EQViewProps) {
 
   return (
     <div className="hu-eq-overlay">
-      {/* Plot area */}
-      <div className="hu-eq-plot-wrap">
+      {/* Plot area — draggable bars */}
+      <div
+        ref={plotRef}
+        className="hu-eq-plot-wrap"
+        onPointerDown={onPlotPointerDown}
+        onPointerMove={onPlotPointerMove}
+        onPointerUp={onPlotPointerUp}
+        onPointerCancel={onPlotPointerUp}
+      >
         <EQCanvas bands={state.bands} />
       </div>
 
