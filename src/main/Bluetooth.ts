@@ -10,6 +10,7 @@
 // drive things from the user (Connect, Dial, MediaPlayer1.Play, etc.).
 
 import { ipcMain, BrowserWindow } from 'electron'
+import { exec } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -125,6 +126,16 @@ export class BluetoothManager {
   private activeCallPath: string | null = null
   private vcmSubscribedModem: string | null = null
 
+  // Startup deferral — BlueZ auto-connects trusted devices at boot, before the
+  // head unit UI / audio backend are ready, which causes stutter on the first
+  // few seconds of music.  We disconnect any devices that were auto-connected
+  // during start() and re-connect them once the renderer signals it has mounted.
+  private rendererReady = false
+  private pendingReconnects: string[] = []   // addresses to re-Connect once ready
+
+  // Track which sinks we boosted so we don't keep retrying the same one.
+  private boostedSinks = new Set<string>()
+
   // outbound state
   private media: MediaState = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
   private call:  CallState  = { status: 'idle', durationSec: 0, muted: false }
@@ -198,10 +209,48 @@ export class BluetoothManager {
     await this.initBlueZ()
     await this.initOFono()
 
+    // Disconnect anything BlueZ auto-connected during boot — we'll re-Connect
+    // once the renderer signals ready so the head unit isn't running behind
+    // the connection and audio doesn't stutter while pipewire is still booting.
+    await this.disconnectAutoConnectedAtBoot()
+
     // Start a slow timer to refresh player Position (BlueZ does not push every tick)
     this.positionTimer = setInterval(() => this.refreshPlayerPosition().catch(() => undefined), 1000)
 
     this.pushAll()
+  }
+
+  /** At app start, drop any connections BlueZ established for us and remember them
+   *  so we can re-establish once the renderer has fully mounted. */
+  private async disconnectAutoConnectedAtBoot() {
+    for (const [path, d] of Array.from(this.devicePaths.entries())) {
+      if (!d.connected) continue
+      console.log('[bt] boot: disconnecting', d.name, '— will reconnect once head unit is ready')
+      this.pendingReconnects.push(d.address)
+      try {
+        const obj = await this.systemBus.getProxyObject(BLUEZ_BUS, path)
+        await obj.getInterface(IFACE_DEVICE).Disconnect()
+      } catch { /* device may already be gone */ }
+    }
+  }
+
+  /** Called the first time the renderer fires bt:requestState — by then the
+   *  React tree has mounted, audio capture is subscribed, and BlueZ activity
+   *  is safe to resume. */
+  private onRendererReady() {
+    if (this.rendererReady) return
+    this.rendererReady = true
+    const queue = this.pendingReconnects
+    this.pendingReconnects = []
+    if (queue.length === 0) {
+      console.log('[bt] renderer ready — nothing to reconnect')
+      return
+    }
+    // Small extra grace so pipewire-pulse settles before A2DP attaches.
+    setTimeout(() => {
+      console.log('[bt] renderer ready — reconnecting', queue.length, 'device(s)')
+      for (const addr of queue) this.connectDevice(addr).catch(() => undefined)
+    }, 1500)
   }
 
   stop() {
@@ -214,7 +263,10 @@ export class BluetoothManager {
   // ─── IPC wiring (renderer → main) ──────────────────────────────────────────
 
   private registerIpc() {
-    ipcMain.on('bt:requestState', () => this.pushAll())
+    ipcMain.on('bt:requestState', () => {
+      this.pushAll()
+      this.onRendererReady()
+    })
     ipcMain.on('bt:mediaCmd', (_e, cmd: string) => this.mediaCmd(cmd))
     ipcMain.on('bt:dial',     (_e, num: string) => this.dial(num))
     ipcMain.on('bt:answer',   ()                => this.answer())
@@ -248,10 +300,75 @@ export class BluetoothManager {
 
   private pushPhone()    { this.getWindow()?.webContents?.send('bt:phone',    this.phoneState()) }
   private pushMedia()    { this.getWindow()?.webContents?.send('bt:media',    this.media) }
-  private pushCall()     { this.getWindow()?.webContents?.send('bt:call',     this.call) }
+  private pushCall()     {
+    this.getWindow()?.webContents?.send('bt:call', this.call)
+    // The HFP profile sink usually only appears when a call starts — re-scan
+    // pactl on every non-idle call so we can boost it to match A2DP volume.
+    if (this.call.status !== 'idle' && this.activePhonePath) {
+      const d = this.devicePaths.get(this.activePhonePath)
+      if (d) this.boostBluezSinksFor(d.address)
+    }
+  }
   private pushContacts() { this.getWindow()?.webContents?.send('bt:contacts', this.contacts) }
   private pushRecents()  { this.getWindow()?.webContents?.send('bt:recents',  this.recents) }
   private pushDevices()  { this.getWindow()?.webContents?.send('bt:devices',  this.deviceList()) }
+
+  // ─── PipeWire / PulseAudio helpers ─────────────────────────────────────────
+  // The Pi runs pipewire-pulse; both `pactl` commands and sink/source names
+  // (`bluez_output.XX_XX_XX_XX_XX_XX.<profile>`) are identical to classic PA.
+
+  /** Set every bluez_output sink that belongs to `deviceAddress` to 100% volume.
+   *  HFP-profile sinks default to ~50% which makes calls quieter than music;
+   *  boosting both A2DP and HFP sinks keeps the level consistent. */
+  private boostBluezSinksFor(deviceAddress: string) {
+    const addrTokens = [
+      deviceAddress.replace(/:/g, '_'),
+      deviceAddress.replace(/:/g, '_').toLowerCase(),
+      deviceAddress.replace(/:/g, '_').toUpperCase(),
+    ]
+    exec('pactl list short sinks', (err, stdout) => {
+      if (err) { console.warn('[bt] pactl list sinks failed:', err.message); return }
+      for (const line of stdout.split('\n')) {
+        const name = line.split(/\s+/)[1]
+        if (!name || !name.includes('bluez_output')) continue
+        if (!addrTokens.some(t => name.includes(t))) continue
+        if (this.boostedSinks.has(name)) continue
+        console.log('[bt] boost sink to 100%:', name)
+        exec(`pactl set-sink-volume "${name}" 100%`, (e) => {
+          if (e) console.warn('[bt] set-sink-volume failed:', e.message)
+          else this.boostedSinks.add(name)
+        })
+        // Also unmute, in case PA started the sink muted.
+        exec(`pactl set-sink-mute "${name}" 0`, () => undefined)
+      }
+    })
+  }
+
+  /** Mute / unmute every bluez_input source for `deviceAddress`.  This is the
+   *  microphone path that streams to the phone during an HFP call — the only
+   *  reliable way to mute the head unit on the phone's audio. */
+  private setBluezSourceMute(deviceAddress: string, mute: boolean) {
+    const addrTokens = [
+      deviceAddress.replace(/:/g, '_'),
+      deviceAddress.replace(/:/g, '_').toLowerCase(),
+      deviceAddress.replace(/:/g, '_').toUpperCase(),
+    ]
+    exec('pactl list short sources', (err, stdout) => {
+      if (err) { console.warn('[bt] pactl list sources failed:', err.message); return }
+      let matched = 0
+      for (const line of stdout.split('\n')) {
+        const name = line.split(/\s+/)[1]
+        if (!name || !name.includes('bluez_input')) continue
+        if (!addrTokens.some(t => name.includes(t))) continue
+        matched++
+        console.log('[bt] set source mute:', name, '→', mute)
+        exec(`pactl set-source-mute "${name}" ${mute ? '1' : '0'}`, (e) => {
+          if (e) console.warn('[bt] set-source-mute failed:', e.message)
+        })
+      }
+      if (matched === 0) console.warn('[bt] no bluez_input source matched', deviceAddress)
+    })
+  }
 
   private phoneState(): PhoneState {
     if (!this.activePhonePath) return { connected: false }
@@ -595,6 +712,9 @@ export class BluetoothManager {
     if (this.activePhonePath === path) return
     this.activePhonePath = path
     console.log('[bt] active phone:', d.name, d.address)
+    // Boost A2DP sink volume up front so music plays at the level the user expects.
+    // (HFP sinks usually appear only on call — pushCall() boosts those too.)
+    this.boostBluezSinksFor(d.address)
     // Auto-sync contacts + recent calls so they appear without manual taps.
     // Small delay so PBAP/obex has time to wake up after pairing.
     setTimeout(() => {
@@ -903,13 +1023,25 @@ export class BluetoothManager {
   private async setMuted(on: boolean) {
     this.call.muted = on
     this.pushCall()
-    if (!this.activeModemPath) return
-    try {
-      const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeModemPath)
-      // ofono uses its own SetProperty method, not org.freedesktop.DBus.Properties.Set
-      const cv = obj.getInterface(IFACE_CALLVOL)
-      await cv.SetProperty('Muted', new this.dbus.Variant('b', on))
-    } catch (err) { console.warn('[bt] mute failed:', (err as Error).message ?? err) }
+
+    // Primary: mute the bluez_input source via pactl.  ofono's
+    // CallVolume.Muted only works on modems with a real audio gateway; on
+    // BlueZ-backed HFP modems it usually doesn't reach the phone.  Muting the
+    // source stops the mic stream regardless of HFP profile state.
+    if (this.activePhonePath) {
+      const d = this.devicePaths.get(this.activePhonePath)
+      if (d) this.setBluezSourceMute(d.address, on)
+    }
+
+    // Secondary (best-effort): also flip CallVolume.Muted in case some modem
+    // implementation honours it (and to keep the property in sync).
+    if (this.activeModemPath) {
+      try {
+        const obj = await this.systemBus.getProxyObject(OFONO_BUS, this.activeModemPath)
+        const cv = obj.getInterface(IFACE_CALLVOL)
+        await cv.SetProperty('Muted', new this.dbus.Variant('b', on))
+      } catch { /* expected on most BlueZ-backed modems */ }
+    }
   }
 
   // ─── obex — PBAP phonebook sync ───────────────────────────────────────────
