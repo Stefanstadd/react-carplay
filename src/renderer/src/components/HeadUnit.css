@@ -606,16 +606,28 @@ img.hu-numpad-call-icon {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  /* Fast highlight on press, slow fade back so a tap always flashes for
+   * a moment instead of either stuck-on or invisibly short. */
+  transition: background 420ms ease-out, color 420ms ease-out;
   color: var(--hu-green);
   padding: 0;
   transition: background 120ms ease, color 120ms ease;
 }
 
-.hu-transport-btn:hover,
-.hu-transport-btn:focus-visible,
 .hu-transport-btn:active {
   background: var(--hu-green);
   color: var(--hu-bg-deep);
+  transition: background 30ms linear, color 30ms linear;   /* snap on */
+}
+
+/* Mouse / keyboard only — :hover sticks after a tap on touchscreens,
+ * which is what was leaving play/pause/next/prev permanently lit. */
+@media (hover: hover) {
+  .hu-transport-btn:hover,
+  .hu-transport-btn:focus-visible {
+    background: var(--hu-green);
+    color: var(--hu-bg-deep);
+  }
 }
 
 .hu-play-btn { width: 110px; height: 110px; }
@@ -1434,7 +1446,7 @@ img.hu-numpad-call-icon {
 
 .hu-eq-bands-row {
   display: grid;
-  grid-template-columns: repeat(10, 1fr);
+  grid-template-columns: repeat(15, 1fr);
   column-gap: 0;
   padding: 12px 70px 0 70px;   /* aligns with the canvas plot area */
   user-select: none;
@@ -1444,12 +1456,12 @@ img.hu-numpad-call-icon {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .hu-eq-step-btn {
-  width: 80px;
-  height: 56px;
+  width: 60px;
+  height: 50px;
   min-width: 48px;
   min-height: 48px;
   background: transparent;
@@ -1465,10 +1477,10 @@ img.hu-numpad-call-icon {
 .hu-eq-step-btn:active { color: #88ff88; }
 
 .hu-eq-band-value {
-  font-size: 38px;
+  font-size: 30px;
   line-height: 1;
   color: var(--hu-green);
-  min-width: 60px;
+  min-width: 50px;
   text-align: center;
 }
 

@@ -344,9 +344,16 @@ export class BluetoothManager {
     })
   }
 
-  /** Mute / unmute every bluez_input source for `deviceAddress`.  This is the
-   *  microphone path that streams to the phone during an HFP call — the only
-   *  reliable way to mute the head unit on the phone's audio. */
+  /** Comprehensively silence the mic path during a call.  HFP doesn't have a
+   *  "tell the AG to display muted" message, so the goal is simply to make
+   *  sure no audio from the Pi reaches the other party.  We do four things:
+   *    1. Mute every bluez_input / bluez_source matching this device.
+   *    2. Set their volume to 0% (mute alone isn't always honoured by the HFP
+   *       loopback module, but volume=0 always silences the stream).
+   *    3. Mute the system default source as a final fallback (covers the case
+   *       where pipewire routes the real mic directly to the phone via a
+   *       loopback we can't see by name).
+   *  On unmute we restore each one to 100% and unmute. */
   private setBluezSourceMute(deviceAddress: string, mute: boolean) {
     const addrTokens = [
       deviceAddress.replace(/:/g, '_'),
@@ -358,15 +365,30 @@ export class BluetoothManager {
       let matched = 0
       for (const line of stdout.split('\n')) {
         const name = line.split(/\s+/)[1]
-        if (!name || !name.includes('bluez_input')) continue
+        if (!name) continue
+        // Cover BOTH PipeWire naming (bluez_input) and classic PulseAudio naming
+        // (bluez_source).  Older pipewire-pulse versions used the PA name.
+        if (!name.includes('bluez_input') && !name.includes('bluez_source')) continue
         if (!addrTokens.some(t => name.includes(t))) continue
         matched++
-        console.log('[bt] set source mute:', name, '→', mute)
+        console.log('[bt] mic mute', name, '→', mute)
+        // mute flag AND volume=0 — belt and braces, the HFP loopback ignores
+        // the mute flag on some pipewire-pulse versions.
         exec(`pactl set-source-mute "${name}" ${mute ? '1' : '0'}`, (e) => {
           if (e) console.warn('[bt] set-source-mute failed:', e.message)
         })
+        exec(`pactl set-source-volume "${name}" ${mute ? '0%' : '100%'}`, (e) => {
+          if (e) console.warn('[bt] set-source-volume failed:', e.message)
+        })
       }
-      if (matched === 0) console.warn('[bt] no bluez_input source matched', deviceAddress)
+      if (matched === 0) console.warn('[bt] no bluez mic source matched', deviceAddress)
+
+      // Fall-through fallback: mute the system default source too.  On a
+      // head unit there's no other use of the mic, so this is always safe
+      // and catches the case where pipewire routes the real mic straight
+      // through to the phone via a loopback we can't see by name.
+      exec(`pactl set-source-mute @DEFAULT_SOURCE@ ${mute ? '1' : '0'}`, () => undefined)
+      exec(`pactl set-source-volume @DEFAULT_SOURCE@ ${mute ? '0%' : '100%'}`, () => undefined)
     })
   }
 

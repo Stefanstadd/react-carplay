@@ -29,16 +29,24 @@ import * as path from 'path'
 export type BiquadKind = 'lowshelf' | 'peaking' | 'highshelf'
 export interface BandSpec { frequency: number; kind: BiquadKind }
 
+// 15-band ISO-spaced graphic EQ.  First band is lowshelf, last is highshelf,
+// everything in between is peaking.  Frequencies are the standard 2/3-octave
+// graphic-EQ centres used in pro audio (25–16 000 Hz).
 export const BANDS: BandSpec[] = [
-  { frequency: 60,    kind: 'lowshelf'  },
-  { frequency: 170,   kind: 'peaking'   },
-  { frequency: 310,   kind: 'peaking'   },
-  { frequency: 600,   kind: 'peaking'   },
-  { frequency: 1000,  kind: 'peaking'   },
-  { frequency: 3000,  kind: 'peaking'   },
-  { frequency: 6000,  kind: 'peaking'   },
-  { frequency: 12000, kind: 'peaking'   },
-  { frequency: 14000, kind: 'peaking'   },
+  { frequency:    25, kind: 'lowshelf'  },
+  { frequency:    40, kind: 'peaking'   },
+  { frequency:    63, kind: 'peaking'   },
+  { frequency:   100, kind: 'peaking'   },
+  { frequency:   160, kind: 'peaking'   },
+  { frequency:   250, kind: 'peaking'   },
+  { frequency:   400, kind: 'peaking'   },
+  { frequency:   630, kind: 'peaking'   },
+  { frequency:  1000, kind: 'peaking'   },
+  { frequency:  1600, kind: 'peaking'   },
+  { frequency:  2500, kind: 'peaking'   },
+  { frequency:  4000, kind: 'peaking'   },
+  { frequency:  6300, kind: 'peaking'   },
+  { frequency: 10000, kind: 'peaking'   },
   { frequency: 16000, kind: 'highshelf' },
 ]
 
@@ -54,12 +62,13 @@ export interface EQPreset {
   builtin?: boolean
 }
 
+// 15-band preset values, ordered low → high frequency.
 export const BUILTIN_PRESETS: EQPreset[] = [
-  { name: 'Flat',         bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],         builtin: true },
-  { name: 'Bass Boosted', bands: [4, 3, 2, 0, 0, 0, 0, 0, 0, 0],         builtin: true },
-  { name: 'Rock',         bands: [2, 1, 0, -1, -1, 0, 1, 2, 2, 1],       builtin: true },
-  { name: 'Electronic',   bands: [3, 2, 0, -2, -1, 0, 1, 2, 3, 3],       builtin: true },
-  { name: 'Jazz',         bands: [2, 1, 0, 1, -1, -1, 0, 1, 1, 2],       builtin: true },
+  { name: 'Flat',         bands: [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], builtin: true },
+  { name: 'Bass Boosted', bands: [ 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], builtin: true },
+  { name: 'Rock',         bands: [ 3, 2, 2, 1, 0,-1,-1, 0, 0, 1, 2, 2, 3, 3, 2], builtin: true },
+  { name: 'Electronic',   bands: [ 4, 4, 3, 2, 1, 0,-1,-2,-1, 0, 1, 2, 3, 3, 3], builtin: true },
+  { name: 'Jazz',         bands: [ 2, 2, 1, 1, 0, 0, 1, 1, 0,-1,-1, 0, 1, 1, 2], builtin: true },
 ]
 
 export interface EQState {
@@ -70,7 +79,7 @@ export interface EQState {
 }
 
 const DEFAULT_STATE: EQState = {
-  bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  bands: new Array(BAND_COUNT).fill(0),
   activePreset: 'Flat',
   customPresets: [],
   enabled: true,

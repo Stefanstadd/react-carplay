@@ -6,19 +6,23 @@ import { useEffect, useState } from 'react'
 export type BiquadKind = 'lowshelf' | 'peaking' | 'highshelf'
 export interface BandSpec { frequency: number; kind: BiquadKind; label: string }
 
-// Frequency layout matches src/main/Equalizer.ts BANDS.  Labels are what's
-// drawn under each bar in the mockup.
+// Frequency layout matches src/main/Equalizer.ts BANDS (15-band ISO).
 export const EQ_BANDS: BandSpec[] = [
-  { frequency: 60,    kind: 'lowshelf',  label: '60'   },
-  { frequency: 170,   kind: 'peaking',   label: '170'  },
-  { frequency: 310,   kind: 'peaking',   label: '310'  },
-  { frequency: 600,   kind: 'peaking',   label: '600'  },
-  { frequency: 1000,  kind: 'peaking',   label: '1K'   },
-  { frequency: 3000,  kind: 'peaking',   label: '3K'   },
-  { frequency: 6000,  kind: 'peaking',   label: '6K'   },
-  { frequency: 12000, kind: 'peaking',   label: '12K'  },
-  { frequency: 14000, kind: 'peaking',   label: '14K'  },
-  { frequency: 16000, kind: 'highshelf', label: '16K'  },
+  { frequency:    25, kind: 'lowshelf',  label: '25'    },
+  { frequency:    40, kind: 'peaking',   label: '40'    },
+  { frequency:    63, kind: 'peaking',   label: '63'    },
+  { frequency:   100, kind: 'peaking',   label: '100'   },
+  { frequency:   160, kind: 'peaking',   label: '160'   },
+  { frequency:   250, kind: 'peaking',   label: '250'   },
+  { frequency:   400, kind: 'peaking',   label: '400'   },
+  { frequency:   630, kind: 'peaking',   label: '630'   },
+  { frequency:  1000, kind: 'peaking',   label: '1K'    },
+  { frequency:  1600, kind: 'peaking',   label: '1.6K'  },
+  { frequency:  2500, kind: 'peaking',   label: '2.5K'  },
+  { frequency:  4000, kind: 'peaking',   label: '4K'    },
+  { frequency:  6300, kind: 'peaking',   label: '6.3K'  },
+  { frequency: 10000, kind: 'peaking',   label: '10K'   },
+  { frequency: 16000, kind: 'highshelf', label: '16K'   },
 ]
 
 export const BAND_COUNT = EQ_BANDS.length
@@ -32,12 +36,13 @@ export interface EQPreset {
   builtin?: boolean
 }
 
+// 15-band preset values, ordered low → high frequency.
 export const BUILTIN_PRESETS: EQPreset[] = [
-  { name: 'Flat',         bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],   builtin: true },
-  { name: 'Bass Boosted', bands: [4, 3, 2, 0, 0, 0, 0, 0, 0, 0],   builtin: true },
-  { name: 'Rock',         bands: [2, 1, 0, -1, -1, 0, 1, 2, 2, 1], builtin: true },
-  { name: 'Electronic',   bands: [3, 2, 0, -2, -1, 0, 1, 2, 3, 3], builtin: true },
-  { name: 'Jazz',         bands: [2, 1, 0, 1, -1, -1, 0, 1, 1, 2], builtin: true },
+  { name: 'Flat',         bands: [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], builtin: true },
+  { name: 'Bass Boosted', bands: [ 6, 5, 4, 3, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], builtin: true },
+  { name: 'Rock',         bands: [ 3, 2, 2, 1, 0,-1,-1, 0, 0, 1, 2, 2, 3, 3, 2], builtin: true },
+  { name: 'Electronic',   bands: [ 4, 4, 3, 2, 1, 0,-1,-2,-1, 0, 1, 2, 3, 3, 3], builtin: true },
+  { name: 'Jazz',         bands: [ 2, 2, 1, 1, 0, 0, 1, 1, 0,-1,-1, 0, 1, 1, 2], builtin: true },
 ]
 
 export interface EQState {
@@ -48,7 +53,7 @@ export interface EQState {
 }
 
 const DEFAULT_STATE: EQState = {
-  bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  bands: new Array(BAND_COUNT).fill(0),
   activePreset: 'Flat',
   customPresets: [],
   enabled: true,
