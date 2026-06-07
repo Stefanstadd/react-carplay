@@ -11,17 +11,20 @@ export interface ThemePreset {
   name: string
   primary: string
   peak: string
+  background: string
+  warn: string
+  miss: string
   builtin?: boolean
 }
 
 export const BUILTIN_THEMES: ThemePreset[] = [
-  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', builtin: true },
-  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', builtin: true },
-  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', builtin: true },
-  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', builtin: true },
-  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', builtin: true },
-  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', builtin: true },
-  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', builtin: true },
+  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', builtin: true },
+  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', builtin: true },
+  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', builtin: true },
+  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', builtin: true },
+  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', builtin: true },
+  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', builtin: true },
+  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', builtin: true },
 ]
 
 export interface VizConfig {
@@ -76,6 +79,9 @@ export interface UserSettings {
   theme: {
     primary: string
     peak: string
+    background: string
+    warn: string
+    miss: string
     activePreset: string
     customPresets: ThemePreset[]
   }
@@ -85,8 +91,11 @@ export interface UserSettings {
 
 const DEFAULT_STATE: UserSettings = {
   theme: {
-    primary: BUILTIN_THEMES[0].primary,
-    peak:    BUILTIN_THEMES[0].peak,
+    primary:    BUILTIN_THEMES[0].primary,
+    peak:       BUILTIN_THEMES[0].peak,
+    background: BUILTIN_THEMES[0].background,
+    warn:       BUILTIN_THEMES[0].warn,
+    miss:       BUILTIN_THEMES[0].miss,
     activePreset: BUILTIN_THEMES[0].name,
     customPresets: [],
   },
@@ -121,17 +130,38 @@ function scale(hex: string, k: number): string {
   return rgbToHex([rgb[0] + (255 - rgb[0]) * t, rgb[1] + (255 - rgb[1]) * t, rgb[2] + (255 - rgb[2]) * t])
 }
 
-export function applyTheme(primary: string, peak: string) {
+export function applyTheme(
+  primary: string,
+  peak: string,
+  background?: string,
+  warn?: string,
+  miss?: string,
+) {
   const root = document.documentElement
-  root.style.setProperty('--hu-green',      primary)
-  root.style.setProperty('--hu-peak',       peak)
-  root.style.setProperty('--hu-green-mid',  scale(primary, 0.54))
-  root.style.setProperty('--hu-green-dim',  scale(primary, 0.36))
-  root.style.setProperty('--hu-green-deep', scale(primary, 0.18))
-  // Match deep-background tint to the primary hue so the whole UI shifts
-  // (e.g. amber theme has an amber-tinted background).
-  root.style.setProperty('--hu-bg-deep',  scale(primary, 0.04))
-  root.style.setProperty('--hu-bg-panel', scale(primary, 0.02))
+  root.style.setProperty('--hu-primary',      primary)
+  root.style.setProperty('--hu-peak',         peak)
+  root.style.setProperty('--hu-primary-mid',  scale(primary, 0.54))
+  root.style.setProperty('--hu-primary-dim',  scale(primary, 0.36))
+  root.style.setProperty('--hu-primary-deep', scale(primary, 0.18))
+  // Deep background — use explicit colour if provided, otherwise fall back to
+  // a primary-tinted dark so the whole UI shifts hue with the theme.
+  const bg = background ?? scale(primary, 0.04)
+  root.style.setProperty('--hu-bg-deep',  bg)
+  root.style.setProperty('--hu-bg-panel', mix(bg, '#000000', 0.5))
+  root.style.setProperty('--hu-divider',  mix(primary, bg, 0.08))
+  if (warn) root.style.setProperty('--hu-warn', warn)
+  if (miss) root.style.setProperty('--hu-miss', miss)
+}
+
+/** Linearly blend two hex colours.  `t=0` returns a, `t=1` returns b. */
+function mix(a: string, b: string, t: number): string {
+  const ra = hexToRgb(a), rb = hexToRgb(b)
+  if (!ra || !rb) return a
+  return rgbToHex([
+    ra[0] + (rb[0] - ra[0]) * t,
+    ra[1] + (rb[1] - ra[1]) * t,
+    ra[2] + (rb[2] - ra[2]) * t,
+  ])
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -145,7 +175,7 @@ export function useUserSettings() {
     u.onState((_: any, s: UserSettings) => {
       const merged = mergeWithDefaults(s)
       setState(merged)
-      applyTheme(merged.theme.primary, merged.theme.peak)
+      applyTheme(merged.theme.primary, merged.theme.peak, merged.theme.background, merged.theme.warn, merged.theme.miss)
     })
     u.requestState()
   }, [])
@@ -155,7 +185,7 @@ export function useUserSettings() {
   const setTheme = useCallback((patch: Partial<UserSettings['theme']>) => {
     setState(prev => {
       const next: UserSettings = { ...prev, theme: { ...prev.theme, ...patch } }
-      applyTheme(next.theme.primary, next.theme.peak)
+      applyTheme(next.theme.primary, next.theme.peak, next.theme.background, next.theme.warn, next.theme.miss)
       return next
     })
     u?.setTheme?.(patch)
@@ -193,8 +223,11 @@ function mergeWithDefaults(s: UserSettings | undefined | null): UserSettings {
   if (!s) return DEFAULT_STATE
   return {
     theme: {
-      primary: s.theme?.primary ?? DEFAULT_STATE.theme.primary,
-      peak:    s.theme?.peak    ?? DEFAULT_STATE.theme.peak,
+      primary:    s.theme?.primary    ?? DEFAULT_STATE.theme.primary,
+      peak:       s.theme?.peak       ?? DEFAULT_STATE.theme.peak,
+      background: s.theme?.background ?? DEFAULT_STATE.theme.background,
+      warn:       s.theme?.warn       ?? DEFAULT_STATE.theme.warn,
+      miss:       s.theme?.miss       ?? DEFAULT_STATE.theme.miss,
       activePreset:  s.theme?.activePreset  ?? DEFAULT_STATE.theme.activePreset,
       customPresets: Array.isArray(s.theme?.customPresets) ? s.theme.customPresets : [],
     },

@@ -16,19 +16,22 @@ import * as path from 'path'
 
 export interface ThemePreset {
   name: string
-  primary: string   // hex (#RRGGBB) — drives --hu-green
-  peak: string      // hex (#RRGGBB) — drives --hu-peak (peaks + needles)
+  primary: string     // --hu-primary (was --hu-green)
+  peak: string        // --hu-peak (visualizer peaks + gauge needles)
+  background: string  // --hu-bg-deep
+  warn: string        // --hu-warn
+  miss: string        // --hu-miss
   builtin?: boolean
 }
 
 export const BUILTIN_THEMES: ThemePreset[] = [
-  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', builtin: true },
-  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', builtin: true },
-  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', builtin: true },
-  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', builtin: true },
-  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', builtin: true },
-  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', builtin: true },
-  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', builtin: true },
+  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', builtin: true },
+  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', builtin: true },
+  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', builtin: true },
+  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', builtin: true },
+  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', builtin: true },
+  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', builtin: true },
+  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', builtin: true },
 ]
 
 export interface VizConfig {
@@ -85,9 +88,12 @@ export interface GaugeDef {
 
 export interface UserSettings {
   theme: {
-    primary: string                  // active --hu-green hex
-    peak: string                     // active --hu-peak hex
-    activePreset: string             // name of preset (built-in or custom)
+    primary: string
+    peak: string
+    background: string
+    warn: string
+    miss: string
+    activePreset: string
     customPresets: ThemePreset[]
   }
   viz: VizConfig
@@ -96,8 +102,11 @@ export interface UserSettings {
 
 const DEFAULT_SETTINGS: UserSettings = {
   theme: {
-    primary: BUILTIN_THEMES[0].primary,
-    peak:    BUILTIN_THEMES[0].peak,
+    primary:    BUILTIN_THEMES[0].primary,
+    peak:       BUILTIN_THEMES[0].peak,
+    background: BUILTIN_THEMES[0].background,
+    warn:       BUILTIN_THEMES[0].warn,
+    miss:       BUILTIN_THEMES[0].miss,
     activePreset: BUILTIN_THEMES[0].name,
     customPresets: [],
   },
@@ -154,10 +163,11 @@ export class UserSettingsManager {
     // Theme
     ipcMain.on('user:setTheme', (_e, t: Partial<UserSettings['theme']>) => {
       this.state.theme = { ...this.state.theme, ...t }
-      // If primary/peak was changed directly (custom picker), the user is no
-      // longer on a named preset.
-      if ((t.primary || t.peak) && !t.activePreset) {
-        const match = matchPreset(this.state.theme.primary, this.state.theme.peak, this.allThemes())
+      // If any colour was tweaked manually (not via preset selection), drop
+      // the active-preset name so the swatch UI shows "custom".
+      const colorTweaked = !!(t.primary || t.peak || t.background || t.warn || t.miss)
+      if (colorTweaked && !t.activePreset) {
+        const match = matchPreset(this.state.theme, this.allThemes())
         this.state.theme.activePreset = match ?? '—'
       }
       this.save(); this.push()
@@ -168,7 +178,14 @@ export class UserSettingsManager {
       if (!clean) return
       if (BUILTIN_THEMES.find(p => p.name.toLowerCase() === clean.toLowerCase())) return
       const without = this.state.theme.customPresets.filter(p => p.name.toLowerCase() !== clean.toLowerCase())
-      without.push({ name: clean, primary: this.state.theme.primary, peak: this.state.theme.peak })
+      without.push({
+        name: clean,
+        primary:    this.state.theme.primary,
+        peak:       this.state.theme.peak,
+        background: this.state.theme.background,
+        warn:       this.state.theme.warn,
+        miss:       this.state.theme.miss,
+      })
       this.state.theme.customPresets = without
       this.state.theme.activePreset = clean
       this.save(); this.push()
@@ -177,9 +194,13 @@ export class UserSettingsManager {
     ipcMain.on('user:deleteThemePreset', (_e, name: string) => {
       this.state.theme.customPresets = this.state.theme.customPresets.filter(p => p.name !== name)
       if (this.state.theme.activePreset === name) {
-        this.state.theme.primary = BUILTIN_THEMES[0].primary
-        this.state.theme.peak    = BUILTIN_THEMES[0].peak
-        this.state.theme.activePreset = BUILTIN_THEMES[0].name
+        const def = BUILTIN_THEMES[0]
+        this.state.theme.primary    = def.primary
+        this.state.theme.peak       = def.peak
+        this.state.theme.background = def.background
+        this.state.theme.warn       = def.warn
+        this.state.theme.miss       = def.miss
+        this.state.theme.activePreset = def.name
       }
       this.save(); this.push()
     })
@@ -233,13 +254,24 @@ function isHex(s: any): s is string {
 function sanitize(raw: any): UserSettings {
   const out: UserSettings = clone(DEFAULT_SETTINGS)
   if (raw?.theme) {
-    if (isHex(raw.theme.primary)) out.theme.primary = raw.theme.primary
-    if (isHex(raw.theme.peak))    out.theme.peak    = raw.theme.peak
+    if (isHex(raw.theme.primary))    out.theme.primary    = raw.theme.primary
+    if (isHex(raw.theme.peak))       out.theme.peak       = raw.theme.peak
+    if (isHex(raw.theme.background)) out.theme.background = raw.theme.background
+    if (isHex(raw.theme.warn))       out.theme.warn       = raw.theme.warn
+    if (isHex(raw.theme.miss))       out.theme.miss       = raw.theme.miss
     if (typeof raw.theme.activePreset === 'string') out.theme.activePreset = raw.theme.activePreset
     if (Array.isArray(raw.theme.customPresets)) {
       out.theme.customPresets = raw.theme.customPresets
         .filter((p: any) => p && typeof p.name === 'string' && isHex(p.primary) && isHex(p.peak))
-        .map((p: any) => ({ name: p.name.slice(0, 24), primary: p.primary, peak: p.peak }))
+        .map((p: any) => ({
+          name: p.name.slice(0, 24),
+          primary:    p.primary,
+          peak:       p.peak,
+          // Fill in sane defaults for fields that weren't in older saved files.
+          background: isHex(p.background) ? p.background : DEFAULT_SETTINGS.theme.background,
+          warn:       isHex(p.warn)       ? p.warn       : DEFAULT_SETTINGS.theme.warn,
+          miss:       isHex(p.miss)       ? p.miss       : DEFAULT_SETTINGS.theme.miss,
+        }))
     }
   }
   if (raw?.viz) out.viz = sanitizeViz({ ...DEFAULT_VIZ, ...raw.viz })
@@ -289,10 +321,13 @@ function sanitizeGauge(g: any): GaugeDef | null {
   }
 }
 
-function matchPreset(primary: string, peak: string, presets: ThemePreset[]): string | undefined {
+function matchPreset(t: UserSettings['theme'], presets: ThemePreset[]): string | undefined {
   for (const p of presets) {
-    if (p.primary.toLowerCase() === primary.toLowerCase()
-     && p.peak.toLowerCase()    === peak.toLowerCase()) return p.name
+    if (p.primary.toLowerCase()    === t.primary.toLowerCase()
+     && p.peak.toLowerCase()       === t.peak.toLowerCase()
+     && p.background.toLowerCase() === t.background.toLowerCase()
+     && p.warn.toLowerCase()       === t.warn.toLowerCase()
+     && p.miss.toLowerCase()       === t.miss.toLowerCase()) return p.name
   }
   return undefined
 }

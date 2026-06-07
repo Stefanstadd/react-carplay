@@ -91,14 +91,15 @@ interface HeadUnitProps {
   vehicleData?: VehicleData
 }
 
-type ViewName = 'devices' | 'gauges' | 'music' | 'phone'
-const CYCLE: ViewName[] = ['devices', 'gauges', 'music', 'phone']
+type ViewName = 'devices' | 'gauges' | 'music' | 'phone' | 'settings'
+const CYCLE: ViewName[] = ['devices', 'gauges', 'music', 'phone', 'settings']
 
 const VIEW_ICONS: Record<ViewName, string> = {
   devices: iconMobile,
   gauges: iconGauges,
   music: iconMusic,
-  phone: iconPhone
+  phone: iconPhone,
+  settings: iconSettings,
 }
 
 // ─── Scaling ──────────────────────────────────────────────────────────────────
@@ -185,16 +186,16 @@ function HUHeader({ phone }: { phone: PhoneState }) {
                 height="12.5"
                 rx="0"
                 fill="none"
-                stroke="#00ff0a"
+                stroke="var(--hu-primary)"
                 strokeWidth="1.5"
               />
-              <rect x="26.25" y="4" width="3" height="6" rx="0" fill="#00ff0a" />
-              <rect x="2" y="2" width={fillW} height="10" rx="0" fill="#00ff0a" />
+              <rect x="26.25" y="4" width="3" height="6" rx="0" fill="var(--hu-primary)" />
+              <rect x="2" y="2" width={fillW} height="10" rx="0" fill="var(--hu-primary)" />
               {phone.charging && (
                 <polygon
                   points="14,3 9,8 13,8 11,12 16,7 12,7"
-                  fill="#001500"
-                  stroke="#001500"
+                  fill="var(--hu-bg-deep)"
+                  stroke="var(--hu-bg-deep)"
                   strokeWidth="0.4"
                 />
               )}
@@ -218,11 +219,37 @@ function HUHeader({ phone }: { phone: PhoneState }) {
   )
 }
 
+// ─── Themed icon ─────────────────────────────────────────────────────────────
+// Renders a single PNG asset as a CSS mask whose background-colour is the
+// active theme colour.  Drops in wherever an <img> used to live but tracks
+// the colour theme.
+
+function ThemedIcon({
+  src,
+  className = '',
+  variant,
+  style,
+}: {
+  src: string
+  className?: string
+  variant?: 'peak' | 'mid' | 'warn' | 'bg'
+  style?: React.CSSProperties
+}) {
+  const v = variant ? ` hu-themed-icon-${variant}` : ''
+  return (
+    <span
+      className={`hu-themed-icon${v} ${className}`.trim()}
+      style={{ ['--icon-url' as any]: `url(${src})`, ...style }}
+      aria-hidden="true"
+    />
+  )
+}
+
 // ─── NavBar ───────────────────────────────────────────────────────────────────
 
-type NavId = ViewName | 'settings'
+type NavId = ViewName
 const NAV_ORDER: NavId[] = ['devices', 'gauges', 'music', 'phone', 'settings']
-const NAV_ICONS: Record<NavId, string> = { ...VIEW_ICONS, settings: iconSettings }
+const NAV_ICONS: Record<NavId, string> = VIEW_ICONS
 
 const NAV_CENTER = 2 // visual center is slot index 2
 const NAV_SLOT_W = 220 // px per slot
@@ -254,7 +281,7 @@ function NavBar({
               onClick={onClick}
               aria-label={id}
             >
-              <img src={NAV_ICONS[id]} alt="" className="hu-nav-icon" draggable={false} />
+              <ThemedIcon src={NAV_ICONS[id]} className="hu-nav-icon" />
             </button>
           )
         })}
@@ -519,24 +546,24 @@ function MusicView({
         }}
       >
         <button className="hu-quick-btn" onClick={onLaunchCarplay} aria-label="CarPlay">
-          <img src={iconCarplay} alt="" className="hu-quick-btn-img" />
+          <ThemedIcon src={iconCarplay} className="hu-quick-btn-img" />
         </button>
         <button className="hu-quick-btn hu-quick-btn-disabled" disabled aria-label="Android Auto">
-          <img src={iconMobile} alt="" className="hu-quick-btn-img" />
+          <ThemedIcon src={iconMobile} className="hu-quick-btn-img" />
         </button>
         <button
           className="hu-quick-btn"
           onClick={() => onSelectView('phone')}
           aria-label="Recent Calls"
         >
-          <img src={iconRecent} alt="" className="hu-quick-btn-img" />
+          <ThemedIcon src={iconRecent} className="hu-quick-btn-img" />
         </button>
         <button
           className="hu-quick-btn"
           onClick={onOpenEqualizer}
           aria-label="Equalizer"
         >
-          <img src={iconSettings} alt="" className="hu-quick-btn-img" />
+          <ThemedIcon src={iconSettings} className="hu-quick-btn-img" />
         </button>
       </div>
 
@@ -545,20 +572,21 @@ function MusicView({
           className={`hu-music-art${isPlaying ? ' hu-art-pulse' : ''}`}
           style={{ ['--art-size' as any]: `${ALBUM_ART_SIZE}px` }}
         >
-          <img
-            src={artworkSrc ?? iconBluetooth}
-            alt=""
-            {...(artworkSrc ? { crossOrigin: 'anonymous' as const } : {})}
-            className={`hu-art-img${artworkSrc ? '' : ' hu-art-img--fallback'}`}
-            onError={(e) => {
-              const img = e.currentTarget as HTMLImageElement
-              if (img.src !== iconBluetooth) {
-                img.removeAttribute('crossOrigin')
-                img.src = iconBluetooth
-                img.classList.add('hu-art-img--fallback')
-              }
-            }}
-          />
+          {artworkSrc ? (
+            <img
+              src={artworkSrc}
+              alt=""
+              crossOrigin="anonymous"
+              className="hu-art-img"
+              onError={(e) => {
+                // Real artwork failed — let it fall through to the themed
+                // bluetooth placeholder by clearing the src; React re-renders.
+                (e.currentTarget as HTMLImageElement).style.display = 'none'
+              }}
+            />
+          ) : (
+            <ThemedIcon src={iconBluetooth} className="hu-art-img hu-art-img--fallback" />
+          )}
         </div>
         <div className="hu-music-text">
           <div className="hu-music-via">
@@ -652,18 +680,18 @@ function DevicesView({
         <div className="hu-panel-label">CONNECT VIA</div>
 
         <button className="hu-list-btn">
-          <img src={iconMobile} alt="" className="hu-list-btn-icon" />
+          <ThemedIcon src={iconMobile} className="hu-list-btn-icon" />
           <span>Phone</span>
         </button>
 
         <button className="hu-list-btn hu-list-btn-disabled" disabled>
-          <img src={iconMobile} alt="" className="hu-list-btn-icon" style={{ opacity: 0.4 }} />
+          <ThemedIcon src={iconMobile} className="hu-list-btn-icon" style={{ opacity: 0.4 }} />
           <span>Android Auto</span>
           <span className="hu-opt-tag">—</span>
         </button>
 
         <button className="hu-list-btn" onClick={onLaunchCarplay}>
-          <img src={iconCarplay} alt="" className="hu-list-btn-icon" />
+          <ThemedIcon src={iconCarplay} className="hu-list-btn-icon" />
           <span>Apple CarPlay</span>
           <span className="hu-opt-tag">▶</span>
         </button>
@@ -759,14 +787,16 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
   const warn = warnAbove !== undefined && value > warnAbove
   // Picks up the live CSS theme variables so colour-scheme changes apply
   // without a re-render.  Warn (over-redline) flips to amber regardless of theme.
-  const arcColor    = warn ? 'var(--hu-warn)'      : 'var(--hu-green)'
-  const dimColor    = warn ? '#8a3a0f'             : 'var(--hu-green-mid)'
+  const arcColor    = warn ? 'var(--hu-warn)'      : 'var(--hu-primary)'
+  const dimColor    = warn ? '#8a3a0f'             : 'var(--hu-primary-mid)'
   const needleColor = warn ? 'var(--hu-warn)'      : 'var(--hu-peak)'
 
   const nDeg = G_START + pct * G_SWEEP
-  const nTip = polarToCartesian(cx, cy, r - 6, nDeg)
-  const nL = polarToCartesian(cx, cy, 7, nDeg + 90)
-  const nR = polarToCartesian(cx, cy, 7, nDeg - 90)
+  // Long, narrow spear — tip reaches almost to the inside edge of the arc;
+  // base is only 3 px so the silhouette is sharply pointed.
+  const nTip = polarToCartesian(cx, cy, r - 4, nDeg)
+  const nL   = polarToCartesian(cx, cy, 3, nDeg + 90)
+  const nR   = polarToCartesian(cx, cy, 3, nDeg - 90)
 
   const ticks = Array.from({ length: 6 }, (_, i) => {
     const deg = G_START + (i / 5) * G_SWEEP
@@ -998,7 +1028,7 @@ function PhoneView({ bt }: { bt: ReturnType<typeof useBluetooth> }) {
               className={`hu-list-btn${tab === t ? ' hu-list-btn-active' : ''}`}
               onClick={() => setTab(t)}
             >
-              <img src={PHONE_TAB_ICONS[t]} alt="" className="hu-list-btn-icon" />
+              <ThemedIcon src={PHONE_TAB_ICONS[t]} className="hu-list-btn-icon" />
               <span>{PHONE_TAB_LABEL[t]}</span>
             </button>
           ))}
@@ -1069,7 +1099,7 @@ function PhoneView({ bt }: { bt: ReturnType<typeof useBluetooth> }) {
 // events.  Once a scroll is detected (> 8 px vertical) the container calls
 // setPointerCapture so future move/up events bypass the child rows entirely —
 // that prevents any useTap from firing at the end of a drag.
-function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
+export function useScrollContainer<T extends HTMLElement = HTMLDivElement>() {
   const ref = useRef<T>(null)
   const st = useRef({
     active: false,
@@ -1194,7 +1224,7 @@ function ContactRow({
           }}
           aria-label="Call"
         >
-          <img src={iconPhone} alt="call" className="hu-call-icon-img" />
+          <ThemedIcon src={iconPhone} className="hu-call-icon-img" />
         </button>
       )}
     </div>
@@ -1301,7 +1331,7 @@ function RecentRow({
           }}
           aria-label="Call"
         >
-          <img src={iconPhone} alt="call" className="hu-call-icon-img" />
+          <ThemedIcon src={iconPhone} className="hu-call-icon-img" />
         </button>
       )}
     </div>
@@ -1393,7 +1423,7 @@ function DialerView({
             disabled={!dial}
             aria-label="Call"
           >
-            <img src={iconPhone} alt="call" className="hu-numpad-call-icon" />
+            <ThemedIcon src={iconPhone} className="hu-numpad-call-icon" />
           </button>
           <button className="hu-numpad-key" onClick={() => setDial((p) => p.slice(0, -1))}>
             <span className="hu-numpad-digit">⌫</span>
@@ -1479,7 +1509,7 @@ function InCallScreen({
           <span className="hu-incall-btn-glyph">{call.muted ? 'UN-MUTE' : 'MUTE'}</span>
         </button>
         <button className="hu-incall-btn hu-incall-hangup" onClick={bt.hangup}>
-          <img src={iconPhone} alt="" className="hu-incall-btn-img hu-incall-hangup-icon" />
+          <ThemedIcon src={iconPhone} className="hu-incall-btn-img hu-incall-hangup-icon" />
         </button>
         <button className="hu-incall-btn" onClick={onMinimise}>
           <span className="hu-incall-btn-glyph">SCREENS</span>
@@ -1523,7 +1553,7 @@ function CallPopup({
             ✕
           </button>
           <button className="hu-call-popup-btn hu-call-popup-accept" onClick={bt.answer}>
-            <img src={iconPhone} alt="" className="hu-call-popup-icon" />
+            <ThemedIcon src={iconPhone} className="hu-call-popup-icon" />
           </button>
         </div>
       </div>
@@ -1570,7 +1600,6 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   // Auto-opens when a call becomes active, can be minimised back.
   const [callFull, setCallFull] = useState(false)
   const [eqOpen, setEqOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Open the full call screen when an active call appears; reset when idle.
   useEffect(() => {
@@ -1659,6 +1688,13 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
         return <GaugesView vehicleData={vehicleData} />
       case 'phone':
         return <PhoneView bt={bt} recents={recents} />
+      case 'settings':
+        return (
+          <SettingsView
+            onOpenEqualizer={() => setEqOpen(true)}
+            onOpenCarplaySettings={() => onOpenSettings?.()}
+          />
+        )
     }
   }
 
@@ -1693,22 +1729,11 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
               ))}
             </div>
 
-            {/* Settings panel — overlays the content area only.  Header (above)
-                and nav bar (below) stay visible so the screen has the same
-                chrome as every other view. */}
-            {settingsOpen && (
-              <div className="hu-settings-overlay">
-                <SettingsView
-                  onOpenEqualizer={() => setEqOpen(true)}
-                  onOpenCarplaySettings={() => onOpenSettings?.()}
-                />
-              </div>
-            )}
           </main>
           <NavBar
-            active={settingsOpen ? 'settings' : activeView}
-            onSelect={(v) => { setSettingsOpen(false); handleSelect(v) }}
-            onSettings={() => setSettingsOpen(s => !s)}
+            active={activeView}
+            onSelect={handleSelect}
+            onSettings={() => setActiveView('settings')}
           />
 
           {showFullCall && (

@@ -136,6 +136,10 @@ export class BluetoothManager {
   // Track which sinks we boosted so we don't keep retrying the same one.
   private boostedSinks = new Set<string>()
 
+  // Player paths we've already auto-played for since the phone connected.
+  // Cleared when the player disappears so a fresh reconnect re-triggers.
+  private autoPlayedPlayers = new Set<string>()
+
   // outbound state
   private media: MediaState = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
   private call:  CallState  = { status: 'idle', durationSec: 0, muted: false }
@@ -470,6 +474,20 @@ export class BluetoothManager {
       // immediately so the renderer catches up to a song already in progress
       // (e.g. connected at 1:36, would otherwise show 0:00 until the 1 Hz poll fires).
       this.refreshPlayerPosition().catch(() => undefined)
+      // Auto-play once per player appearance: if the phone is paused/stopped
+      // when its MediaPlayer1 attaches (typical for a fresh connect), kick off
+      // playback so the user doesn't have to reach for the play button.  Some
+      // phones (notably iOS) refuse the Play command until 1-2 s after the
+      // profile is fully negotiated — small delay handles that.
+      if (!this.media.playing && !this.autoPlayedPlayers.has(path)) {
+        this.autoPlayedPlayers.add(path)
+        setTimeout(() => {
+          if (this.activePlayerPath === path && !this.media.playing) {
+            console.log('[bt] auto-play on connect →', path)
+            this.mediaCmd('play').catch(() => undefined)
+          }
+        }, 1500)
+      }
     }
     if (interfaces[IFACE_BATTERY] && !interfaces[IFACE_DEVICE] && this.devicePaths.has(path)) {
       const b = unwrapVariants(interfaces[IFACE_BATTERY])
@@ -501,6 +519,8 @@ export class BluetoothManager {
     if (ifaces.includes(IFACE_PLAYER) && this.activePlayerPath === path) {
       this.activePlayerPath = null
       this.media = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
+      // Allow auto-play to fire again next time this player attaches.
+      this.autoPlayedPlayers.delete(path)
       this.pushMedia()
     }
   }

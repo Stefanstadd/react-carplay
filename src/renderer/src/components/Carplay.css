@@ -43,7 +43,7 @@
 
 .cp-loading-title {
   font-size: 56px;
-  color: var(--hu-green, #00ff0a);
+  color: var(--hu-primary, #00ff0a);
   letter-spacing: 0.20em;
   font-weight: bold;
   text-transform: uppercase;
@@ -52,7 +52,7 @@
 
 .cp-loading-sub {
   font-size: 28px;
-  color: var(--hu-green-mid, #008a06);
+  color: var(--hu-primary-mid, #008a06);
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -60,7 +60,7 @@
 .cp-loading-bar {
   width: 480px;
   height: 8px;
-  background: var(--hu-green-deep, #003a02);
+  background: var(--hu-primary-deep, #003a02);
   position: relative;
   overflow: hidden;
 }
@@ -71,7 +71,7 @@
   left: -30%;
   width: 30%;
   height: 100%;
-  background: var(--hu-green, #00ff0a);
+  background: var(--hu-primary, #00ff0a);
   animation: cp-scan 1.6s ease-in-out infinite;
 }
 
@@ -87,7 +87,7 @@
   z-index: 50;
   background: transparent;
   border: none;
-  color: var(--hu-green, #00ff0a);
+  color: var(--hu-primary, #00ff0a);
   font-family: 'VT323', monospace;
   /* Base size — scaled at render time via the --cp-exit-scale CSS var
      (set from CARPLAY_EXIT_BTN_SCALE in headunit.config.ts). */
@@ -101,6 +101,6 @@
 
 .cp-exit-btn:hover,
 .cp-exit-btn:focus-visible {
-  background: var(--hu-green, #00ff0a);
+  background: var(--hu-primary, #00ff0a);
   color: var(--hu-bg-deep, #001500);
 }

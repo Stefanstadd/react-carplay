@@ -18,6 +18,7 @@ import {
   type VizConfig,
 } from './userSettings'
 import { useAudioVisualizer, barColor } from './audioVisualizer'
+import { useScrollContainer } from './HeadUnit'
 
 type SubPage = 'general' | 'viz' | 'eq' | 'carplay' | 'gauges'
 
@@ -37,6 +38,10 @@ interface SettingsViewProps {
 export default function SettingsView({ onOpenEqualizer, onOpenCarplaySettings }: SettingsViewProps) {
   const us = useUserSettings()
   const [page, setPage] = useState<SubPage>('general')
+  // Same touch-scroll pattern as the contacts list — no native scrollbar,
+  // just a finger-drag with momentum that doesn't fight the global
+  // `touch-action: none` on the App root.
+  const scroll = useScrollContainer<HTMLDivElement>()
 
   return (
     <div className="hu-screen">
@@ -46,14 +51,18 @@ export default function SettingsView({ onOpenEqualizer, onOpenCarplaySettings }:
           <button
             key={p.id}
             className={`hu-list-btn${page === p.id ? ' hu-list-btn-active' : ''}`}
-            onClick={() => setPage(p.id)}
+            onClick={() => { setPage(p.id); if (scroll.ref.current) scroll.ref.current.scrollTop = 0 }}
           >
             <span>{p.label}</span>
           </button>
         ))}
       </div>
 
-      <div className="hu-main-area">
+      <div
+        className="hu-main-area hu-settings-scroll"
+        ref={scroll.ref}
+        {...scroll.handlers}
+      >
         {page === 'general' && <GeneralPage us={us} />}
         {page === 'viz'     && <VizPage us={us} />}
         {page === 'eq'      && <EqualizerPage onOpenEqualizer={onOpenEqualizer} />}
@@ -71,13 +80,14 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
   const [renaming, setRenaming] = useState(false)
   const [presetName, setPresetName] = useState('')
 
-  const setPrimary = (hex: string) => us.setTheme({ primary: hex })
-  const setPeak    = (hex: string) => us.setTheme({ peak: hex })
-
   const pickPreset = (name: string) => {
     const p = presets.find(x => x.name === name)
     if (!p) return
-    us.setTheme({ primary: p.primary, peak: p.peak, activePreset: name })
+    us.setTheme({
+      primary: p.primary, peak: p.peak,
+      background: p.background, warn: p.warn, miss: p.miss,
+      activePreset: name,
+    })
   }
 
   const onSavePreset = () => {
@@ -88,36 +98,33 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
     setPresetName('')
   }
 
+  const COLORS: { key: 'primary' | 'peak' | 'background' | 'warn' | 'miss'; label: string; hint: string }[] = [
+    { key: 'primary',    label: 'PRIMARY',    hint: 'Text, borders, icons' },
+    { key: 'peak',       label: 'PEAK',       hint: 'Visualizer peaks & gauge needles' },
+    { key: 'background', label: 'BACKGROUND', hint: 'Screen base color' },
+    { key: 'warn',       label: 'WARN',       hint: 'Over-redline / temp warnings' },
+    { key: 'miss',       label: 'MISS',       hint: 'Missed call indicator' },
+  ]
+
   return (
     <div className="hu-settings-page">
-      <div className="hu-panel-label">THEME</div>
+      <div className="hu-panel-label">COLORS</div>
 
-      <div className="hu-settings-row">
-        <div className="hu-settings-row-label">PRIMARY</div>
-        <div className="hu-settings-row-body">
-          <input
-            type="color"
-            className="hu-color-picker"
-            value={us.state.theme.primary}
-            onChange={(e) => setPrimary(e.target.value)}
-          />
-          <div className="hu-hex-label">{us.state.theme.primary.toUpperCase()}</div>
+      {COLORS.map(c => (
+        <div key={c.key} className="hu-settings-row">
+          <div className="hu-settings-row-label">{c.label}</div>
+          <div className="hu-settings-row-body">
+            <input
+              type="color"
+              className="hu-color-picker"
+              value={us.state.theme[c.key]}
+              onChange={(e) => us.setTheme({ [c.key]: e.target.value } as any)}
+            />
+            <div className="hu-hex-label">{us.state.theme[c.key].toUpperCase()}</div>
+            <div className="hu-settings-hint">{c.hint}</div>
+          </div>
         </div>
-      </div>
-
-      <div className="hu-settings-row">
-        <div className="hu-settings-row-label">PEAK</div>
-        <div className="hu-settings-row-body">
-          <input
-            type="color"
-            className="hu-color-picker"
-            value={us.state.theme.peak}
-            onChange={(e) => setPeak(e.target.value)}
-          />
-          <div className="hu-hex-label">{us.state.theme.peak.toUpperCase()}</div>
-          <div className="hu-settings-hint">Visualizer peaks &amp; gauge needles</div>
-        </div>
-      </div>
+      ))}
 
       <div className="hu-panel-label" style={{ marginTop: 24 }}>PRESETS</div>
       <div className="hu-theme-swatches">
@@ -129,7 +136,12 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
               className={`hu-theme-swatch${isActive ? ' hu-theme-swatch-active' : ''}`}
               onClick={() => pickPreset(p.name)}
             >
-              <div className="hu-theme-swatch-color" style={{ background: p.primary, boxShadow: `inset 0 -10px 0 ${p.peak}` }} />
+              {/* Three-band preview: background bg, primary middle, peak bottom */}
+              <div className="hu-theme-swatch-preview">
+                <div className="hu-theme-swatch-band" style={{ background: p.background }} />
+                <div className="hu-theme-swatch-band" style={{ background: p.primary }} />
+                <div className="hu-theme-swatch-band" style={{ background: p.peak }} />
+              </div>
               <div className="hu-theme-swatch-name">{p.name.toUpperCase()}</div>
               {!p.builtin && (
                 <button

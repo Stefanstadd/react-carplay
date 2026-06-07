@@ -23,16 +23,29 @@ import {
 // ─── Canvas bar graph ────────────────────────────────────────────────────────
 
 const Y_TICKS = [-12, -8, -4, 0, 4, 8, 12]
-const BAR_COLOR        = '#00ff00'
-const GRID_COLOR       = '#004400'
-const GRID_LABEL_COLOR = '#00ff0a'   // bright green — matches body text
 
 // Canvas plot padding constants used by both the draw() function and the
 // drag handler so they stay in sync.
 const PAD_L = 70, PAD_R = 24, PAD_T = 24, PAD_B = 36
 
+/** Look up a CSS custom property on the root and return the trimmed value.
+ *  Used by the canvas so it picks up theme colours. */
+function readVar(name: string, fallback: string): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
 function EQCanvas({ bands }: { bands: number[] }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  // Tracks the active theme so we redraw the canvas when colours change.
+  // applyTheme() in userSettings.ts toggles a data attribute on <html> we
+  // can subscribe to via MutationObserver.
+  const [themeTick, setThemeTick] = useState(0)
+  useEffect(() => {
+    const obs = new MutationObserver(() => setThemeTick(t => t + 1))
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
     const cvs = ref.current
@@ -43,7 +56,7 @@ function EQCanvas({ bands }: { bands: number[] }) {
       cvs.height = Math.floor(rect.height)
     }
     draw(cvs, bands)
-  }, [bands])
+  }, [bands, themeTick])
 
   return <canvas ref={ref} className="hu-eq-canvas" />
 }
@@ -53,6 +66,11 @@ function draw(cvs: HTMLCanvasElement, bands: number[]) {
   if (!ctx) return
   const W = cvs.width, H = cvs.height
   ctx.clearRect(0, 0, W, H)
+
+  // Theme colours, read at paint time so theme changes flow into the canvas.
+  const barColor       = readVar('--hu-primary',      '#00ff00')
+  const gridColor      = readVar('--hu-primary-deep', '#004400')
+  const gridLabelColor = readVar('--hu-primary',      '#00ff0a')
 
   // ── Plot area
   const plotW = W - PAD_L - PAD_R
@@ -65,12 +83,12 @@ function draw(cvs: HTMLCanvasElement, bands: number[]) {
   ctx.textBaseline = 'middle'
   for (const db of Y_TICKS) {
     const y = Math.round(yFor(db)) + 0.5
-    ctx.strokeStyle = GRID_COLOR
+    ctx.strokeStyle = gridColor
     ctx.beginPath()
     ctx.moveTo(PAD_L, y)
     ctx.lineTo(W - PAD_R, y)
     ctx.stroke()
-    ctx.fillStyle = GRID_LABEL_COLOR
+    ctx.fillStyle = gridLabelColor
     ctx.font = '24px "VT323", monospace'
     ctx.fillText(`${db > 0 ? '+' : ''}${db}`, PAD_L - 12, y)
   }
@@ -78,7 +96,7 @@ function draw(cvs: HTMLCanvasElement, bands: number[]) {
   // ── Bars (centered around the 0 dB baseline that yFor() computes per call)
   const slot = plotW / BAND_COUNT
   const barW = Math.max(8, Math.floor(slot * 0.55))
-  ctx.fillStyle = BAR_COLOR
+  ctx.fillStyle = barColor
   for (let i = 0; i < BAND_COUNT; i++) {
     const g = bands[i] ?? 0
     const x = Math.round(PAD_L + slot * i + (slot - barW) / 2)
@@ -89,7 +107,7 @@ function draw(cvs: HTMLCanvasElement, bands: number[]) {
   }
 
   // ── Frequency labels under each bar
-  ctx.fillStyle = BAR_COLOR
+  ctx.fillStyle = barColor
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
   ctx.font = '22px "VT323", monospace'

@@ -2,16 +2,18 @@
 
 /* ─── Color tokens ────────────────────────────────────────────────────────── */
 :root {
-  --hu-bg-deep:      #001500;
-  --hu-bg-panel:     #000d00;
-  --hu-green:        #00ff0a;   /* matches icon PNG color exactly */
-  --hu-green-mid:    #008a06;   /* mid-tone label color (same hue, ~54%) */
-  --hu-green-dim:    #005c04;   /* dim, less than mid (~36%) */
-  --hu-green-deep:   #003a02;   /* deep accent */
-  --hu-peak:         #00ff0a;   /* visualiser peaks + gauge needles (user-set) */
-  --hu-divider:      #0a1f0a;   /* very subtle row divider */
-  --hu-warn:         #ff6b1a;
-  --hu-miss:         #ff4444;
+  /* Theme variables — every one is overridden at runtime by applyTheme()
+   * in userSettings.ts.  Defaults below are the original Saab green look. */
+  --hu-bg-deep:        #001500;
+  --hu-bg-panel:       #000d00;
+  --hu-primary:        #00ff0a;
+  --hu-primary-mid:    #008a06;
+  --hu-primary-dim:    #005c04;
+  --hu-primary-deep:   #003a02;
+  --hu-peak:           #00ff0a;
+  --hu-divider:        #0a1f0a;
+  --hu-warn:           #ff6b1a;
+  --hu-miss:           #ff4444;
 }
 
 /* ─── Viewport / scaling wrapper ────────────────────────────────────────── */
@@ -37,7 +39,7 @@
   width: 1920px;
   height: 1080px;
   background: var(--hu-bg-deep);
-  color: var(--hu-green);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   display: flex;
   flex-direction: column;
@@ -75,6 +77,34 @@ img.hu-numpad-call-icon {
   image-rendering: crisp-edges;
 }
 
+/* ─── Theme-coloured icon ────────────────────────────────────────────────
+ * PNG icons are baked at a fixed colour; rendering them as <img> would
+ * never pick up theme changes.  Instead we render a <span> whose background
+ * is the live theme colour and use the PNG as a CSS mask — opaque pixels
+ * in the PNG show through, transparent ones don't.  Per-element the icon
+ * URL is passed via the `--icon-url` CSS variable. */
+.hu-themed-icon {
+  display: inline-block;
+  vertical-align: middle;
+  background-color: var(--hu-primary);
+  -webkit-mask-image: var(--icon-url);
+          mask-image: var(--icon-url);
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-size: contain;
+          mask-size: contain;
+  user-select: none;
+  pointer-events: none;
+}
+/* Variants so callers can override the icon colour locally without redefining
+ * the mask plumbing. */
+.hu-themed-icon-peak { background-color: var(--hu-peak); }
+.hu-themed-icon-bg   { background-color: var(--hu-bg-deep); }
+.hu-themed-icon-mid  { background-color: var(--hu-primary-mid); }
+.hu-themed-icon-warn { background-color: var(--hu-warn); }
+
 /* ─── Header ────────────────────────────────────────────────────────────── */
 .hu-header {
   display: flex;
@@ -83,7 +113,7 @@ img.hu-numpad-call-icon {
   padding: 8px 48px;
   height: 90px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--hu-green-mid);
+  border-bottom: 1px solid var(--hu-primary-mid);
   background: var(--hu-bg-deep);
 }
 
@@ -94,7 +124,7 @@ img.hu-numpad-call-icon {
 
 .hu-clock-date {
   font-size: 32px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.10em;
   text-transform: uppercase;
   line-height: 1;
@@ -102,7 +132,7 @@ img.hu-numpad-call-icon {
 
 .hu-clock-time {
   font-size: 62px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.10em;
   line-height: 1;
 }
@@ -115,18 +145,18 @@ img.hu-numpad-call-icon {
 
 .hu-phone-name {
   font-size: 36px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.06em;
 }
 
 .hu-phone-name-dim {
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.18em;
 }
 
 .hu-phone-batt {
   font-size: 26px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.04em;
   display: inline-flex;
   align-items: center;
@@ -135,7 +165,7 @@ img.hu-numpad-call-icon {
 
 .hu-phone-charging {
   font-size: 28px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   line-height: 1;
 }
 
@@ -203,7 +233,7 @@ img.hu-numpad-call-icon {
 .hu-sidebar {
   width: 460px;
   flex-shrink: 0;
-  border-right: 1px solid var(--hu-green-mid);
+  border-right: 1px solid var(--hu-primary-mid);
   display: flex;
   flex-direction: column;
   padding: 28px 32px;
@@ -230,7 +260,7 @@ img.hu-numpad-call-icon {
 .hu-list-btn {
   background: transparent;
   border: none;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   font-size: 34px;
   font-weight: bold;
@@ -255,7 +285,7 @@ img.hu-numpad-call-icon {
 .hu-list-btn:hover,
 .hu-list-btn-active,
 .hu-list-btn:focus-visible {
-  background: var(--hu-green);
+  background: var(--hu-primary);
   color: var(--hu-bg-deep);
 }
 
@@ -282,10 +312,10 @@ img.hu-numpad-call-icon {
 /* ─── Panel label ──────────────────────────────────────────────────────── */
 .hu-panel-label {
   font-size: 28px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  border-bottom: 1px solid var(--hu-green-mid);
+  border-bottom: 1px solid var(--hu-primary-mid);
   padding-bottom: 10px;
   margin-bottom: 6px;
 }
@@ -367,7 +397,7 @@ img.hu-numpad-call-icon {
 
 .hu-quick-btn:hover:not(:disabled),
 .hu-quick-btn:focus-visible:not(:disabled) {
-  background: var(--hu-green);
+  background: var(--hu-primary);
 }
 
 .hu-quick-btn:hover:not(:disabled) .hu-quick-btn-img,
@@ -452,7 +482,7 @@ img.hu-numpad-call-icon {
   flex: 1;
   font-size: 18px;
   text-align: center;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.04em;
   line-height: 1;
   white-space: nowrap;
@@ -470,7 +500,7 @@ img.hu-numpad-call-icon {
 .hu-music-art {
   width: var(--art-size, 180px);
   height: var(--art-size, 180px);
-  border: 2px solid var(--hu-green);
+  border: 2px solid var(--hu-primary);
   background: var(--hu-bg-deep);
   display: flex;
   align-items: center;
@@ -511,7 +541,7 @@ img.hu-numpad-call-icon {
 
 .hu-music-via {
   font-size: 26px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
@@ -522,7 +552,7 @@ img.hu-numpad-call-icon {
 .hu-music-title {
   font-size: 46px;
   font-weight: bold;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.04em;
   line-height: 1.05;
 }
@@ -550,14 +580,14 @@ img.hu-numpad-call-icon {
 
 .hu-music-artist {
   font-size: 32px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.04em;
   line-height: 1.1;
 }
 
 .hu-music-album {
   font-size: 28px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   line-height: 1.1;
 }
 
@@ -573,13 +603,13 @@ img.hu-numpad-call-icon {
 .hu-progress-track {
   width: 100%;
   height: 6px;
-  background: var(--hu-green-mid);
+  background: var(--hu-primary-mid);
   overflow: hidden;
 }
 
 .hu-progress-fill {
   height: 100%;
-  background: var(--hu-green);
+  background: var(--hu-primary);
   transition: width 0.5s linear;
 }
 
@@ -587,7 +617,7 @@ img.hu-numpad-call-icon {
   display: flex;
   justify-content: space-between;
   font-size: 28px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   margin-top: 4px;
   letter-spacing: 0.06em;
 }
@@ -611,13 +641,13 @@ img.hu-numpad-call-icon {
   /* Fast highlight on press, slow fade back so a tap always flashes for
    * a moment instead of either stuck-on or invisibly short. */
   transition: background 420ms ease-out, color 420ms ease-out;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   padding: 0;
   transition: background 120ms ease, color 120ms ease;
 }
 
 .hu-transport-btn:active {
-  background: var(--hu-green);
+  background: var(--hu-primary);
   color: var(--hu-bg-deep);
   transition: background 30ms linear, color 30ms linear;   /* snap on */
 }
@@ -627,7 +657,7 @@ img.hu-numpad-call-icon {
 @media (hover: hover) {
   .hu-transport-btn:hover,
   .hu-transport-btn:focus-visible {
-    background: var(--hu-green);
+    background: var(--hu-primary);
     color: var(--hu-bg-deep);
   }
 }
@@ -642,19 +672,19 @@ img.hu-numpad-call-icon {
   padding: 20px 4px;
   border-bottom: 1px solid var(--hu-divider);
   font-size: 30px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
 }
 
 .hu-device-tag {
   margin-left: auto;
   font-size: 22px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.16em;
 }
 
 .hu-device-sub {
   font-size: 22px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   margin-top: 2px;
 }
 
@@ -676,8 +706,8 @@ img.hu-numpad-call-icon {
 
 .hu-device-action-btn {
   background: transparent;
-  border: 1.5px solid var(--hu-green-dim);
-  color: var(--hu-green);
+  border: 1.5px solid var(--hu-primary-dim);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   font-size: 24px;
   letter-spacing: 0.08em;
@@ -687,7 +717,7 @@ img.hu-numpad-call-icon {
   cursor: pointer;
 }
 .hu-device-action-btn:active {
-  background: var(--hu-green-deep);
+  background: var(--hu-primary-deep);
 }
 .hu-device-action-forget {
   color: var(--hu-warn);
@@ -718,7 +748,7 @@ img.hu-numpad-call-icon {
 
 .hu-gauge-label {
   font-size: 28px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   text-align: center;
@@ -741,21 +771,21 @@ img.hu-numpad-call-icon {
 
 .hu-gauge-text-label {
   font-size: 26px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
 .hu-gauge-text-value {
   font-size: 50px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.06em;
   line-height: 1;
 }
 
 .hu-gauge-text-unit {
   font-size: 0.45em;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   margin-left: 8px;
   letter-spacing: 0.08em;
 }
@@ -775,7 +805,7 @@ img.hu-numpad-call-icon {
 
 .hu-phone-content::-webkit-scrollbar { width: 4px; }
 .hu-phone-content::-webkit-scrollbar-track { background: transparent; }
-.hu-phone-content::-webkit-scrollbar-thumb { background: var(--hu-green-mid); }
+.hu-phone-content::-webkit-scrollbar-thumb { background: var(--hu-primary-mid); }
 
 .hu-list { display: flex; flex-direction: column; }
 
@@ -794,7 +824,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-list-row:hover {
-  background: var(--hu-green);
+  background: var(--hu-primary);
   color: var(--hu-bg-deep);
 }
 
@@ -813,18 +843,18 @@ img.hu-numpad-call-icon {
 .hu-avatar {
   width: 60px;
   height: 60px;
-  background: var(--hu-green-deep);
+  background: var(--hu-primary-deep);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 32px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   flex-shrink: 0;
 }
 
 .hu-list-name {
   font-size: 36px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   line-height: 1.1;
   font-weight: bold;
   text-align: left;
@@ -832,7 +862,7 @@ img.hu-numpad-call-icon {
 
 .hu-list-sub {
   font-size: 28px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   margin-top: 2px;
   text-align: left;
 }
@@ -840,7 +870,7 @@ img.hu-numpad-call-icon {
 .hu-call-icon-btn {
   margin-left: auto;
   background: transparent;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   border: none;
   width: 64px;
   height: 64px;
@@ -854,7 +884,7 @@ img.hu-numpad-call-icon {
 
 .hu-call-icon-btn:hover,
 .hu-call-icon-btn:focus-visible {
-  background: var(--hu-green);
+  background: var(--hu-primary);
 }
 
 .hu-call-icon-btn:hover .hu-call-icon-img,
@@ -865,14 +895,14 @@ img.hu-numpad-call-icon {
 .hu-call-icon-img { width: 36px; height: 36px; }
 
 .hu-call-dir { font-size: 32px; width: 36px; text-align: center; flex-shrink: 0; }
-.hu-call-in   { color: var(--hu-green);     }
-.hu-call-out  { color: var(--hu-green-mid); }
+.hu-call-in   { color: var(--hu-primary);     }
+.hu-call-out  { color: var(--hu-primary-mid); }
 .hu-call-miss { color: var(--hu-miss);      }
 
 .hu-call-time {
   margin-left: auto;
   font-size: 30px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   flex-shrink: 0;
 }
 
@@ -888,17 +918,17 @@ img.hu-numpad-call-icon {
 .hu-dial-display {
   width: 420px;
   height: 76px;
-  border-bottom: 2px solid var(--hu-green);
+  border-bottom: 2px solid var(--hu-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 50px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.22em;
   margin-bottom: 6px;
 }
 
-.hu-dial-placeholder { font-size: 28px; color: var(--hu-green-mid); letter-spacing: 0.10em; }
+.hu-dial-placeholder { font-size: 28px; color: var(--hu-primary-mid); letter-spacing: 0.10em; }
 
 .hu-numpad-row { display: flex; gap: 16px; justify-content: center; }
 
@@ -907,7 +937,7 @@ img.hu-numpad-call-icon {
   height: 100px;
   border: none;
   background: transparent;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   font-size: 44px;
   cursor: pointer;
@@ -921,12 +951,12 @@ img.hu-numpad-call-icon {
 .hu-numpad-key:hover,
 .hu-numpad-key:focus-visible,
 .hu-numpad-key:active {
-  background: var(--hu-green);
+  background: var(--hu-primary);
   color: var(--hu-bg-deep);
 }
 
 .hu-call-green {
-  background: var(--hu-green) !important;
+  background: var(--hu-primary) !important;
   color: var(--hu-bg-deep) !important;
 }
 
@@ -941,7 +971,7 @@ img.hu-numpad-call-icon {
   height: 130px;
   flex-shrink: 0;
   background: var(--hu-bg-deep);
-  border-top: 1px solid var(--hu-green-mid);
+  border-top: 1px solid var(--hu-primary-mid);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -963,7 +993,7 @@ img.hu-numpad-call-icon {
   flex-shrink: 0;
   background: transparent;
   border: none;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -977,7 +1007,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-nav-active {
-  background: var(--hu-green) !important;
+  background: var(--hu-primary) !important;
 }
 
 .hu-nav-icon {
@@ -1006,14 +1036,14 @@ img.hu-numpad-call-icon {
 
 .hu-empty-title {
   font-size: 42px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.20em;
   text-transform: uppercase;
 }
 
 .hu-empty-sub {
   font-size: 28px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.06em;
   max-width: 720px;
   line-height: 1.3;
@@ -1039,13 +1069,13 @@ img.hu-numpad-call-icon {
   flex: 1;
   align-self: stretch;
   min-width: 0;
-  border-left: 1px solid var(--hu-green-mid);
+  border-left: 1px solid var(--hu-primary-mid);
   padding-left: 28px;
   overflow-y: hidden;
 }
 
 .hu-dial-matches::-webkit-scrollbar { width: 4px; }
-.hu-dial-matches::-webkit-scrollbar-thumb { background: var(--hu-green-mid); }
+.hu-dial-matches::-webkit-scrollbar-thumb { background: var(--hu-primary-mid); }
 
 /* ─── In-call full-screen overlay ──────────────────────────────────────── */
 .hu-incall-overlay {
@@ -1078,16 +1108,16 @@ img.hu-numpad-call-icon {
   align-items: baseline;
   font-size: 32px;
   letter-spacing: 0.18em;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   text-transform: uppercase;
 }
 
 .hu-incall-status {
-  color: var(--hu-green);
+  color: var(--hu-primary);
 }
 
 .hu-incall-duration {
-  color: var(--hu-green);
+  color: var(--hu-primary);
   font-size: 44px;
   letter-spacing: 0.10em;
 }
@@ -1095,7 +1125,7 @@ img.hu-numpad-call-icon {
 .hu-incall-photo {
   width: 260px;
   height: 260px;
-  border: 3px solid var(--hu-green);
+  border: 3px solid var(--hu-primary);
   margin-top: 26px;
   display: flex;
   align-items: center;
@@ -1112,20 +1142,20 @@ img.hu-numpad-call-icon {
 
 .hu-incall-photo-fallback {
   font-size: 140px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
 }
 
 .hu-incall-name {
   font-size: 64px;
   font-weight: bold;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.04em;
   margin-top: 16px;
 }
 
 .hu-incall-num {
   font-size: 36px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.10em;
 }
 
@@ -1139,7 +1169,7 @@ img.hu-numpad-call-icon {
   width: 160px;
   height: 160px;
   background: transparent;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   border: none;
   font-family: 'VT323', monospace;
   font-size: 26px;
@@ -1155,7 +1185,7 @@ img.hu-numpad-call-icon {
 .hu-incall-btn:hover,
 .hu-incall-btn:focus-visible,
 .hu-incall-btn-on {
-  background: var(--hu-green);
+  background: var(--hu-primary);
   color: var(--hu-bg-deep);
 }
 
@@ -1195,7 +1225,7 @@ img.hu-numpad-call-icon {
   right: 28px;
   z-index: 40;
   background: var(--hu-bg-panel);
-  border: 2px solid var(--hu-green);
+  border: 2px solid var(--hu-primary);
   padding: 16px 20px;
   display: flex;
   align-items: center;
@@ -1221,7 +1251,7 @@ img.hu-numpad-call-icon {
 .hu-call-popup-photo {
   width: 84px;
   height: 84px;
-  border: 2px solid var(--hu-green);
+  border: 2px solid var(--hu-primary);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1238,7 +1268,7 @@ img.hu-numpad-call-icon {
 
 .hu-call-popup-photo-fallback {
   font-size: 44px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
 }
 
 .hu-call-popup-body {
@@ -1251,14 +1281,14 @@ img.hu-numpad-call-icon {
 
 .hu-call-popup-status {
   font-size: 22px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
 .hu-call-popup-name {
   font-size: 36px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.04em;
   font-weight: bold;
   white-space: nowrap;
@@ -1268,7 +1298,7 @@ img.hu-numpad-call-icon {
 
 .hu-call-popup-num {
   font-size: 24px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.06em;
 }
 
@@ -1281,8 +1311,8 @@ img.hu-numpad-call-icon {
   width: 84px;
   height: 84px;
   background: transparent;
-  border: 2px solid var(--hu-green);
-  color: var(--hu-green);
+  border: 2px solid var(--hu-primary);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   font-size: 36px;
   cursor: pointer;
@@ -1293,12 +1323,12 @@ img.hu-numpad-call-icon {
   transition: background 120ms ease;
 }
 
-.hu-call-popup-btn:hover { background: var(--hu-green); color: var(--hu-bg-deep); }
+.hu-call-popup-btn:hover { background: var(--hu-primary); color: var(--hu-bg-deep); }
 
 .hu-call-popup-accept {
-  background: var(--hu-green);
+  background: var(--hu-primary);
   color: var(--hu-bg-deep);
-  border-color: var(--hu-green);
+  border-color: var(--hu-primary);
 }
 
 .hu-call-popup-reject {
@@ -1339,7 +1369,7 @@ img.hu-numpad-call-icon {
 
 .hu-numpad-letters {
   font-size: 24px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.18em;
   line-height: 1;
 }
@@ -1359,10 +1389,10 @@ img.hu-numpad-call-icon {
 .hu-list-section {
   font-size: 40px;
   font-weight: bold;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.22em;
   padding: 18px 10px 8px;
-  border-bottom: 1px solid var(--hu-green-mid);
+  border-bottom: 1px solid var(--hu-primary-mid);
   background: var(--hu-bg-panel);
   text-align: left;
   position: sticky;
@@ -1379,7 +1409,7 @@ img.hu-numpad-call-icon {
 }
 
 .hu-list-row-selected {
-  background: var(--hu-green);
+  background: var(--hu-primary);
   color: var(--hu-bg-deep);
 }
 
@@ -1391,7 +1421,7 @@ img.hu-numpad-call-icon {
 
 .hu-list-row-selected .hu-avatar {
   background: var(--hu-bg-deep);
-  color: var(--hu-green);
+  color: var(--hu-primary);
 }
 
 .hu-list-row-selected .hu-call-icon-img {
@@ -1421,7 +1451,7 @@ img.hu-numpad-call-icon {
   position: absolute;
   inset: 0;
   background: var(--hu-bg-deep);
-  color: var(--hu-green);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   display: flex;
   flex-direction: column;
@@ -1468,7 +1498,7 @@ img.hu-numpad-call-icon {
   min-height: 48px;
   background: transparent;
   border: none;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1481,7 +1511,7 @@ img.hu-numpad-call-icon {
 .hu-eq-band-value {
   font-size: 30px;
   line-height: 1;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   min-width: 50px;
   text-align: center;
 }
@@ -1504,15 +1534,15 @@ img.hu-numpad-call-icon {
 
 .hu-eq-action {
   background: transparent;
-  border: 1.5px solid var(--hu-green-dim);
-  color: var(--hu-green);
+  border: 1.5px solid var(--hu-primary-dim);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   font-size: 28px;
   padding: 10px 22px;
   min-height: 48px;
   cursor: pointer;
 }
-.hu-eq-action:active { background: var(--hu-green-deep); }
+.hu-eq-action:active { background: var(--hu-primary-deep); }
 
 .hu-eq-preset-strip {
   display: flex;
@@ -1524,7 +1554,7 @@ img.hu-numpad-call-icon {
 .hu-eq-preset-arrow {
   background: transparent;
   border: none;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   font-size: 44px;
   cursor: pointer;
   padding: 6px 18px;
@@ -1535,7 +1565,7 @@ img.hu-numpad-call-icon {
 
 .hu-eq-preset-name {
   font-size: 56px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   min-width: 280px;
   text-align: center;
   letter-spacing: 1px;
@@ -1546,13 +1576,13 @@ img.hu-numpad-call-icon {
   text-align: center;
   min-width: 130px;
 }
-.hu-eq-preset-ghost-1 { color: var(--hu-green-mid); }
-.hu-eq-preset-ghost-2 { color: var(--hu-green-dim); }
+.hu-eq-preset-ghost-1 { color: var(--hu-primary-mid); }
+.hu-eq-preset-ghost-2 { color: var(--hu-primary-dim); }
 
 .hu-eq-back-btn {
   background: transparent;
-  border: 1.5px solid var(--hu-green-dim);
-  color: var(--hu-green);
+  border: 1.5px solid var(--hu-primary-dim);
+  color: var(--hu-primary);
   font-size: 48px;
   width: 72px;
   height: 72px;
@@ -1562,7 +1592,7 @@ img.hu-numpad-call-icon {
   cursor: pointer;
   justify-self: end;
 }
-.hu-eq-back-btn:active { background: var(--hu-green-deep); }
+.hu-eq-back-btn:active { background: var(--hu-primary-deep); }
 
 /* ── On-screen QWERTY keyboard for naming presets ───────────────────────── */
 
@@ -1578,7 +1608,7 @@ img.hu-numpad-call-icon {
 
 .hu-eq-kb-panel {
   background: var(--hu-bg-deep);
-  border: 1.5px solid var(--hu-green);
+  border: 1.5px solid var(--hu-primary);
   padding: 26px 32px;
   min-width: 920px;
   display: flex;
@@ -1588,17 +1618,17 @@ img.hu-numpad-call-icon {
 
 .hu-eq-kb-prompt {
   font-size: 28px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
 }
 .hu-eq-kb-display {
   font-size: 56px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   padding: 10px 14px;
-  border: 1.5px solid var(--hu-green-dim);
+  border: 1.5px solid var(--hu-primary-dim);
   min-height: 70px;
   letter-spacing: 2px;
 }
-.hu-eq-kb-placeholder { color: var(--hu-green-dim); }
+.hu-eq-kb-placeholder { color: var(--hu-primary-dim); }
 
 .hu-eq-kb-row {
   display: flex;
@@ -1607,8 +1637,8 @@ img.hu-numpad-call-icon {
 }
 .hu-eq-kb-key {
   background: transparent;
-  border: 1.5px solid var(--hu-green-dim);
-  color: var(--hu-green);
+  border: 1.5px solid var(--hu-primary-dim);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   font-size: 32px;
   width: 72px;
@@ -1619,39 +1649,34 @@ img.hu-numpad-call-icon {
   cursor: pointer;
   padding: 0;
 }
-.hu-eq-kb-key:active { background: var(--hu-green-deep); }
-.hu-eq-kb-key:disabled { color: var(--hu-green-dim); cursor: not-allowed; }
+.hu-eq-kb-key:active { background: var(--hu-primary-deep); }
+.hu-eq-kb-key:disabled { color: var(--hu-primary-dim); cursor: not-allowed; }
 .hu-eq-kb-key-wide { width: 160px; }
-.hu-eq-kb-key-accept { border-color: var(--hu-green); }
+.hu-eq-kb-key-accept { border-color: var(--hu-primary); }
 
 /* ── Plot wrap needs touch-action: none so finger drags don't scroll/zoom ── */
 .hu-eq-plot-wrap {
   touch-action: none;
 }
 
-/* ─── Settings overlay ───────────────────────────────────────────────────── */
-/* Sits inside .hu-content so the header + nav bar stay visible above/below. */
-
-.hu-settings-overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--hu-bg-deep);
-  z-index: 80;
-  overflow: hidden;
-  display: flex;
-}
-
-.hu-settings-overlay > .hu-screen {
-  display: flex;
-  width: 100%;
-  height: 100%;
-}
+/* ─── Settings page ──────────────────────────────────────────────────────── */
+/* Lives inside the regular screen carousel slot — same chrome as other views. */
 
 .hu-settings-page {
   padding: 30px 40px 40px;
+}
+
+/* Main area that wraps the active settings page is the scroll container.
+ * Hide the native scrollbar entirely — touch scroll is driven by the
+ * useScrollContainer pointer-event chain so finger drags work despite the
+ * global `touch-action: none` on the App root. */
+.hu-settings-scroll {
   overflow-y: auto;
   height: 100%;
+  scrollbar-width: none;
+  touch-action: none;
 }
+.hu-settings-scroll::-webkit-scrollbar { width: 0; height: 0; }
 
 .hu-settings-row {
   display: flex;
@@ -1663,7 +1688,7 @@ img.hu-numpad-call-icon {
 
 .hu-settings-row-label {
   font-size: 28px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   letter-spacing: 0.1em;
   min-width: 140px;
 }
@@ -1678,14 +1703,14 @@ img.hu-numpad-call-icon {
 
 .hu-settings-hint {
   font-size: 22px;
-  color: var(--hu-green-dim);
+  color: var(--hu-primary-dim);
   letter-spacing: 0.06em;
 }
 
 .hu-color-picker {
   width: 100px;
   height: 60px;
-  border: 1.5px solid var(--hu-green-dim);
+  border: 1.5px solid var(--hu-primary-dim);
   background: transparent;
   cursor: pointer;
   padding: 0;
@@ -1693,14 +1718,14 @@ img.hu-numpad-call-icon {
 
 .hu-hex-label {
   font-size: 30px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   letter-spacing: 0.08em;
 }
 
 .hu-text-input {
   background: transparent;
-  border: 1.5px solid var(--hu-green-dim);
-  color: var(--hu-green);
+  border: 1.5px solid var(--hu-primary-dim);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   font-size: 30px;
   padding: 8px 14px;
@@ -1730,19 +1755,28 @@ img.hu-numpad-call-icon {
 .hu-theme-swatch {
   position: relative;
   background: transparent;
-  border: 1.5px solid var(--hu-green-dim);
-  color: var(--hu-green);
+  border: 1.5px solid var(--hu-primary-dim);
+  color: var(--hu-primary);
   font-family: 'VT323', monospace;
   padding: 0;
   cursor: pointer;
   text-align: left;
 }
 .hu-theme-swatch-active {
-  border-color: var(--hu-green);
-  box-shadow: 0 0 0 2px var(--hu-green-deep) inset;
+  border-color: var(--hu-primary);
+  box-shadow: 0 0 0 2px var(--hu-primary-deep) inset;
 }
 .hu-theme-swatch-color {
   height: 60px;
+}
+.hu-theme-swatch-preview {
+  display: grid;
+  grid-template-rows: 1fr 1fr 1fr;
+  height: 80px;
+}
+.hu-theme-swatch-band {
+  width: 100%;
+  height: 100%;
 }
 .hu-theme-swatch-name {
   font-size: 24px;
@@ -1756,7 +1790,7 @@ img.hu-numpad-call-icon {
   width: 32px;
   height: 32px;
   background: rgba(0,0,0,0.5);
-  border: 1px solid var(--hu-green-dim);
+  border: 1px solid var(--hu-primary-dim);
   color: var(--hu-warn);
   font-family: 'VT323', monospace;
   font-size: 22px;
@@ -1769,30 +1803,50 @@ img.hu-numpad-call-icon {
 .hu-slider-row {
   display: flex;
   align-items: center;
-  gap: 22px;
-  margin-bottom: 12px;
+  gap: 28px;
+  margin-bottom: 20px;
+  min-height: 64px;
 }
 .hu-slider-label {
-  font-size: 24px;
-  color: var(--hu-green-mid);
+  font-size: 28px;
+  color: var(--hu-primary-mid);
   letter-spacing: 0.1em;
-  min-width: 180px;
+  min-width: 240px;
 }
 .hu-slider {
   flex: 1;
-  height: 36px;
-  accent-color: var(--hu-green);
+  height: 64px;            /* fat strip so the thumb is easy to grab */
   background: transparent;
+  -webkit-appearance: none;
+          appearance: none;
+  touch-action: none;
+  cursor: pointer;
 }
+.hu-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  background: var(--hu-primary-deep);
+  border: 1px solid var(--hu-primary-dim);
+}
+.hu-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+          appearance: none;
+  width: 44px;
+  height: 44px;
+  background: var(--hu-primary);
+  border: 2px solid var(--hu-primary-deep);
+  margin-top: -18px;
+  cursor: pointer;
+}
+.hu-slider:focus { outline: none; }
 .hu-slider-value {
-  font-size: 26px;
-  color: var(--hu-green);
-  min-width: 100px;
+  font-size: 32px;
+  color: var(--hu-primary);
+  min-width: 140px;
   text-align: right;
 }
 
 .hu-viz-preview {
-  border: 1.5px solid var(--hu-green-dim);
+  border: 1.5px solid var(--hu-primary-dim);
   padding: 8px;
   margin-bottom: 8px;
   background: var(--hu-bg-panel);
@@ -1814,13 +1868,13 @@ img.hu-numpad-call-icon {
 }
 .hu-gauge-list-label {
   font-size: 30px;
-  color: var(--hu-green);
+  color: var(--hu-primary);
   min-width: 200px;
   letter-spacing: 0.06em;
 }
 .hu-gauge-list-meta {
   font-size: 22px;
-  color: var(--hu-green-mid);
+  color: var(--hu-primary-mid);
   flex: 1;
 }
 
@@ -1837,7 +1891,7 @@ img.hu-numpad-call-icon {
 }
 .hu-modal-panel {
   background: var(--hu-bg-deep);
-  border: 1.5px solid var(--hu-green);
+  border: 1.5px solid var(--hu-primary);
   padding: 30px 40px;
   min-width: 720px;
   max-width: 90%;
