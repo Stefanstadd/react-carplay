@@ -413,8 +413,14 @@ function ensureViz(cfg: VizConfig): AudioVisualizer {
     const loop = (now: number) => {
       const dt = Math.min(100, now - last)
       last = now
-      GLOBAL_VIZ!.step(dt)
-      LISTENERS.forEach((fn) => fn())
+      // Skip the FFT + per-band work and React notifications when no
+      // subscriber is listening — this is the "idle" state requested by the
+      // user.  The PCM ring keeps filling in pushPcmS16; when a subscriber
+      // re-attaches the next frame just picks up from the current write head.
+      if (LISTENERS.size > 0) {
+        GLOBAL_VIZ!.step(dt)
+        LISTENERS.forEach((fn) => fn())
+      }
       requestAnimationFrame(loop)
     }
     requestAnimationFrame(loop)
@@ -429,17 +435,18 @@ function ensureViz(cfg: VizConfig): AudioVisualizer {
  * global AudioVisualizer.  Returns live refs to the bars/peaks arrays;
  * read them inline in JSX.
  */
-export function useAudioVisualizer(cfg: VizConfig) {
+export function useAudioVisualizer(cfg: VizConfig, enabled: boolean = true) {
   const viz = ensureViz(cfg)
   const [, setTick] = useState(0)
 
   useEffect(() => {
+    if (!enabled) return
     const fn = () => setTick((t) => (t + 1) & 0xffff)
     LISTENERS.add(fn)
     return () => {
       LISTENERS.delete(fn)
     }
-  }, [])
+  }, [enabled])
 
   return { bars: viz.bars, peaks: viz.peaks, labels: viz.labels }
 }
@@ -449,23 +456,64 @@ export function useAudioVisualizer(cfg: VizConfig) {
 // hot green-white at the very top.  colorCurve in config bends the curve.
 
 type RGB = readonly [number, number, number]
-const COLOR_STOPS: { t: number; rgb: RGB }[] = [
-  { t: 0.0, rgb: [0, 30, 4] },
-  { t: 0.25, rgb: [0, 90, 6] },
-  { t: 0.55, rgb: [0, 170, 10] },
-  { t: 0.85, rgb: [0, 240, 16] },
-  { t: 1.0, rgb: [150, 255, 130] },
+
+// Default green stops used when no theme primary is passed in (e.g. early
+// boot before applyTheme runs).  At runtime barColor() rebuilds these
+// against the active --hu-primary so the visualiser tracks the theme.
+const FALLBACK_STOPS: { t: number; rgb: RGB }[] = [
+  { t: 0.0,  rgb: [0,  30,   4] },
+  { t: 0.25, rgb: [0,  90,   6] },
+  { t: 0.55, rgb: [0, 170,  10] },
+  { t: 0.85, rgb: [0, 240,  16] },
+  { t: 1.0,  rgb: [150, 255, 130] },
 ]
 
+// One-entry cache: most renders pass the same primary 32 times in a row.
+let _cachedPrimary = ''
+let _cachedStops: { t: number; rgb: RGB }[] = FALLBACK_STOPS
+
+function hexToRgb(hex: string): RGB | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  const n = parseInt(m[1], 16)
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff] as RGB
+}
+
+function stopsFromPrimary(primary: string): { t: number; rgb: RGB }[] {
+  if (primary === _cachedPrimary) return _cachedStops
+  const rgb = hexToRgb(primary)
+  if (!rgb) return FALLBACK_STOPS
+  // Derive a dark → primary → near-white curve from the chosen hue.  Scaling
+  // toward black at the bottom keeps quiet bars subtle; blending toward white
+  // at the top gives transient highlights.
+  const dark  = (k: number): RGB => [Math.round(rgb[0] * k), Math.round(rgb[1] * k), Math.round(rgb[2] * k)]
+  const light = (k: number): RGB => [
+    Math.round(rgb[0] + (255 - rgb[0]) * k),
+    Math.round(rgb[1] + (255 - rgb[1]) * k),
+    Math.round(rgb[2] + (255 - rgb[2]) * k),
+  ]
+  _cachedPrimary = primary
+  _cachedStops = [
+    { t: 0.0,  rgb: dark(0.12) },
+    { t: 0.25, rgb: dark(0.32) },
+    { t: 0.55, rgb: dark(0.65) },
+    { t: 0.85, rgb: rgb },
+    { t: 1.0,  rgb: light(0.45) },
+  ]
+  return _cachedStops
+}
+
 /** Returns a CSS rgb() string for a bar height (0..1).  Exponential
- *  curve via cfg.colorCurve (>1 emphasises the bright/hot end). */
-export function barColor(h: number, colorCurve = 1.6): string {
-  if (h <= 0) return `rgb(${COLOR_STOPS[0].rgb.join(',')})`
+ *  curve via cfg.colorCurve (>1 emphasises the bright/hot end).
+ *  Pass the active theme primary hex to recolor the gradient. */
+export function barColor(h: number, colorCurve = 1.6, primary?: string): string {
+  const stops = primary ? stopsFromPrimary(primary) : FALLBACK_STOPS
+  if (h <= 0) return `rgb(${stops[0].rgb.join(',')})`
   const t = Math.pow(Math.min(1, h), 1 / colorCurve)
-  for (let i = 1; i < COLOR_STOPS.length; i++) {
-    if (t <= COLOR_STOPS[i].t) {
-      const lo = COLOR_STOPS[i - 1]
-      const hi = COLOR_STOPS[i]
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i].t) {
+      const lo = stops[i - 1]
+      const hi = stops[i]
       const k = (t - lo.t) / (hi.t - lo.t)
       const r = Math.round(lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * k)
       const g = Math.round(lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * k)
@@ -473,6 +521,6 @@ export function barColor(h: number, colorCurve = 1.6): string {
       return `rgb(${r},${g},${b})`
     }
   }
-  const last = COLOR_STOPS[COLOR_STOPS.length - 1].rgb
+  const last = stops[stops.length - 1].rgb
   return `rgb(${last.join(',')})`
 }

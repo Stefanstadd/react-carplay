@@ -31,11 +31,12 @@ const PAGES: { id: SubPage; label: string }[] = [
 ]
 
 interface SettingsViewProps {
+  isActive: boolean
   onOpenEqualizer: () => void
   onOpenCarplaySettings: () => void
 }
 
-export default function SettingsView({ onOpenEqualizer, onOpenCarplaySettings }: SettingsViewProps) {
+export default function SettingsView({ isActive, onOpenEqualizer, onOpenCarplaySettings }: SettingsViewProps) {
   const us = useUserSettings()
   const [page, setPage] = useState<SubPage>('general')
   // Same touch-scroll pattern as the contacts list — no native scrollbar,
@@ -64,7 +65,7 @@ export default function SettingsView({ onOpenEqualizer, onOpenCarplaySettings }:
         {...scroll.handlers}
       >
         {page === 'general' && <GeneralPage us={us} />}
-        {page === 'viz'     && <VizPage us={us} />}
+        {page === 'viz'     && <VizPage us={us} vizActive={isActive} />}
         {page === 'eq'      && <EqualizerPage onOpenEqualizer={onOpenEqualizer} />}
         {page === 'carplay' && <CarplayPage onOpen={onOpenCarplaySettings} />}
         {page === 'gauges'  && <GaugesPage us={us} />}
@@ -119,6 +120,9 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
               className="hu-color-picker"
               value={us.state.theme[c.key]}
               onChange={(e) => us.setTheme({ [c.key]: e.target.value } as any)}
+              /* Eat pointerdown so finger-jitter doesn't hand the gesture
+               * to the page scroll container while opening the picker. */
+              onPointerDown={(e) => e.stopPropagation()}
             />
             <div className="hu-hex-label">{us.state.theme[c.key].toUpperCase()}</div>
             <div className="hu-settings-hint">{c.hint}</div>
@@ -135,8 +139,12 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
               key={p.name}
               className={`hu-theme-swatch${isActive ? ' hu-theme-swatch-active' : ''}`}
               onClick={() => pickPreset(p.name)}
+              /* Same pointerdown trick as the call buttons — keeps the page
+               * scroll container from claiming the touch when finger jitter
+               * crosses its 8 px threshold mid-tap. */
+              onPointerDown={(e) => e.stopPropagation()}
             >
-              {/* Three-band preview: background bg, primary middle, peak bottom */}
+              {/* Three-band preview: background top, primary middle, peak bottom */}
               <div className="hu-theme-swatch-preview">
                 <div className="hu-theme-swatch-band" style={{ background: p.background }} />
                 <div className="hu-theme-swatch-band" style={{ background: p.primary }} />
@@ -146,6 +154,7 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
               {!p.builtin && (
                 <button
                   className="hu-theme-swatch-delete"
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); us.deleteThemePreset(p.name) }}
                   aria-label="Delete preset"
                 >✕</button>
@@ -181,14 +190,14 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
 
 // ─── Visualizer ─────────────────────────────────────────────────────────────
 
-function VizPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
+function VizPage({ us, vizActive }: { us: ReturnType<typeof useUserSettings>; vizActive: boolean }) {
   const v = us.state.viz
   const set = (patch: Partial<VizConfig>) => us.setViz(patch)
 
   return (
     <div className="hu-settings-page">
       <div className="hu-panel-label">LIVE PREVIEW</div>
-      <VizPreview />
+      <VizPreview enabled={vizActive} />
 
       <div className="hu-panel-label" style={{ marginTop: 24 }}>VISUALIZER</div>
 
@@ -241,17 +250,21 @@ function VizPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
   )
 }
 
-function VizPreview() {
+function VizPreview({ enabled }: { enabled: boolean }) {
   const us = useUserSettings()
   const v = us.state.viz
-  const { bars, peaks } = useAudioVisualizer(v)
+  const themePrimary = us.state.theme.primary
+  // Subscribe to the visualiser only while the Visualizer settings page is
+  // actually on screen — otherwise the FFT loop idles and the rest of the
+  // head unit keeps its frame budget.
+  const { bars, peaks } = useAudioVisualizer(v, enabled)
   return (
     <div className="hu-viz-preview">
       <div className="hu-eq-bars" style={{ height: 260 }}>
         {Array.from({ length: v.bars }, (_, i) => {
           const h = bars[i] || 0
           const p = peaks[i] || 0
-          const bg = barColor(h, v.colorCurve)
+          const bg = barColor(h, v.colorCurve, themePrimary)
           const glowPx    = (4 + 14 * h) * v.glowStrength
           const glowAlpha = (0.18 + 0.5 * h) * v.glowStrength
           return (
@@ -413,6 +426,12 @@ function Slider({ label, min, max, step, value, format, onChange }: {
   label: string; min: number; max: number; step: number;
   value: number; format: (x: number) => string; onChange: (x: number) => void
 }) {
+  // Stop pointerdown/move from bubbling so the parent page-scroll container
+  // never starts its own tracking — without this, even a few px of vertical
+  // jitter while dragging the thumb hands the gesture to the scroll
+  // container and the slider stops responding.  Touch-action "pan-x" gives
+  // the browser permission to handle horizontal pan on the thumb itself.
+  const swallow = (e: React.PointerEvent) => e.stopPropagation()
   return (
     <div className="hu-slider-row">
       <div className="hu-slider-label">{label}</div>
@@ -421,6 +440,10 @@ function Slider({ label, min, max, step, value, format, onChange }: {
         className="hu-slider"
         min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        onPointerDown={swallow}
+        onPointerMove={swallow}
+        onPointerUp={swallow}
+        style={{ touchAction: 'pan-x' }}
       />
       <div className="hu-slider-value">{format(value)}</div>
     </div>

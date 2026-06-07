@@ -457,11 +457,13 @@ function MusicView({
   onLaunchCarplay,
   onSelectView,
   onOpenEqualizer,
+  isActive,
   bt
 }: {
   onLaunchCarplay: () => void
   onSelectView: (v: ViewName) => void
   onOpenEqualizer: () => void
+  isActive: boolean
   bt: ReturnType<typeof useBluetooth>
 }) {
   const phoneConnected = bt.phone.connected
@@ -472,10 +474,15 @@ function MusicView({
   // Professional spectrum analyser — see audioVisualizer.ts.  Reads PCM
   // from the main-process parec stream, runs a 4096-pt windowed FFT,
   // returns smoothed bar heights + peak-hold positions every animation
-  // frame.  Config comes from the user-settings store so tweaks made on the
-  // settings screen apply live; falls back to VIZ_CONFIG defaults.
-  const liveVizCfg = useUserSettings().state.viz
-  const { bars: vizBars, peaks: vizPeaks, labels: vizLabels } = useAudioVisualizer(liveVizCfg)
+  // frame.  Config + theme primary come from the user-settings store so
+  // tweaks made on the settings screen apply live.  The hook only registers
+  // its rAF listener when isActive is true — when the music screen isn't
+  // the current carousel slot, the FFT loop idles and the rest of the head
+  // unit gets its CPU back.
+  const us = useUserSettings()
+  const liveVizCfg = us.state.viz
+  const themePrimary = us.state.theme.primary
+  const { bars: vizBars, peaks: vizPeaks, labels: vizLabels } = useAudioVisualizer(liveVizCfg, isActive)
 
   const progress = media.durationSec > 0 ? Math.min(1, media.positionSec / media.durationSec) : 0
 
@@ -497,7 +504,7 @@ function MusicView({
           {Array.from({ length: liveVizCfg.bars }, (_, i) => {
             const h = vizBars[i] || 0
             const p = vizPeaks[i] || 0
-            const bg = barColor(h, liveVizCfg.colorCurve)
+            const bg = barColor(h, liveVizCfg.colorCurve, themePrimary)
             const glowPx = (4 + 14 * h) * liveVizCfg.glowStrength
             const glowAlpha = (0.18 + 0.5 * h) * liveVizCfg.glowStrength
             return (
@@ -1672,6 +1679,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   }, [])
 
   const renderView = (v: ViewName) => {
+    const isActive = activeView === v
     switch (v) {
       case 'music':
         return (
@@ -1679,6 +1687,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
             onLaunchCarplay={onLaunchCarplay}
             onSelectView={handleSelect}
             onOpenEqualizer={() => setEqOpen(true)}
+            isActive={isActive}
             bt={bt}
           />
         )
@@ -1691,6 +1700,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
       case 'settings':
         return (
           <SettingsView
+            isActive={isActive}
             onOpenEqualizer={() => setEqOpen(true)}
             onOpenCarplaySettings={() => onOpenSettings?.()}
           />
