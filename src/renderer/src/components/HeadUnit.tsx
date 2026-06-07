@@ -20,6 +20,8 @@ import {
   type BtDevice
 } from './bluetooth'
 import EQView from './EQView'
+import SettingsView from './SettingsView'
+import { useUserSettings } from './userSettings'
 
 // ─── MarqueeText: auto-scrolling text when it overflows its container ─────
 // Measures whether the inner span overflows and, if so, runs a ping-pong
@@ -230,7 +232,7 @@ function NavBar({
   onSelect,
   onSettings
 }: {
-  active: ViewName
+  active: NavId
   onSelect: (v: ViewName) => void
   onSettings?: () => void
 }) {
@@ -265,7 +267,6 @@ function NavBar({
 // All tweakable knobs live in headunit.config.ts — edit there, not here.
 
 import {
-  VIZ_CONFIG,
   ALBUM_ART_SIZE,
   TITLE_SCROLL_SPEED,
   QUICK_BTN_ICON_SIZE,
@@ -444,8 +445,10 @@ function MusicView({
   // Professional spectrum analyser — see audioVisualizer.ts.  Reads PCM
   // from the main-process parec stream, runs a 4096-pt windowed FFT,
   // returns smoothed bar heights + peak-hold positions every animation
-  // frame.  All tuning lives in VIZ_CONFIG (headunit.config.ts).
-  const { bars: vizBars, peaks: vizPeaks, labels: vizLabels } = useAudioVisualizer(VIZ_CONFIG)
+  // frame.  Config comes from the user-settings store so tweaks made on the
+  // settings screen apply live; falls back to VIZ_CONFIG defaults.
+  const liveVizCfg = useUserSettings().state.viz
+  const { bars: vizBars, peaks: vizPeaks, labels: vizLabels } = useAudioVisualizer(liveVizCfg)
 
   const progress = media.durationSec > 0 ? Math.min(1, media.positionSec / media.durationSec) : 0
 
@@ -464,12 +467,12 @@ function MusicView({
     <div className="hu-screen hu-music-screen">
       <div className="hu-viz-area">
         <div className="hu-eq-bars">
-          {Array.from({ length: VIZ_CONFIG.bars }, (_, i) => {
+          {Array.from({ length: liveVizCfg.bars }, (_, i) => {
             const h = vizBars[i] || 0
             const p = vizPeaks[i] || 0
-            const bg = barColor(h, VIZ_CONFIG.colorCurve)
-            const glowPx = (4 + 14 * h) * VIZ_CONFIG.glowStrength
-            const glowAlpha = (0.18 + 0.5 * h) * VIZ_CONFIG.glowStrength
+            const bg = barColor(h, liveVizCfg.colorCurve)
+            const glowPx = (4 + 14 * h) * liveVizCfg.glowStrength
+            const glowAlpha = (0.18 + 0.5 * h) * liveVizCfg.glowStrength
             return (
               <div key={i} className="hu-eq-bar-wrap">
                 <div
@@ -490,12 +493,12 @@ function MusicView({
             )
           })}
         </div>
-        {VIZ_CONFIG.showFrequencyLabels && (
+        {liveVizCfg.showFrequencyLabels && (
           <div className="hu-eq-labels">
             {vizLabels.map((f, i) => {
               // Thin labels as bar count grows so they don't overlap on
               // the 5.5" screen.  Always show the first and last bar's label.
-              const n = VIZ_CONFIG.bars
+              const n = liveVizCfg.bars
               const step = n <= 24 ? 2 : n <= 32 ? 3 : n <= 48 ? 4 : 6
               const show = i === 0 || i === n - 1 || i % step === 0
               return (
@@ -754,8 +757,11 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
     cy = 60,
     r = 42
   const warn = warnAbove !== undefined && value > warnAbove
-  const green = warn ? '#ff6b1a' : '#00ff0a'
-  const dim = warn ? '#8a3a0f' : '#008a06'
+  // Picks up the live CSS theme variables so colour-scheme changes apply
+  // without a re-render.  Warn (over-redline) flips to amber regardless of theme.
+  const arcColor    = warn ? 'var(--hu-warn)'      : 'var(--hu-green)'
+  const dimColor    = warn ? '#8a3a0f'             : 'var(--hu-green-mid)'
+  const needleColor = warn ? 'var(--hu-warn)'      : 'var(--hu-peak)'
 
   const nDeg = G_START + pct * G_SWEEP
   const nTip = polarToCartesian(cx, cy, r - 6, nDeg)
@@ -775,7 +781,7 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
         <path
           d={gaugeArc(cx, cy, r, G_START, G_SWEEP)}
           fill="none"
-          stroke={dim}
+          stroke={dimColor}
           strokeWidth={4.5}
           strokeLinecap="butt"
         />
@@ -783,7 +789,7 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
           <path
             d={gaugeArc(cx, cy, r, G_START, fill)}
             fill="none"
-            stroke={green}
+            stroke={arcColor}
             strokeWidth={4.5}
             strokeLinecap="butt"
           />
@@ -795,7 +801,7 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
             y1={t.o.y}
             x2={t.i.x}
             y2={t.i.y}
-            stroke={dim}
+            stroke={dimColor}
             strokeWidth="1.5"
           />
         ))}
@@ -803,24 +809,24 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
           points={`${nTip.x.toFixed(1)},${nTip.y.toFixed(1)} ${nL.x.toFixed(1)},${nL.y.toFixed(
             1
           )} ${nR.x.toFixed(1)},${nR.y.toFixed(1)}`}
-          fill={green}
+          fill={needleColor}
         />
-        <rect x={cx - 4} y={cy - 4} width="8" height="8" fill={green} />
+        <rect x={cx - 4} y={cy - 4} width="8" height="8" fill={needleColor} />
         <text
           x={cx}
           y={cy + 20}
           textAnchor="middle"
-          fill={green}
+          fill={arcColor}
           fontSize={13}
           fontFamily="'VT323'"
         >
           {displayVal}
         </text>
-        <text x={cx} y={cy + 31} textAnchor="middle" fill={dim} fontSize={8.5} fontFamily="'VT323'">
+        <text x={cx} y={cy + 31} textAnchor="middle" fill={dimColor} fontSize={8.5} fontFamily="'VT323'">
           {unit}
         </text>
       </svg>
-      <div className="hu-gauge-label" style={{ color: warn ? '#ff6b1a' : undefined }}>
+      <div className="hu-gauge-label" style={{ color: warn ? 'var(--hu-warn)' : undefined }}>
         {label}
       </div>
     </div>
@@ -829,6 +835,38 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
 
 function GaugesView({ vehicleData }: { vehicleData?: VehicleData }) {
   const vd = vehicleData ?? {}
+  const userGauges = useUserSettings().state.gauges
+
+  // If the user has defined custom gauges in Settings, render those — otherwise
+  // fall back to the original built-in OIL TEMP / SPEED / RPM trio.  Values for
+  // user-defined gauges come from vehicleData[canKey] when the CAN bridge
+  // starts feeding it; until then they show 0.
+  if (userGauges.length > 0) {
+    return (
+      <div className="hu-screen">
+        <div className="hu-main-area">
+          <div className="hu-gauges">
+            {userGauges.map(g => {
+              const raw = (vd as any)[g.canKey]
+              const value = Number.isFinite(raw) ? Number(raw) : g.min
+              return (
+                <GaugeWidget
+                  key={g.id}
+                  label={g.label}
+                  value={value}
+                  min={g.min}
+                  max={g.max}
+                  unit={g.unit}
+                  warnAbove={g.warnAbove}
+                />
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="hu-screen">
       <div className="hu-sidebar hu-sidebar-slim">
@@ -1532,6 +1570,7 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
   // Auto-opens when a call becomes active, can be minimised back.
   const [callFull, setCallFull] = useState(false)
   const [eqOpen, setEqOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Open the full call screen when an active call appears; reset when idle.
   useEffect(() => {
@@ -1653,8 +1692,24 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
                 </div>
               ))}
             </div>
+
+            {/* Settings panel — overlays the content area only.  Header (above)
+                and nav bar (below) stay visible so the screen has the same
+                chrome as every other view. */}
+            {settingsOpen && (
+              <div className="hu-settings-overlay">
+                <SettingsView
+                  onOpenEqualizer={() => setEqOpen(true)}
+                  onOpenCarplaySettings={() => onOpenSettings?.()}
+                />
+              </div>
+            )}
           </main>
-          <NavBar active={activeView} onSelect={handleSelect} onSettings={onOpenSettings} />
+          <NavBar
+            active={settingsOpen ? 'settings' : activeView}
+            onSelect={(v) => { setSettingsOpen(false); handleSelect(v) }}
+            onSettings={() => setSettingsOpen(s => !s)}
+          />
 
           {showFullCall && (
             <div className="hu-incall-overlay">

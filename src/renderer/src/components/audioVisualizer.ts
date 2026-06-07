@@ -30,7 +30,7 @@
 //
 // =============================================================================
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 // ─── Module-level constants ────────────────────────────────────────────────
 
@@ -137,12 +137,13 @@ export type VizConfig = {
 // ─── Analyzer ──────────────────────────────────────────────────────────────
 
 export class AudioVisualizer {
-  /** Final per-bar height in [0, 1], gain + peak-hold applied. */
-  readonly bars: Float32Array
+  /** Final per-bar height in [0, 1], gain + peak-hold applied.  Reallocated
+   *  by updateConfig() when the bar count changes, so not `readonly`. */
+  bars: Float32Array
   /** Per-bar peak-hold marker position in [0, 1]. */
-  readonly peaks: Float32Array
-  /** Human-readable frequency labels (centre of each band, "60" / "1k" / "10k"). */
-  readonly labels: string[]
+  peaks: Float32Array
+  /** Human-readable frequency labels (centre of each band). */
+  labels: string[]
 
   private cfg: VizConfig
   private ring: Float32Array
@@ -169,26 +170,62 @@ export class AudioVisualizer {
   private highMask: Uint8Array
 
   constructor(cfg: VizConfig) {
-    this.cfg = cfg
-
+    // Buffers that do not depend on the band count.  We never resize the
+    // ring/FFT scratch buffers because FFT_SIZE is fixed.
     this.ring = new Float32Array(FFT_SIZE)
     this.reBuf = new Float32Array(FFT_SIZE)
     this.imBuf = new Float32Array(FFT_SIZE)
     this.magSmooth = new Float32Array(HALF_BINS)
 
-    this.bars = new Float32Array(cfg.bars)
-    this.peaks = new Float32Array(cfg.bars)
-    this.smoothed = new Float32Array(cfg.bars)
-    this.peakVel = new Float32Array(cfg.bars)
+    // Per-band arrays + labels are built by allocBands() so updateConfig
+    // can rebuild them when the user changes bars / minHz / maxHz.  The
+    // public refs below are reassigned inside allocBands.
+    this.cfg = cfg
+    this.bars = new Float32Array(0)
+    this.peaks = new Float32Array(0)
+    this.smoothed = new Float32Array(0)
+    this.peakVel = new Float32Array(0)
+    this.peakHoldRem = new Float32Array(0)
+    this.bandBinLo = new Int32Array(0)
+    this.bandBinHi = new Int32Array(0)
+    this.bandFracLo = new Float32Array(0)
+    this.bandFracHi = new Float32Array(0)
+    this.bandCenter = new Float32Array(0)
+    this.bassMask = new Uint8Array(0)
+    this.highMask = new Uint8Array(0)
+    this.labels = []
+    this.allocBands(cfg)
+  }
+
+  /** Apply a new config at runtime.  Rebuilds the band-bin tables only
+   *  when the count or frequency range changed; otherwise the new config
+   *  is just remembered (the per-frame loop reads `this.cfg.*` directly). */
+  updateConfig(cfg: VizConfig): void {
+    const prev = this.cfg
+    const structuralChange = prev.bars !== cfg.bars
+                          || prev.minHz !== cfg.minHz
+                          || prev.maxHz !== cfg.maxHz
+    this.cfg = cfg
+    if (structuralChange) this.allocBands(cfg)
+  }
+
+  /** Allocate / reallocate the per-band tables and labels for `cfg`. */
+  private allocBands(cfg: VizConfig): void {
+    // (The same body lives below in the constructor's setup section
+    // historically.  Kept here so updateConfig and the constructor share it.)
+    this.bars        = new Float32Array(cfg.bars)
+    this.peaks       = new Float32Array(cfg.bars)
+    this.smoothed    = new Float32Array(cfg.bars)
+    this.peakVel     = new Float32Array(cfg.bars)
     this.peakHoldRem = new Float32Array(cfg.bars)
 
-    this.bandBinLo = new Int32Array(cfg.bars)
-    this.bandBinHi = new Int32Array(cfg.bars)
-    this.bandFracLo = new Float32Array(cfg.bars)
-    this.bandFracHi = new Float32Array(cfg.bars)
-    this.bandCenter = new Float32Array(cfg.bars)
-    this.bassMask = new Uint8Array(cfg.bars)
-    this.highMask = new Uint8Array(cfg.bars)
+    this.bandBinLo   = new Int32Array(cfg.bars)
+    this.bandBinHi   = new Int32Array(cfg.bars)
+    this.bandFracLo  = new Float32Array(cfg.bars)
+    this.bandFracHi  = new Float32Array(cfg.bars)
+    this.bandCenter  = new Float32Array(cfg.bars)
+    this.bassMask    = new Uint8Array(cfg.bars)
+    this.highMask    = new Uint8Array(cfg.bars)
 
     // Log-spaced band edges.  Each band b covers
     //   [minHz * (maxHz/minHz)^(b/bars), minHz * (maxHz/minHz)^((b+1)/bars)]
@@ -362,6 +399,7 @@ const LISTENERS = new Set<() => void>()
 
 function ensureViz(cfg: VizConfig): AudioVisualizer {
   if (!GLOBAL_VIZ) GLOBAL_VIZ = new AudioVisualizer(cfg)
+  else GLOBAL_VIZ.updateConfig(cfg)
   if (!PCM_HOOKED) {
     const api = (window as any).api
     if (api?.onAudioPcm) {

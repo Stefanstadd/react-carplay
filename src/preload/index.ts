@@ -38,6 +38,18 @@ export interface EqApi {
   setEnabled:      (enabled: boolean) => void
 }
 
+export interface UserApi {
+  onState:            (cb: ApiCallback) => void
+  requestState:       () => void
+  setTheme:           (patch: { primary?: string; peak?: string; activePreset?: string }) => void
+  saveThemePreset:    (name: string) => void
+  deleteThemePreset:  (name: string) => void
+  setViz:             (patch: any) => void
+  resetViz:           () => void
+  upsertGauge:        (g: any) => void
+  deleteGauge:        (id: string) => void
+}
+
 export interface Api {
   settings: (callback: ApiCallback) => void
   reverse: (callback: ApiCallback) => void
@@ -47,6 +59,7 @@ export interface Api {
   quit: () =>  void
   bt: BtApi
   eq: EqApi
+  user: UserApi
   onAudioPcm: (cb: (chunk: Uint8Array) => void) => void
 }
 
@@ -83,6 +96,18 @@ const eq: EqApi = {
   setEnabled:      (e)     => ipcRenderer.send('eq:setEnabled', e),
 }
 
+const user: UserApi = {
+  onState:           (cb)    => ipcRenderer.on('user:state', cb),
+  requestState:      ()      => ipcRenderer.send('user:requestState'),
+  setTheme:          (p)     => ipcRenderer.send('user:setTheme', p),
+  saveThemePreset:   (n)     => ipcRenderer.send('user:saveThemePreset', n),
+  deleteThemePreset: (n)     => ipcRenderer.send('user:deleteThemePreset', n),
+  setViz:            (p)     => ipcRenderer.send('user:setViz', p),
+  resetViz:          ()      => ipcRenderer.send('user:resetViz'),
+  upsertGauge:       (g)     => ipcRenderer.send('user:upsertGauge', g),
+  deleteGauge:       (id)    => ipcRenderer.send('user:deleteGauge', id),
+}
+
 // Custom APIs for renderer
 const api: Api = {
   settings: (callback: ApiCallback) => ipcRenderer.on('settings', callback),
@@ -93,6 +118,7 @@ const api: Api = {
   quit: () => ipcRenderer.send('quit'),
   bt,
   eq,
+  user,
   onAudioPcm: (cb: (chunk: Uint8Array) => void) => {
     ipcRenderer.on('audio:pcm', (_e, chunk: Uint8Array | Buffer) => cb(chunk as Uint8Array))
   },
