@@ -12,8 +12,7 @@ import { spawn, ChildProcess } from 'child_process'
 import { BrowserWindow } from 'electron'
 
 const DEFAULT_TARGETS = [
-  // Try PipeWire-native naming first, then PulseAudio names, then the
-  // generic monitor.  parec on PipeWire-pulse accepts all of these.
+  'headunit_eq.monitor',
   'alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo.monitor',
   '@DEFAULT_MONITOR@',
 ]
