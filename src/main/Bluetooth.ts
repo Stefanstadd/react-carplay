@@ -401,7 +401,13 @@ export class BluetoothManager {
   }
 
   private phoneState(): PhoneState {
+    // hfpReady means "dial() will actually work" — so we need not just a
+    // modem, but one whose VoiceCallManager has attached (i.e. the modem
+    // is Powered + Online and we've subscribed).  Otherwise the banner
+    // clears the moment ofono registers a modem, even though calling
+    // still no-ops because VCM isn't up yet.
     const hfpReady = this.activeModemPath !== null
+                  && this.vcmSubscribedModem === this.activeModemPath
     if (!this.activePhonePath) return { connected: false, hfpReady }
     const d = this.devicePaths.get(this.activePhonePath)
     if (!d) return { connected: false, hfpReady }
@@ -915,12 +921,14 @@ export class BluetoothManager {
       if (Array.isArray(modems) && modems.length > 0) {
         this.activeModemPath = String(modems[0][0])
         console.log('[bt] ofono modem:', this.activeModemPath)
+        this.ensureModemOnline(this.activeModemPath).catch(() => undefined)
         this.pollSubscribeVCM(this.activeModemPath)
         this.pushPhone()
       }
       mgr.on('ModemAdded', (path: string) => {
         if (!this.activeModemPath) {
           this.activeModemPath = path
+          this.ensureModemOnline(path).catch(() => undefined)
           this.pollSubscribeVCM(path)
           this.pushPhone()
         }
@@ -949,6 +957,34 @@ export class BluetoothManager {
           '     err:', (err as Error).message
         )
       }
+    }
+  }
+
+  /** Set the modem's Powered and Online properties to true.  ofono defaults
+   *  HFP modems to Powered=false / Online=false — with those flags off, the
+   *  VoiceCallManager interface never attaches and Dial() fails silently.
+   *  This runs on every ModemAdded so users don't have to poke at busctl
+   *  themselves after each pairing. */
+  private async ensureModemOnline(modemPath: string): Promise<void> {
+    if (!this.systemBus) return
+    try {
+      const obj = await this.systemBus.getProxyObject(OFONO_BUS, modemPath)
+      const modem = obj.getInterface('org.ofono.Modem')
+      const props = await modem.GetProperties()
+      const powered = !!unwrapVariant(props.Powered)
+      const online  = !!unwrapVariant(props.Online)
+      if (!powered) {
+        console.log('[bt] ofono: powering modem', modemPath)
+        await modem.SetProperty('Powered', new this.dbus.Variant('b', true))
+      }
+      if (!online) {
+        console.log('[bt] ofono: bringing modem online', modemPath)
+        await modem.SetProperty('Online', new this.dbus.Variant('b', true))
+      }
+    } catch (err) {
+      // First SetProperty() call after ModemAdded sometimes races the D-Bus
+      // registration; log and let pollSubscribeVCM retry via the normal path.
+      console.warn('[bt] ensureModemOnline failed:', (err as Error).message ?? err)
     }
   }
 
@@ -985,15 +1021,26 @@ export class BluetoothManager {
   }
 
   /** Retry subscribeVCM with backoff — VCM may not be introspectable immediately
-   *  when a modem first appears (HFP negotiation still in progress). */
+   *  when a modem first appears (HFP negotiation still in progress).  Each
+   *  attempt also re-runs ensureModemOnline in case the initial Powered/Online
+   *  SetProperty raced ofono's D-Bus registration.  Retries continue for
+   *  ~60 s so the head unit keeps trying while the user accepts an HFP
+   *  prompt on the phone or ofono takes its time attaching. */
   private pollSubscribeVCM(modemPath: string, attempt = 0) {
-    const delays = [0, 2000, 5000, 10000]
+    const delays = [0, 1000, 2500, 5000, 10000, 15000, 30000]
     if (attempt >= delays.length) return
     const go = async () => {
+      // Modem may have been un-powered between attempts — re-run
+      // ensureModemOnline every time so we don't sit forever on a
+      // Powered=false modem.
+      await this.ensureModemOnline(modemPath).catch(() => undefined)
       try {
         await this.subscribeVCM(modemPath)
+        // Once VCM subscribes cleanly the phoneState 'hfpReady' flip needs
+        // a fresh push so the renderer clears its HFP-NOT-READY banner.
+        this.pushPhone()
       } catch (err) {
-        console.warn(`[bt] VCM subscribe attempt ${attempt + 1} failed — retrying`, (err as Error).message)
+        console.warn(`[bt] VCM subscribe attempt ${attempt + 1}/${delays.length} failed — retrying`, (err as Error).message)
         this.pollSubscribeVCM(modemPath, attempt + 1)
       }
     }
