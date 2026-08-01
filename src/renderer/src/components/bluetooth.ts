@@ -35,6 +35,10 @@ export interface MediaState {
   durationSec: number
   positionSec: number
   playing: boolean
+  /** Bumped by useBluetooth whenever the progress bar should skip its
+   *  smooth transition and snap to the new positionSec — track change
+   *  or a delta > 3 s between local and server position. */
+  snapCounter?: number
 }
 
 export type CallStatus = 'idle' | 'incoming' | 'dialing' | 'active' | 'held'
@@ -81,7 +85,7 @@ export interface RecentCallsState {
 }
 
 const DEFAULT_PHONE: PhoneState   = { connected: false }
-const DEFAULT_MEDIA: MediaState   = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false }
+const DEFAULT_MEDIA: MediaState   = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false, snapCounter: 0 }
 const DEFAULT_CALL:  CallState    = { status: 'idle', durationSec: 0, muted: false }
 const DEFAULT_CTS:   ContactsState = { synced: false, syncing: false, contacts: [] }
 const DEFAULT_RCS:   RecentCallsState = { synced: false, syncing: false, calls: [] }
@@ -108,21 +112,40 @@ export function useBluetooth() {
       setMedia((prev) => {
         const next = d ?? DEFAULT_MEDIA
         const trackChanged = next.title !== prev.title || next.artist !== prev.artist
-        if (!trackChanged) {
-          // Accept main's position when it's significantly ahead of local —
-          // this handles the initial-connection case where the song was already
-          // at e.g. 1:36 but we initialised at 0:00 (BlueZ's GetManagedObjects
-          // doesn't include Position so the first push is always 0).
-          if (next.positionSec > prev.positionSec + 10) return next
-          // Same track, small drift: local 10 Hz counter is authoritative.
-          // Never let BlueZ's 1 Hz poll snap the bar back after a seek.
-          return { ...next, positionSec: prev.positionSec }
+        const prevSnap = prev.snapCounter ?? 0
+        if (trackChanged) {
+          // New track — always trust the server position and mark a snap so
+          // the progress bar jumps rather than sliding backward from the old track.
+          return { ...next, snapCounter: prevSnap + 1 }
         }
-        return next
+        const delta = Math.abs(next.positionSec - prev.positionSec)
+        if (delta > 3) {
+          // Big jump (seek, replay, big drift) — trust the server and snap.
+          return { ...next, snapCounter: prevSnap + 1 }
+        }
+        // Small drift: local 10 Hz counter is authoritative. Never let BlueZ's
+        // 1 Hz poll snap the bar back mid-play.
+        return { ...next, positionSec: prev.positionSec, snapCounter: prevSnap }
       })
     })
     bt.onCall    ((_: any, d: CallState)         => setCall(d ?? DEFAULT_CALL))
-    bt.onContacts((_: any, d: ContactsState)     => setContacts(d ?? DEFAULT_CTS))
+    bt.onContacts((_: any, d: ContactsState) => {
+      if (!d) { setContacts(DEFAULT_CTS); return }
+      // Phones (esp. iPhones synced across multiple accounts) send the same
+      // contact multiple times.  Collapse duplicates by name + primary number.
+      const seen = new Set<string>()
+      const uniq: Contact[] = []
+      for (const c of d.contacts) {
+        const primary = c.numbers[0]?.number
+          ? normaliseNumber(c.numbers[0].number).replace(/^\+/, '')
+          : ''
+        const key = `${c.name.trim().toLowerCase()}|${primary}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        uniq.push(c)
+      }
+      setContacts({ ...d, contacts: uniq })
+    })
     bt.onRecents ((_: any, d: RecentCallsState)  => setRecents(d ?? DEFAULT_RCS))
     bt.onDevices ((_: any, d: BtDevice[])        => setDevices(d ?? []))
 
@@ -171,17 +194,20 @@ export function useBluetooth() {
     mediaPlay:    () => bt?.mediaCmd?.('play'),
     mediaPause:   () => bt?.mediaCmd?.('pause'),
     mediaToggle:  () => bt?.mediaCmd?.(media.playing ? 'pause' : 'play'),
-    mediaNext: () => {
-      bt?.mediaCmd?.('next')
-      setMedia((p) => ({ ...p, positionSec: 0 }))
-    },
-    mediaPrev: () => {
-      bt?.mediaCmd?.('previous')
-      setMedia((p) => ({ ...p, positionSec: 0 }))
-    },
+    // No optimistic position reset — let main push the real position so
+    // "replay track" doesn't briefly slam to 0 and then bounce back to the
+    // stale AVRCP poll that arrives ~200 ms later.
+    mediaNext: () => { bt?.mediaCmd?.('next') },
+    mediaPrev: () => { bt?.mediaCmd?.('previous') },
     mediaSeek: (sec: number) => {
       bt?.mediaCmd?.(`seek:${Math.max(0, Math.floor(sec))}`)
-      setMedia((p) => ({ ...p, positionSec: Math.max(0, sec) }))
+      // User-driven seek → snap immediately.  The subsequent AVRCP poll's
+      // small drift is absorbed by the "delta < 3 s" branch above.
+      setMedia((p) => ({
+        ...p,
+        positionSec: Math.max(0, sec),
+        snapCounter: (p.snapCounter ?? 0) + 1,
+      }))
     },
 
     // Calls

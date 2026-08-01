@@ -39,7 +39,21 @@ function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounte
 
   useEffect(() => {
     ;(window.api as any)?.onVehicleData?.((data: VehicleData) => {
-      setVehicleData(data)
+      // Only replace the ref when a field has actually changed — the CAN
+      // bridge streams updates faster than the gauges need to redraw, so
+      // this guard cuts unnecessary re-renders across the whole HeadUnit
+      // subtree.  Shallow compare is enough: VehicleData is a flat object
+      // of scalars.
+      setVehicleData((prev) => {
+        if (!prev) return data
+        for (const k of Object.keys(data) as (keyof VehicleData)[]) {
+          if (prev[k] !== data[k]) return data
+        }
+        for (const k of Object.keys(prev) as (keyof VehicleData)[]) {
+          if (prev[k] !== data[k]) return data
+        }
+        return prev
+      })
     })
   }, [])
 

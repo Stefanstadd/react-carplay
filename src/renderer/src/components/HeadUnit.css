@@ -289,11 +289,14 @@ img.hu-numpad-call-icon {
   color: var(--hu-bg-deep);
 }
 
-/* When a button is "lit" (hover/active), make the icons read as dark too. */
+/* When a button is "lit" (hover/active), the mask-based icon needs a dark
+ * fill so it reads against the primary-colour background.  Override the
+ * ThemedIcon's own background-color rather than using filter:brightness(0),
+ * which fights non-green themes. */
 .hu-list-btn:hover    .hu-list-btn-icon,
 .hu-list-btn-active   .hu-list-btn-icon,
 .hu-list-btn:focus-visible .hu-list-btn-icon {
-  filter: brightness(0);
+  background-color: var(--hu-bg-deep);
 }
 
 .hu-list-btn-icon {
@@ -402,7 +405,7 @@ img.hu-numpad-call-icon {
 
 .hu-quick-btn:hover:not(:disabled) .hu-quick-btn-img,
 .hu-quick-btn:focus-visible:not(:disabled) .hu-quick-btn-img {
-  filter: brightness(0);
+  background-color: var(--hu-bg-deep);
 }
 
 .hu-quick-btn-disabled {
@@ -438,6 +441,18 @@ img.hu-numpad-call-icon {
   flex: 1;
   min-height: 0;
   width: 100%;
+}
+
+/* Canvas-based spectrum analyser — replaces the per-bar div grid inside
+ * .hu-viz-area on the music screen (and in the Visualizer settings preview).
+ * The canvas fills its parent flex slot and its backing store is resized
+ * from JS via ResizeObserver so lines stay crisp under the head-unit CSS
+ * transform-scale. */
+.hu-viz-canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: block;
 }
 
 /* One cell per bar — stacks the bar (bottom-anchored) and the peak
@@ -675,6 +690,12 @@ img.hu-numpad-call-icon {
   color: var(--hu-primary);
 }
 
+.hu-device-bt-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
 .hu-device-tag {
   margin-left: auto;
   font-size: 22px;
@@ -834,10 +855,10 @@ img.hu-numpad-call-icon {
   color: var(--hu-bg-deep);
 }
 
-/* When the whole row is hovered (row bg = green), the call icon must
-   turn dark so it reads against the green row. */
+/* When the whole row is hovered (row bg = primary), the call icon must
+   read dark against the lit row. */
 .hu-list-row:hover .hu-call-icon-img {
-  filter: brightness(0);
+  background-color: var(--hu-bg-deep);
 }
 
 .hu-avatar {
@@ -889,7 +910,7 @@ img.hu-numpad-call-icon {
 
 .hu-call-icon-btn:hover .hu-call-icon-img,
 .hu-call-icon-btn:focus-visible .hu-call-icon-img {
-  filter: brightness(0);
+  background-color: var(--hu-bg-deep);
 }
 
 .hu-call-icon-img { width: 36px; height: 36px; }
@@ -1000,10 +1021,18 @@ img.hu-numpad-call-icon {
   justify-content: center;
   padding: 0;
   transition: background 180ms ease;
+  /* Solid backdrop so slide transitions don't reveal a hover-tinted button
+   * peeking out on the left/right of the newly-centered active button. */
+  background-color: var(--hu-bg-deep);
 }
 
-.hu-nav-btn:hover {
-  background: rgba(0, 255, 10, 0.10);
+/* Only apply the tint on real hover (mouse/keyboard) — on touch the hover
+ * state sticks after tap and left a faint green highlight on the button next
+ * to the newly-active one. */
+@media (hover: hover) {
+  .hu-nav-btn:hover {
+    background: rgba(0, 255, 10, 0.10);
+  }
 }
 
 .hu-nav-active {
@@ -1013,13 +1042,18 @@ img.hu-numpad-call-icon {
 .hu-nav-icon {
   width: 64px;
   height: 64px;
-  transition: width 220ms ease, height 220ms ease, filter 180ms ease;
+  transition: width 220ms ease, height 220ms ease, background-color 180ms ease;
 }
 
+/* Active nav button = primary-coloured fill; the icon needs a contrasting
+ * dark colour.  Override the ThemedIcon mask fill (background-color) instead
+ * of applying a filter, so it always reads correctly against the current
+ * theme's primary — including light/pale primaries where brightness(0) worked
+ * fine but non-black themes did not. */
 .hu-nav-active .hu-nav-icon {
   width: 92px;
   height: 92px;
-  filter: brightness(0);
+  background-color: var(--hu-bg-deep);
 }
 
 /* ─── Empty states ─────────────────────────────────────────────────────── */
@@ -1856,6 +1890,20 @@ img.hu-numpad-call-icon {
   padding: 8px;
   margin-bottom: 8px;
   background: var(--hu-bg-panel);
+}
+
+/* Sticky wrapper around LIVE PREVIEW inside the Visualizer settings page.
+ * Sits at top: 0 of the settings scroll container so sliders can be scrolled
+ * without moving the preview.  Solid backdrop + negative margins extend it
+ * across the full width of .hu-settings-page (which has 30/40 px padding). */
+.hu-viz-preview-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--hu-bg-deep);
+  margin: -30px -40px 12px -40px;
+  padding: 30px 40px 12px;
+  box-shadow: 0 8px 12px -8px rgba(0, 0, 0, 0.6);
 }
 
 /* ── Gauges editor ──────────────────────────────────────────────────────── */

@@ -30,7 +30,7 @@
 //
 // =============================================================================
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ─── Module-level constants ────────────────────────────────────────────────
 
@@ -449,6 +449,31 @@ export function useAudioVisualizer(cfg: VizConfig, enabled: boolean = true) {
   }, [enabled])
 
   return { bars: viz.bars, peaks: viz.peaks, labels: viz.labels }
+}
+
+/**
+ * Ensures the global visualizer instance stays in sync with `cfg` without
+ * triggering a per-frame React re-render.  Used by the canvas renderer,
+ * which reads viz.bars / viz.peaks directly inside its rAF loop.
+ */
+export function useVizInstance(cfg: VizConfig): AudioVisualizer {
+  return ensureViz(cfg)
+}
+
+/**
+ * Registers a per-frame tick callback with the global visualizer loop.
+ * Unlike useAudioVisualizer this does NOT force a React re-render — the
+ * caller uses it to drive an imperative renderer (canvas, refs, etc.).
+ */
+export function useVizTick(enabled: boolean, cb: () => void): void {
+  const cbRef = useRef(cb)
+  cbRef.current = cb
+  useEffect(() => {
+    if (!enabled) return
+    const fn = () => cbRef.current()
+    LISTENERS.add(fn)
+    return () => { LISTENERS.delete(fn) }
+  }, [enabled])
 }
 
 // ─── Color palette ─────────────────────────────────────────────────────────

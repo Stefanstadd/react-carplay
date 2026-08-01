@@ -17,7 +17,7 @@ import {
   type GaugeDef,
   type VizConfig,
 } from './userSettings'
-import { useAudioVisualizer, barColor } from './audioVisualizer'
+import VizCanvas from './VizCanvas'
 import { useScrollContainer } from './HeadUnit'
 
 type SubPage = 'general' | 'viz' | 'eq' | 'carplay' | 'gauges'
@@ -196,8 +196,13 @@ function VizPage({ us, vizActive }: { us: ReturnType<typeof useUserSettings>; vi
 
   return (
     <div className="hu-settings-page">
-      <div className="hu-panel-label">LIVE PREVIEW</div>
-      <VizPreview enabled={vizActive} />
+      {/* Preview sticks to the top of the scroll area so tweaking sliders
+       *  further down the page keeps the live bars visible.  Solid backdrop
+       *  hides the sliders that scroll behind it. */}
+      <div className="hu-viz-preview-sticky">
+        <div className="hu-panel-label">LIVE PREVIEW</div>
+        <VizPreview enabled={vizActive} />
+      </div>
 
       <div className="hu-panel-label" style={{ marginTop: 24 }}>VISUALIZER</div>
 
@@ -254,38 +259,17 @@ function VizPreview({ enabled }: { enabled: boolean }) {
   const us = useUserSettings()
   const v = us.state.viz
   const themePrimary = us.state.theme.primary
-  // Subscribe to the visualiser only while the Visualizer settings page is
-  // actually on screen — otherwise the FFT loop idles and the rest of the
-  // head unit keeps its frame budget.
-  const { bars, peaks } = useAudioVisualizer(v, enabled)
+  // Canvas-based renderer — see VizCanvas.tsx for why we no longer diff
+  // per-bar DOM styles every frame.
   return (
     <div className="hu-viz-preview">
-      <div className="hu-eq-bars" style={{ height: 260 }}>
-        {Array.from({ length: v.bars }, (_, i) => {
-          const h = bars[i] || 0
-          const p = peaks[i] || 0
-          const bg = barColor(h, v.colorCurve, themePrimary)
-          const glowPx    = (4 + 14 * h) * v.glowStrength
-          const glowAlpha = (0.18 + 0.5 * h) * v.glowStrength
-          return (
-            <div key={i} className="hu-eq-bar-wrap">
-              <div
-                className="hu-eq-bar"
-                style={{
-                  height: `${Math.max(2, h * 100)}%`,
-                  background: bg,
-                  boxShadow: glowPx > 0.1
-                    ? `0 0 ${glowPx.toFixed(1)}px rgba(0, 255, 10, ${glowAlpha.toFixed(2)})`
-                    : 'none',
-                }}
-              />
-              {p > 0.02 && (
-                <div className="hu-eq-peak" style={{ bottom: `${(p * 100).toFixed(2)}%` }} />
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <VizCanvas
+        cfg={v}
+        themePrimary={themePrimary}
+        enabled={enabled}
+        className="hu-viz-canvas"
+        style={{ height: 260, width: '100%', display: 'block' }}
+      />
     </div>
   )
 }

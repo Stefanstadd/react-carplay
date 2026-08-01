@@ -299,7 +299,8 @@ import {
   QUICK_BTN_ICON_SIZE,
   QUICK_BTN_CELL_SIZE
 } from './headunit.config'
-import { useAudioVisualizer, barColor } from './audioVisualizer'
+import { useVizInstance } from './audioVisualizer'
+import VizCanvas from './VizCanvas'
 
 // Album art fallback chain.  AVRCP rarely carries cover art (and BlueZ
 // doesn't expose what little there is), so we look it up online: iTunes
@@ -453,6 +454,31 @@ function useArt(
   return art
 }
 
+// Progress-bar fill.  Uses a CSS transition (declared in HeadUnit.css) for
+// smooth motion during normal playback; on snapCounter change (track change,
+// big drift, or an explicit seek) it turns the transition off for one paint
+// so the bar jumps to the correct position instead of sliding through.
+function ProgressFill({ progress, snapCounter }: { progress: number; snapCounter: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const lastSnap = useRef(snapCounter)
+  useEffect(() => {
+    if (snapCounter === lastSnap.current) return
+    lastSnap.current = snapCounter
+    const el = ref.current
+    if (!el) return
+    // Disable the smooth transition, force a reflow so the width change
+    // takes effect instantly, then re-enable next frame.
+    el.style.transition = 'none'
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    el.offsetWidth
+    el.style.width = `${progress * 100}%`
+    requestAnimationFrame(() => { if (el) el.style.transition = '' })
+  }, [snapCounter, progress])
+  return (
+    <div ref={ref} className="hu-progress-fill" style={{ width: `${progress * 100}%` }} />
+  )
+}
+
 function MusicView({
   onLaunchCarplay,
   onSelectView,
@@ -475,14 +501,14 @@ function MusicView({
   // from the main-process parec stream, runs a 4096-pt windowed FFT,
   // returns smoothed bar heights + peak-hold positions every animation
   // frame.  Config + theme primary come from the user-settings store so
-  // tweaks made on the settings screen apply live.  The hook only registers
-  // its rAF listener when isActive is true — when the music screen isn't
-  // the current carousel slot, the FFT loop idles and the rest of the head
-  // unit gets its CPU back.
+  // tweaks made on the settings screen apply live.  Only the canvas
+  // renderer subscribes to the per-frame tick — MusicView itself no longer
+  // re-renders 60 times per second just to update inline bar heights.
   const us = useUserSettings()
   const liveVizCfg = us.state.viz
   const themePrimary = us.state.theme.primary
-  const { bars: vizBars, peaks: vizPeaks, labels: vizLabels } = useAudioVisualizer(liveVizCfg, isActive)
+  const viz = useVizInstance(liveVizCfg)
+  const vizLabels = viz.labels
 
   const progress = media.durationSec > 0 ? Math.min(1, media.positionSec / media.durationSec) : 0
 
@@ -500,33 +526,12 @@ function MusicView({
   return (
     <div className="hu-screen hu-music-screen">
       <div className="hu-viz-area">
-        <div className="hu-eq-bars">
-          {Array.from({ length: liveVizCfg.bars }, (_, i) => {
-            const h = vizBars[i] || 0
-            const p = vizPeaks[i] || 0
-            const bg = barColor(h, liveVizCfg.colorCurve, themePrimary)
-            const glowPx = (4 + 14 * h) * liveVizCfg.glowStrength
-            const glowAlpha = (0.18 + 0.5 * h) * liveVizCfg.glowStrength
-            return (
-              <div key={i} className="hu-eq-bar-wrap">
-                <div
-                  className="hu-eq-bar"
-                  style={{
-                    height: `${Math.max(2, h * 100)}%`,
-                    background: bg,
-                    boxShadow:
-                      glowPx > 0.1
-                        ? `0 0 ${glowPx.toFixed(1)}px rgba(0, 255, 10, ${glowAlpha.toFixed(2)})`
-                        : 'none'
-                  }}
-                />
-                {p > 0.02 && (
-                  <div className="hu-eq-peak" style={{ bottom: `${(p * 100).toFixed(2)}%` }} />
-                )}
-              </div>
-            )
-          })}
-        </div>
+        <VizCanvas
+          cfg={liveVizCfg}
+          themePrimary={themePrimary}
+          enabled={isActive}
+          className="hu-viz-canvas"
+        />
         {liveVizCfg.showFrequencyLabels && (
           <div className="hu-eq-labels">
             {vizLabels.map((f, i) => {
@@ -610,7 +615,7 @@ function MusicView({
       <div className="hu-controls-area">
         <div className="hu-progress-wrap">
           <div className="hu-progress-track" onClick={onSeek}>
-            <div className="hu-progress-fill" style={{ width: `${progress * 100}%` }} />
+            <ProgressFill progress={progress} snapCounter={media.snapCounter ?? 0} />
           </div>
           <div className="hu-progress-times">
             <span>{media.durationSec > 0 ? formatTime(media.positionSec) : '--:--'}</span>
@@ -715,16 +720,22 @@ function DevicesView({
 
       <div className="hu-main-area">
         <div className="hu-panel-label">DEVICES</div>
-        {bt.devices.length === 0 ? (
-          <div className="hu-empty-state">
-            <div className="hu-empty-title">NO DEVICES</div>
-            <div className="hu-empty-sub">
-              {scanning ? 'Scanning…' : 'Tap SCAN to discover phones nearby.'}
-            </div>
-          </div>
-        ) : (
-          bt.devices.map((d) => <DeviceRow key={d.address} d={d} bt={bt} />)
-        )}
+        {(() => {
+          // Only show devices whose name actually resolved — hides the
+          // torrent of MAC-only entries BlueZ discovers during a scan.
+          const visible = bt.devices.filter((d) => d.name && d.name !== d.address)
+          if (visible.length === 0) {
+            return (
+              <div className="hu-empty-state">
+                <div className="hu-empty-title">NO DEVICES</div>
+                <div className="hu-empty-sub">
+                  {scanning ? 'Scanning…' : 'Tap SCAN to discover phones nearby.'}
+                </div>
+              </div>
+            )
+          }
+          return visible.map((d) => <DeviceRow key={d.address} d={d} bt={bt} />)
+        })()}
       </div>
     </div>
   )
@@ -734,9 +745,7 @@ function DeviceRow({ d, bt }: { d: BtDevice; bt: ReturnType<typeof useBluetooth>
   const tag = d.connected ? 'CONNECTED' : d.paired ? 'PAIRED' : 'NEW'
   return (
     <div className="hu-device-row">
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="#00ff0a" shapeRendering="crispEdges">
-        <path d="M12 2l5 5-4 4 4 4-5 5V14l-3 3-1.5-1.5L11 12 7.5 8.5 9 7l3 3V2z" />
-      </svg>
+      <ThemedIcon src={iconBluetooth} className="hu-device-bt-icon" />
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <span>{d.name || d.address}</span>
         {d.batteryPct !== undefined && (
@@ -785,7 +794,7 @@ interface GaugeWidgetProps {
   warnAbove?: number
 }
 
-function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetProps) {
+const GaugeWidget = React.memo(function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetProps) {
   const pct = Math.min(1, Math.max(0, (value - min) / (max - min)))
   const fill = pct * G_SWEEP
   const cx = 60,
@@ -868,7 +877,7 @@ function GaugeWidget({ label, value, min, max, unit, warnAbove }: GaugeWidgetPro
       </div>
     </div>
   )
-}
+})
 
 function GaugesView({ vehicleData }: { vehicleData?: VehicleData }) {
   const vd = vehicleData ?? {}
@@ -1613,6 +1622,26 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
     if (bt.call.status === 'active' || bt.call.status === 'dialing') setCallFull(true)
     if (bt.call.status === 'idle') setCallFull(false)
   }, [bt.call.status])
+
+  // Auto-sync contacts + recents when a phone connects — the user shouldn't
+  // have to tap SYNC every time.  Fires once per connect edge (address change
+  // or connected transition); guarded by contacts.synced/syncing so a manual
+  // re-sync isn't clobbered.
+  const lastAutoSyncedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!bt.phone.connected) {
+      lastAutoSyncedRef.current = null
+      return
+    }
+    const addr = bt.phone.address ?? 'unknown'
+    if (lastAutoSyncedRef.current === addr) return
+    lastAutoSyncedRef.current = addr
+    if (!bt.contacts.synced && !bt.contacts.syncing) bt.syncContacts()
+    if (!bt.recents.synced && !bt.recents.syncing) bt.syncRecents()
+    // Deliberately only track phone connection state — sync fns are stable
+    // enough for this to be a one-shot per connection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bt.phone.connected, bt.phone.address])
 
   // Session-based call logging: open a session when a call appears (idle →
   // non-idle), remember whether it ever went to active, close the session
