@@ -14,17 +14,21 @@ import { barColor, useVizInstance, useVizTick, type VizConfig } from './audioVis
 
 interface VizCanvasProps {
   cfg: VizConfig
+  /** Bar gradient reference colour — usually the theme `primary`. */
   themePrimary: string
-  enabled: boolean
-  /** CSS colour used for the peak-hold marker.  Defaults to the theme
-   *  primary; caller can override with `--hu-peak` if desired. */
+  /** Peak-hold marker colour — comes from theme `peak`.  Falls back to
+   *  `themePrimary` for callers that don't care. */
   peakColor?: string
+  /** Colour of the shadow/glow around bars + peaks.  Comes from theme
+   *  `glow`; defaults to peak (which itself defaults to primary). */
+  glowColor?: string
+  enabled: boolean
   className?: string
   style?: React.CSSProperties
 }
 
 export default function VizCanvas({
-  cfg, themePrimary, enabled, peakColor, className, style,
+  cfg, themePrimary, peakColor, glowColor, enabled, className, style,
 }: VizCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viz = useVizInstance(cfg)
@@ -36,6 +40,8 @@ export default function VizCanvas({
   primaryRef.current = themePrimary
   const peakColorRef = useRef(peakColor ?? themePrimary)
   peakColorRef.current = peakColor ?? themePrimary
+  const glowColorRef = useRef(glowColor ?? peakColor ?? themePrimary)
+  glowColorRef.current = glowColor ?? peakColor ?? themePrimary
 
   // Match backing store to element pixel size so lines stay crisp under
   // the head-unit's CSS transform-scale.  Uses ResizeObserver rather than
@@ -69,29 +75,40 @@ export default function VizCanvas({
     const cfg = cfgRef.current
     const primary = primaryRef.current
     const peakCol = peakColorRef.current
+    const glowCol = glowColorRef.current
     const barCount = cfg.bars
     const gap = 6
     const totalGap = gap * (barCount - 1)
     const barW = Math.max(1, (w - totalGap) / barCount)
 
+    // Bars: fill with a per-height gradient off `primary`, plus a soft
+    // shadow using the theme's glow colour scaled by cfg.glowStrength.
+    // shadowBlur on canvas is cheap for solid rectangles at this scale
+    // (Pi 5's GPU handles it fine at 32-48 bars).
     ctx.save()
-    // The head-unit box-shadow "glow" isn't practical per-bar on canvas
-    // (shadowBlur is expensive on Pi 5 and needed for peak markers).  Use
-    // it only for the peak line where it makes the biggest visual impact.
     for (let i = 0; i < barCount; i++) {
       const v = viz.bars[i] || 0
+      if (v < 0.005) continue
       const x = i * (barW + gap)
       const barH = Math.max(2, v * h)
+      const blur = (2 + 10 * v) * cfg.glowStrength
       ctx.fillStyle = barColor(v, cfg.colorCurve, primary)
+      if (blur > 0.5) {
+        ctx.shadowColor = glowCol
+        ctx.shadowBlur = blur
+      } else {
+        ctx.shadowBlur = 0
+      }
       ctx.fillRect(x, h - barH, barW, barH)
     }
     ctx.restore()
 
-    // Peak markers — thin rectangles with a soft glow.
+    // Peak markers — thin rectangles in the *peak* colour with a slightly
+    // stronger glow so they read against bright bars.
     ctx.save()
     ctx.fillStyle = peakCol
-    ctx.shadowColor = peakCol
-    ctx.shadowBlur = 6
+    ctx.shadowColor = glowCol
+    ctx.shadowBlur = 6 + 4 * cfg.glowStrength
     for (let i = 0; i < barCount; i++) {
       const p = viz.peaks[i] || 0
       if (p <= 0.02) continue
@@ -109,7 +126,7 @@ export default function VizCanvas({
   useEffect(() => {
     draw()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.bars, themePrimary, peakColor])
+  }, [cfg.bars, themePrimary, peakColor, glowColor])
 
   return <canvas ref={canvasRef} className={className} style={style} />
 }

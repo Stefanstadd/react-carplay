@@ -529,6 +529,8 @@ function MusicView({
         <VizCanvas
           cfg={liveVizCfg}
           themePrimary={themePrimary}
+          peakColor={us.state.theme.peak}
+          glowColor={us.state.theme.glow}
           enabled={isActive}
           className="hu-viz-canvas"
         />

@@ -14,17 +14,18 @@ export interface ThemePreset {
   background: string
   warn: string
   miss: string
+  glow: string
   builtin?: boolean
 }
 
 export const BUILTIN_THEMES: ThemePreset[] = [
-  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', builtin: true },
-  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', builtin: true },
-  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', builtin: true },
-  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', builtin: true },
-  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', builtin: true },
-  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', builtin: true },
-  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', builtin: true },
+  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', glow: '#00ff0a', builtin: true },
+  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', glow: '#ffa000', builtin: true },
+  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', glow: '#33d0ff', builtin: true },
+  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', glow: '#ff3355', builtin: true },
+  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', glow: '#00f0d8', builtin: true },
+  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', glow: '#ff55b0', builtin: true },
+  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', glow: '#c8e0ff', builtin: true },
 ]
 
 export interface VizConfig {
@@ -82,6 +83,7 @@ export interface UserSettings {
     background: string
     warn: string
     miss: string
+    glow: string
     activePreset: string
     customPresets: ThemePreset[]
   }
@@ -96,6 +98,7 @@ const DEFAULT_STATE: UserSettings = {
     background: BUILTIN_THEMES[0].background,
     warn:       BUILTIN_THEMES[0].warn,
     miss:       BUILTIN_THEMES[0].miss,
+    glow:       BUILTIN_THEMES[0].glow,
     activePreset: BUILTIN_THEMES[0].name,
     customPresets: [],
   },
@@ -136,6 +139,7 @@ export function applyTheme(
   background?: string,
   warn?: string,
   miss?: string,
+  glow?: string,
 ) {
   const root = document.documentElement
   root.style.setProperty('--hu-primary',      primary)
@@ -151,6 +155,12 @@ export function applyTheme(
   root.style.setProperty('--hu-divider',  mix(primary, bg, 0.08))
   if (warn) root.style.setProperty('--hu-warn', warn)
   if (miss) root.style.setProperty('--hu-miss', miss)
+  // Glow: viz bar/peak canvas shadow + CSS glow pulses.  Also emits
+  // --hu-glow-rgb so CSS can compose `rgba(var(--hu-glow-rgb), 0.55)`.
+  const g = glow ?? primary
+  root.style.setProperty('--hu-glow', g)
+  const grgb = hexToRgb(g)
+  if (grgb) root.style.setProperty('--hu-glow-rgb', `${grgb[0]}, ${grgb[1]}, ${grgb[2]}`)
 }
 
 /** Linearly blend two hex colours.  `t=0` returns a, `t=1` returns b. */
@@ -175,7 +185,7 @@ export function useUserSettings() {
     u.onState((_: any, s: UserSettings) => {
       const merged = mergeWithDefaults(s)
       setState(merged)
-      applyTheme(merged.theme.primary, merged.theme.peak, merged.theme.background, merged.theme.warn, merged.theme.miss)
+      applyTheme(merged.theme.primary, merged.theme.peak, merged.theme.background, merged.theme.warn, merged.theme.miss, merged.theme.glow)
     })
     u.requestState()
   }, [])
@@ -185,7 +195,7 @@ export function useUserSettings() {
   const setTheme = useCallback((patch: Partial<UserSettings['theme']>) => {
     setState(prev => {
       const next: UserSettings = { ...prev, theme: { ...prev.theme, ...patch } }
-      applyTheme(next.theme.primary, next.theme.peak, next.theme.background, next.theme.warn, next.theme.miss)
+      applyTheme(next.theme.primary, next.theme.peak, next.theme.background, next.theme.warn, next.theme.miss, next.theme.glow)
       return next
     })
     u?.setTheme?.(patch)
@@ -221,15 +231,19 @@ export function allThemes(s: UserSettings): ThemePreset[] {
 
 function mergeWithDefaults(s: UserSettings | undefined | null): UserSettings {
   if (!s) return DEFAULT_STATE
+  const primary = s.theme?.primary ?? DEFAULT_STATE.theme.primary
   return {
     theme: {
-      primary:    s.theme?.primary    ?? DEFAULT_STATE.theme.primary,
+      primary,
       peak:       s.theme?.peak       ?? DEFAULT_STATE.theme.peak,
       background: s.theme?.background ?? DEFAULT_STATE.theme.background,
       warn:       s.theme?.warn       ?? DEFAULT_STATE.theme.warn,
       miss:       s.theme?.miss       ?? DEFAULT_STATE.theme.miss,
+      glow:       s.theme?.glow       ?? primary,
       activePreset:  s.theme?.activePreset  ?? DEFAULT_STATE.theme.activePreset,
-      customPresets: Array.isArray(s.theme?.customPresets) ? s.theme.customPresets : [],
+      customPresets: Array.isArray(s.theme?.customPresets)
+        ? s.theme.customPresets.map((p) => ({ ...p, glow: p.glow ?? p.primary }))
+        : [],
     },
     viz: { ...DEFAULT_VIZ, ...(s.viz ?? {}) },
     gauges: Array.isArray(s.gauges) ? s.gauges : [],

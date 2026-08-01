@@ -21,17 +21,21 @@ export interface ThemePreset {
   background: string  // --hu-bg-deep
   warn: string        // --hu-warn
   miss: string        // --hu-miss
+  glow: string        // --hu-glow (viz bar/peak shadow, call-popup pulse)
   builtin?: boolean
 }
 
+// Per-theme glow colour — normally similar to the primary but tuned for how
+// the shadow reads on the dark background (e.g. Amber's glow is pushed a
+// touch redder to feel warm, Ice Blue's is pushed cooler / more saturated).
 export const BUILTIN_THEMES: ThemePreset[] = [
-  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', builtin: true },
-  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', builtin: true },
-  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', builtin: true },
-  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', builtin: true },
-  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', builtin: true },
-  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', builtin: true },
-  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', builtin: true },
+  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', glow: '#00ff0a', builtin: true },
+  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', glow: '#ffa000', builtin: true },
+  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', glow: '#33d0ff', builtin: true },
+  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', glow: '#ff3355', builtin: true },
+  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', glow: '#00f0d8', builtin: true },
+  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', glow: '#ff55b0', builtin: true },
+  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', glow: '#c8e0ff', builtin: true },
 ]
 
 export interface VizConfig {
@@ -93,6 +97,7 @@ export interface UserSettings {
     background: string
     warn: string
     miss: string
+    glow: string
     activePreset: string
     customPresets: ThemePreset[]
   }
@@ -107,6 +112,7 @@ const DEFAULT_SETTINGS: UserSettings = {
     background: BUILTIN_THEMES[0].background,
     warn:       BUILTIN_THEMES[0].warn,
     miss:       BUILTIN_THEMES[0].miss,
+    glow:       BUILTIN_THEMES[0].glow,
     activePreset: BUILTIN_THEMES[0].name,
     customPresets: [],
   },
@@ -165,7 +171,7 @@ export class UserSettingsManager {
       this.state.theme = { ...this.state.theme, ...t }
       // If any colour was tweaked manually (not via preset selection), drop
       // the active-preset name so the swatch UI shows "custom".
-      const colorTweaked = !!(t.primary || t.peak || t.background || t.warn || t.miss)
+      const colorTweaked = !!(t.primary || t.peak || t.background || t.warn || t.miss || t.glow)
       if (colorTweaked && !t.activePreset) {
         const match = matchPreset(this.state.theme, this.allThemes())
         this.state.theme.activePreset = match ?? '—'
@@ -185,6 +191,7 @@ export class UserSettingsManager {
         background: this.state.theme.background,
         warn:       this.state.theme.warn,
         miss:       this.state.theme.miss,
+        glow:       this.state.theme.glow,
       })
       this.state.theme.customPresets = without
       this.state.theme.activePreset = clean
@@ -200,6 +207,7 @@ export class UserSettingsManager {
         this.state.theme.background = def.background
         this.state.theme.warn       = def.warn
         this.state.theme.miss       = def.miss
+        this.state.theme.glow       = def.glow
         this.state.theme.activePreset = def.name
       }
       this.save(); this.push()
@@ -259,6 +267,8 @@ function sanitize(raw: any): UserSettings {
     if (isHex(raw.theme.background)) out.theme.background = raw.theme.background
     if (isHex(raw.theme.warn))       out.theme.warn       = raw.theme.warn
     if (isHex(raw.theme.miss))       out.theme.miss       = raw.theme.miss
+    if (isHex(raw.theme.glow))       out.theme.glow       = raw.theme.glow
+    else                             out.theme.glow       = out.theme.primary  // legacy save: default glow → primary
     if (typeof raw.theme.activePreset === 'string') out.theme.activePreset = raw.theme.activePreset
     if (Array.isArray(raw.theme.customPresets)) {
       out.theme.customPresets = raw.theme.customPresets
@@ -271,6 +281,7 @@ function sanitize(raw: any): UserSettings {
           background: isHex(p.background) ? p.background : DEFAULT_SETTINGS.theme.background,
           warn:       isHex(p.warn)       ? p.warn       : DEFAULT_SETTINGS.theme.warn,
           miss:       isHex(p.miss)       ? p.miss       : DEFAULT_SETTINGS.theme.miss,
+          glow:       isHex(p.glow)       ? p.glow       : p.primary,
         }))
     }
   }
@@ -327,7 +338,8 @@ function matchPreset(t: UserSettings['theme'], presets: ThemePreset[]): string |
      && p.peak.toLowerCase()       === t.peak.toLowerCase()
      && p.background.toLowerCase() === t.background.toLowerCase()
      && p.warn.toLowerCase()       === t.warn.toLowerCase()
-     && p.miss.toLowerCase()       === t.miss.toLowerCase()) return p.name
+     && p.miss.toLowerCase()       === t.miss.toLowerCase()
+     && p.glow.toLowerCase()       === t.glow.toLowerCase()) return p.name
   }
   return undefined
 }

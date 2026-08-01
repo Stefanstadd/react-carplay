@@ -7,7 +7,7 @@
 //   • CarPlay   — launches Rhys' original /settings route
 //   • Gauges    — define gauges for the dash (CAN-key, min, max, label)
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   useUserSettings,
   applyTheme,
@@ -79,10 +79,16 @@ export default function SettingsView({
 
 // ─── General (colors) ───────────────────────────────────────────────────────
 
+type ColorKey = 'primary' | 'peak' | 'background' | 'warn' | 'miss' | 'glow'
+
 function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
   const presets = allThemes(us.state)
   const [renaming, setRenaming] = useState(false)
   const [presetName, setPresetName] = useState('')
+  // Which colour row's picker is currently open (null = none).  Starts
+  // closed on every mount of the Settings screen so it "hides for next
+  // time" automatically.
+  const [picker, setPicker] = useState<{ key: ColorKey; label: string } | null>(null)
 
   const pickPreset = (name: string) => {
     const p = presets.find((x) => x.name === name)
@@ -93,6 +99,7 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
       background: p.background,
       warn: p.warn,
       miss: p.miss,
+      glow: p.glow,
       activePreset: name
     })
   }
@@ -105,16 +112,13 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
     setPresetName('')
   }
 
-  const COLORS: {
-    key: 'primary' | 'peak' | 'background' | 'warn' | 'miss'
-    label: string
-    hint: string
-  }[] = [
-    { key: 'primary', label: 'PRIMARY', hint: 'Text, borders, icons' },
-    { key: 'peak', label: 'PEAK', hint: 'Visualizer peaks & gauge needles' },
+  const COLORS: { key: ColorKey; label: string; hint: string }[] = [
+    { key: 'primary',    label: 'PRIMARY',    hint: 'Text, borders, icons' },
+    { key: 'peak',       label: 'PEAK',       hint: 'Visualizer peaks & gauge needles' },
+    { key: 'glow',       label: 'GLOW',       hint: 'Bar/peak shadow + call-popup pulse' },
     { key: 'background', label: 'BACKGROUND', hint: 'Screen base color' },
-    { key: 'warn', label: 'WARN', hint: 'Over-redline / temp warnings' },
-    { key: 'miss', label: 'MISS', hint: 'Missed call indicator' }
+    { key: 'warn',       label: 'WARN',       hint: 'Over-redline / temp warnings' },
+    { key: 'miss',       label: 'MISS',       hint: 'Missed call indicator' },
   ]
 
   return (
@@ -125,14 +129,15 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
         <div key={c.key} className="hu-settings-row">
           <div className="hu-settings-row-label">{c.label}</div>
           <div className="hu-settings-row-body">
-            <input
-              type="color"
-              className="hu-color-picker"
-              value={us.state.theme[c.key]}
-              onChange={(e) => us.setTheme({ [c.key]: e.target.value } as any)}
-              /* Eat pointerdown so finger-jitter doesn't hand the gesture
-               * to the page scroll container while opening the picker. */
+            {/* Head-unit-styled swatch — tap to open the slide-in picker
+             *  on the right side of the screen.  Replaces the browser's
+             *  native color input, which looked out of place. */}
+            <button
+              className="hu-color-swatch"
+              style={{ background: us.state.theme[c.key] }}
               onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setPicker({ key: c.key, label: c.label })}
+              aria-label={`Pick ${c.label}`}
             />
             <div className="hu-hex-label">{us.state.theme[c.key].toUpperCase()}</div>
             <div className="hu-settings-hint">{c.hint}</div>
@@ -156,11 +161,12 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
                * crosses its 8 px threshold mid-tap. */
               onPointerDown={(e) => e.stopPropagation()}
             >
-              {/* Three-band preview: background top, primary middle, peak bottom */}
+              {/* Four-band preview: background, primary, peak, glow */}
               <div className="hu-theme-swatch-preview">
                 <div className="hu-theme-swatch-band" style={{ background: p.background }} />
                 <div className="hu-theme-swatch-band" style={{ background: p.primary }} />
                 <div className="hu-theme-swatch-band" style={{ background: p.peak }} />
+                <div className="hu-theme-swatch-band" style={{ background: p.glow ?? p.primary }} />
               </div>
               <div className="hu-theme-swatch-name">{p.name.toUpperCase()}</div>
               {!p.builtin && (
@@ -180,6 +186,15 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
           )
         })}
       </div>
+
+      {picker && (
+        <ColorPickerPanel
+          label={picker.label}
+          value={us.state.theme[picker.key]}
+          onChange={(hex) => us.setTheme({ [picker.key]: hex } as any)}
+          onClose={() => setPicker(null)}
+        />
+      )}
 
       <div className="hu-settings-row" style={{ marginTop: 24 }}>
         {!renaming ? (
@@ -210,6 +225,170 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
             </button>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Custom color picker ────────────────────────────────────────────────────
+// Head-unit styled picker.  Slides in from the right on top of the settings
+// screen; HSL sliders + hex preview + a strip of theme-relevant preset
+// swatches for one-tap picks.  Dismisses on DONE, on the backdrop, or on
+// escape — component state is scoped to the caller so the picker starts
+// closed the next time the Settings screen mounts.
+
+function hexToHsl(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return [0, 0, 50]
+  const n = parseInt(m[1], 16)
+  const r = ((n >> 16) & 0xff) / 255
+  const g = ((n >> 8)  & 0xff) / 255
+  const b = ( n        & 0xff) / 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  const d = max - min
+  let h = 0
+  const l = (max + min) / 2
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  if (d !== 0) {
+    if      (max === r) h = ((g - b) / d) % 6
+    else if (max === g) h = (b - r) / d + 2
+    else                h = (r - g) / d + 4
+    h *= 60
+    if (h < 0) h += 360
+  }
+  return [Math.round(h), Math.round(s * 100), Math.round(l * 100)]
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  h = ((h % 360) + 360) % 360
+  s = Math.max(0, Math.min(100, s)) / 100
+  l = Math.max(0, Math.min(100, l)) / 100
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  let r = 0, g = 0, b = 0
+  if      (h < 60)  { r = c; g = x }
+  else if (h < 120) { r = x; g = c }
+  else if (h < 180) { g = c; b = x }
+  else if (h < 240) { g = x; b = c }
+  else if (h < 300) { r = x; b = c }
+  else              { r = c; b = x }
+  const to255 = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0')
+  return `#${to255(r)}${to255(g)}${to255(b)}`
+}
+
+// A small strip of built-in-theme colours the user can tap for a one-shot
+// pick.  Rendered inside the picker panel below the sliders.
+const QUICK_SWATCHES = [
+  '#00ff0a', '#00e8d0', '#00b3ff', '#7ad8ff', '#dfe7f0', '#ffffff',
+  '#ffb000', '#ffd900', '#ff6b1a', '#ff4400', '#ff2244', '#ff3aa0',
+  '#ff9ce0', '#ffaa33', '#005c04', '#001500', '#0a0e14', '#1a0f00',
+]
+
+function ColorPickerPanel({
+  label,
+  value,
+  onChange,
+  onClose,
+}: {
+  label: string
+  value: string
+  onChange: (hex: string) => void
+  onClose: () => void
+}) {
+  const [h, s, l] = hexToHsl(value)
+
+  // Escape closes.  Traps the key so we don't fire other global handlers.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose() }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [onClose])
+
+  const swallow = (e: React.PointerEvent) => e.stopPropagation()
+
+  return (
+    <div className="hu-picker-overlay" onPointerDown={onClose}>
+      <div
+        className="hu-picker-panel"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <div className="hu-picker-header">
+          <div className="hu-panel-label" style={{ marginBottom: 0, borderBottom: 'none' }}>
+            {label}
+          </div>
+          <button className="hu-picker-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        <div className="hu-picker-preview" style={{ background: value }} />
+        <div className="hu-picker-hex">{value.toUpperCase()}</div>
+
+        <div className="hu-picker-slider-row">
+          <div className="hu-picker-slider-label">HUE</div>
+          <input
+            type="range" min={0} max={359} step={1} value={h}
+            className="hu-picker-slider hu-picker-slider-hue"
+            onChange={(e) => onChange(hslToHex(+e.target.value, s, l))}
+            onPointerDown={swallow} onPointerMove={swallow} onPointerUp={swallow}
+            style={{ touchAction: 'pan-x' }}
+          />
+          <div className="hu-picker-value">{h}°</div>
+        </div>
+
+        <div className="hu-picker-slider-row">
+          <div className="hu-picker-slider-label">SAT</div>
+          <input
+            type="range" min={0} max={100} step={1} value={s}
+            className="hu-picker-slider"
+            style={{
+              background: `linear-gradient(90deg, ${hslToHex(h, 0, l)}, ${hslToHex(h, 100, l)})`,
+              touchAction: 'pan-x',
+            }}
+            onChange={(e) => onChange(hslToHex(h, +e.target.value, l))}
+            onPointerDown={swallow} onPointerMove={swallow} onPointerUp={swallow}
+          />
+          <div className="hu-picker-value">{s}%</div>
+        </div>
+
+        <div className="hu-picker-slider-row">
+          <div className="hu-picker-slider-label">LIGHT</div>
+          <input
+            type="range" min={0} max={100} step={1} value={l}
+            className="hu-picker-slider"
+            style={{
+              background: `linear-gradient(90deg, #000, ${hslToHex(h, s, 50)}, #fff)`,
+              touchAction: 'pan-x',
+            }}
+            onChange={(e) => onChange(hslToHex(h, s, +e.target.value))}
+            onPointerDown={swallow} onPointerMove={swallow} onPointerUp={swallow}
+          />
+          <div className="hu-picker-value">{l}%</div>
+        </div>
+
+        <div className="hu-panel-label" style={{ marginTop: 8 }}>QUICK PICKS</div>
+        <div className="hu-picker-quicks">
+          {QUICK_SWATCHES.map((c) => (
+            <button
+              key={c}
+              className="hu-picker-quick"
+              style={{ background: c }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => { onChange(c); onClose() }}
+              aria-label={c}
+            />
+          ))}
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        <button
+          className="hu-eq-action hu-eq-action-large hu-picker-done"
+          onClick={onClose}
+        >
+          DONE
+        </button>
       </div>
     </div>
   )
@@ -386,14 +565,16 @@ function VizPage({
 function VizPreview({ enabled }: { enabled: boolean }) {
   const us = useUserSettings()
   const v = us.state.viz
-  const themePrimary = us.state.theme.primary
-  // Canvas-based renderer — see VizCanvas.tsx for why we no longer diff
-  // per-bar DOM styles every frame.
+  // Canvas-based renderer — see VizCanvas.tsx.  Passes all three
+  // colour channels so the preview reacts live to primary/peak/glow
+  // changes made in the color pickers directly above.
   return (
     <div className="hu-viz-preview">
       <VizCanvas
         cfg={v}
-        themePrimary={themePrimary}
+        themePrimary={us.state.theme.primary}
+        peakColor={us.state.theme.peak}
+        glowColor={us.state.theme.glow}
         enabled={enabled}
         className="hu-viz-canvas"
         style={{ height: 260, width: '100%', display: 'block' }}

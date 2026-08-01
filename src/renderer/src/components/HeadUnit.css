@@ -1053,10 +1053,10 @@ img.hu-numpad-call-icon {
 
 /* Only apply the tint on real hover (mouse/keyboard) — on touch the hover
  * state sticks after tap and left a faint green highlight on the button next
- * to the newly-active one. */
+ * to the newly-active one.  Uses --hu-glow-rgb so the tint follows the theme. */
 @media (hover: hover) {
   .hu-nav-btn:hover {
-    background: rgba(0, 255, 10, 0.10);
+    background: rgba(var(--hu-glow-rgb, 0, 255, 10), 0.10);
   }
 }
 
@@ -1291,7 +1291,7 @@ img.hu-numpad-call-icon {
   gap: 18px;
   min-width: 540px;
   max-width: 640px;
-  box-shadow: 0 0 22px rgba(0, 255, 10, 0.18);
+  box-shadow: 0 0 22px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.18);
 }
 
 .hu-call-popup-incoming {
@@ -1299,8 +1299,8 @@ img.hu-numpad-call-icon {
 }
 
 @keyframes hu-call-pulse {
-  0%, 100% { box-shadow: 0 0 22px rgba(0, 255, 10, 0.18); }
-  50%      { box-shadow: 0 0 38px rgba(0, 255, 10, 0.55); }
+  0%, 100% { box-shadow: 0 0 22px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.18); }
+  50%      { box-shadow: 0 0 38px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.55); }
 }
 
 .hu-call-popup-active {
@@ -1457,7 +1457,7 @@ img.hu-numpad-call-icon {
   position: sticky;
   top: 0;
   z-index: 1;
-  text-shadow: 0 0 12px rgba(0, 255, 10, 0.55);
+  text-shadow: 0 0 12px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.55);
 }
 
 /* ─── Selected list row (tap-to-select, then tap CALL to dial) ────────── */
@@ -1766,16 +1766,184 @@ img.hu-numpad-call-icon {
   letter-spacing: 0.06em;
 }
 
-.hu-color-picker {
-  /* Wide and tall enough to land a finger on the 5.5″ touchscreen without
-   * fishing for the corner; native browser picker takes over once tapped. */
+/* Themed color-swatch button — replaces the browser's native color input.
+ * Tapping it opens the ColorPickerPanel on the right of the screen. */
+.hu-color-swatch {
   width: 180px;
   height: 96px;
   border: 1.5px solid var(--hu-primary-dim);
-  background: transparent;
   cursor: pointer;
   padding: 0;
   flex: 0 0 auto;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.hu-color-swatch:hover,
+.hu-color-swatch:focus-visible {
+  border-color: var(--hu-primary);
+  box-shadow: 0 0 12px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.35);
+}
+
+/* ─── ColorPickerPanel — slide-in from the right ───────────────────────── */
+
+.hu-picker-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.55);
+  animation: hu-picker-fade-in 180ms ease-out;
+}
+
+.hu-picker-panel {
+  width: 560px;
+  max-width: 90%;
+  height: 100%;
+  background: var(--hu-bg-deep);
+  border-left: 2px solid var(--hu-primary);
+  padding: 30px 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'VT323', monospace;
+  animation: hu-picker-slide-in 240ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+@keyframes hu-picker-fade-in {
+  from { background: rgba(0, 0, 0, 0); }
+  to   { background: rgba(0, 0, 0, 0.55); }
+}
+@keyframes hu-picker-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.hu-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hu-picker-close {
+  background: transparent;
+  border: 1.5px solid var(--hu-primary-dim);
+  color: var(--hu-primary);
+  font-family: 'VT323', monospace;
+  font-size: 32px;
+  line-height: 1;
+  width: 56px;
+  height: 56px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.hu-picker-close:hover,
+.hu-picker-close:focus-visible {
+  background: var(--hu-primary);
+  color: var(--hu-bg-deep);
+}
+
+.hu-picker-preview {
+  height: 130px;
+  width: 100%;
+  border: 2px solid var(--hu-primary-dim);
+  flex-shrink: 0;
+}
+
+.hu-picker-hex {
+  font-size: 42px;
+  color: var(--hu-primary);
+  letter-spacing: 0.10em;
+  text-align: center;
+  padding: 6px 10px;
+  border: 1.5px solid var(--hu-primary-dim);
+  flex-shrink: 0;
+}
+
+.hu-picker-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.hu-picker-slider-label {
+  font-size: 26px;
+  color: var(--hu-primary-mid);
+  letter-spacing: 0.14em;
+  min-width: 78px;
+}
+.hu-picker-value {
+  font-size: 28px;
+  color: var(--hu-primary);
+  min-width: 78px;
+  text-align: right;
+}
+.hu-picker-slider {
+  flex: 1;
+  height: 44px;
+  -webkit-appearance: none;
+          appearance: none;
+  border: 1.5px solid var(--hu-primary-dim);
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+.hu-picker-slider::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.hu-picker-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+          appearance: none;
+  width: 10px;
+  height: 44px;
+  margin-top: 0;
+  background: var(--hu-primary);
+  border: 2px solid var(--hu-bg-deep);
+  cursor: pointer;
+}
+.hu-picker-slider:focus { outline: none; }
+
+.hu-picker-slider-hue {
+  background: linear-gradient(
+    to right,
+    hsl(0,   100%, 50%),
+    hsl(60,  100%, 50%),
+    hsl(120, 100%, 50%),
+    hsl(180, 100%, 50%),
+    hsl(240, 100%, 50%),
+    hsl(300, 100%, 50%),
+    hsl(360, 100%, 50%)
+  );
+}
+
+/* Grid of one-tap preset colours below the sliders. */
+.hu-picker-quicks {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  flex-shrink: 0;
+}
+.hu-picker-quick {
+  aspect-ratio: 1 / 1;
+  border: 1.5px solid var(--hu-primary-dim);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 100ms ease, transform 100ms ease;
+}
+.hu-picker-quick:hover,
+.hu-picker-quick:focus-visible {
+  border-color: var(--hu-primary);
+  transform: scale(1.05);
+}
+
+.hu-picker-done {
+  align-self: stretch;
+  margin-top: 8px;
 }
 
 .hu-hex-label {
@@ -1836,7 +2004,7 @@ img.hu-numpad-call-icon {
 }
 .hu-theme-swatch-preview {
   display: grid;
-  grid-template-rows: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr;
   height: 150px;
 }
 .hu-theme-swatch-band {
