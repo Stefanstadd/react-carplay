@@ -1056,7 +1056,7 @@ img.hu-numpad-call-icon {
  * to the newly-active one.  Uses --hu-glow-rgb so the tint follows the theme. */
 @media (hover: hover) {
   .hu-nav-btn:hover {
-    background: rgba(var(--hu-glow-rgb, 0, 255, 10), 0.10);
+    background: rgba(var(--hu-shadow-rgb, 0, 255, 10), 0.10);
   }
 }
 
@@ -1291,7 +1291,7 @@ img.hu-numpad-call-icon {
   gap: 18px;
   min-width: 540px;
   max-width: 640px;
-  box-shadow: 0 0 22px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.18);
+  box-shadow: 0 0 22px rgba(var(--hu-shadow-rgb, 0, 255, 10), 0.18);
 }
 
 .hu-call-popup-incoming {
@@ -1299,8 +1299,8 @@ img.hu-numpad-call-icon {
 }
 
 @keyframes hu-call-pulse {
-  0%, 100% { box-shadow: 0 0 22px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.18); }
-  50%      { box-shadow: 0 0 38px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.55); }
+  0%, 100% { box-shadow: 0 0 22px rgba(var(--hu-shadow-rgb, 0, 255, 10), 0.18); }
+  50%      { box-shadow: 0 0 38px rgba(var(--hu-shadow-rgb, 0, 255, 10), 0.55); }
 }
 
 .hu-call-popup-active {
@@ -1457,7 +1457,7 @@ img.hu-numpad-call-icon {
   position: sticky;
   top: 0;
   z-index: 1;
-  text-shadow: 0 0 12px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.55);
+  text-shadow: 0 0 12px rgba(var(--hu-shadow-rgb, 0, 255, 10), 0.55);
 }
 
 /* ─── Selected list row (tap-to-select, then tap CALL to dial) ────────── */
@@ -1781,10 +1781,17 @@ img.hu-numpad-call-icon {
 .hu-color-swatch:hover,
 .hu-color-swatch:focus-visible {
   border-color: var(--hu-primary);
-  box-shadow: 0 0 12px rgba(var(--hu-glow-rgb, 0, 255, 10), 0.35);
+  box-shadow: 0 0 12px rgba(var(--hu-shadow-rgb, 0, 255, 10), 0.35);
 }
 
-/* ─── ColorPickerPanel — slide-in from the right ───────────────────────── */
+/* ─── ColorPickerPanel — slide-in from the right of the settings screen ── */
+
+/* Settings screen becomes the positioning context so the picker overlay
+ * anchors to it (sidebar still visible on the left, and the head-unit's
+ * nav bar / header at the bottom/top don't get covered). */
+.hu-settings-screen {
+  position: relative;
+}
 
 .hu-picker-overlay {
   position: absolute;
@@ -2004,7 +2011,7 @@ img.hu-numpad-call-icon {
 }
 .hu-theme-swatch-preview {
   display: grid;
-  grid-template-rows: 1fr 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
   height: 150px;
 }
 .hu-theme-swatch-band {

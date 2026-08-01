@@ -19,16 +19,20 @@ interface VizCanvasProps {
   /** Peak-hold marker colour — comes from theme `peak`.  Falls back to
    *  `themePrimary` for callers that don't care. */
   peakColor?: string
-  /** Colour of the shadow/glow around bars + peaks.  Comes from theme
-   *  `glow`; defaults to peak (which itself defaults to primary). */
+  /** Top-of-gradient colour — what the tallest bars bloom to at their
+   *  peak height.  Comes from theme `glow`; defaults to a primary-
+   *  blended-white for legacy callers. */
   glowColor?: string
+  /** Colour of the drop-shadow behind bars + peak markers.  Comes from
+   *  theme `shadow`; defaults to primary. */
+  shadowColor?: string
   enabled: boolean
   className?: string
   style?: React.CSSProperties
 }
 
 export default function VizCanvas({
-  cfg, themePrimary, peakColor, glowColor, enabled, className, style,
+  cfg, themePrimary, peakColor, glowColor, shadowColor, enabled, className, style,
 }: VizCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viz = useVizInstance(cfg)
@@ -40,8 +44,10 @@ export default function VizCanvas({
   primaryRef.current = themePrimary
   const peakColorRef = useRef(peakColor ?? themePrimary)
   peakColorRef.current = peakColor ?? themePrimary
-  const glowColorRef = useRef(glowColor ?? peakColor ?? themePrimary)
-  glowColorRef.current = glowColor ?? peakColor ?? themePrimary
+  const glowColorRef = useRef(glowColor ?? undefined)
+  glowColorRef.current = glowColor ?? undefined
+  const shadowColorRef = useRef(shadowColor ?? peakColor ?? themePrimary)
+  shadowColorRef.current = shadowColor ?? peakColor ?? themePrimary
 
   // Match backing store to element pixel size so lines stay crisp under
   // the head-unit's CSS transform-scale.  Uses ResizeObserver rather than
@@ -75,16 +81,18 @@ export default function VizCanvas({
     const cfg = cfgRef.current
     const primary = primaryRef.current
     const peakCol = peakColorRef.current
-    const glowCol = glowColorRef.current
+    const glowCol = glowColorRef.current       // top of bar gradient
+    const shadowCol = shadowColorRef.current   // canvas drop-shadow around bars/peaks
     const barCount = cfg.bars
     const gap = 6
     const totalGap = gap * (barCount - 1)
     const barW = Math.max(1, (w - totalGap) / barCount)
 
-    // Bars: fill with a per-height gradient off `primary`, plus a soft
-    // shadow using the theme's glow colour scaled by cfg.glowStrength.
-    // shadowBlur on canvas is cheap for solid rectangles at this scale
-    // (Pi 5's GPU handles it fine at 32-48 bars).
+    // Bars: fill with a per-height gradient off `primary`, blooming into
+    // `glow` at the top stop.  Drop-shadow uses `shadow` at a strength
+    // scaled by cfg.glowStrength.  shadowBlur on canvas is cheap for
+    // solid rectangles at this scale (Pi 5's GPU handles it fine at
+    // 32-48 bars).
     ctx.save()
     for (let i = 0; i < barCount; i++) {
       const v = viz.bars[i] || 0
@@ -92,9 +100,9 @@ export default function VizCanvas({
       const x = i * (barW + gap)
       const barH = Math.max(2, v * h)
       const blur = (2 + 10 * v) * cfg.glowStrength
-      ctx.fillStyle = barColor(v, cfg.colorCurve, primary)
+      ctx.fillStyle = barColor(v, cfg.colorCurve, primary, glowCol)
       if (blur > 0.5) {
-        ctx.shadowColor = glowCol
+        ctx.shadowColor = shadowCol
         ctx.shadowBlur = blur
       } else {
         ctx.shadowBlur = 0
@@ -103,11 +111,11 @@ export default function VizCanvas({
     }
     ctx.restore()
 
-    // Peak markers — thin rectangles in the *peak* colour with a slightly
-    // stronger glow so they read against bright bars.
+    // Peak markers — thin rectangles in the *peak* colour, drop-shadow in
+    // the *shadow* colour so they still read against bright bars.
     ctx.save()
     ctx.fillStyle = peakCol
-    ctx.shadowColor = glowCol
+    ctx.shadowColor = shadowCol
     ctx.shadowBlur = 6 + 4 * cfg.glowStrength
     for (let i = 0; i < barCount; i++) {
       const p = viz.peaks[i] || 0
@@ -126,7 +134,7 @@ export default function VizCanvas({
   useEffect(() => {
     draw()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg.bars, themePrimary, peakColor, glowColor])
+  }, [cfg.bars, themePrimary, peakColor, glowColor, shadowColor])
 
   return <canvas ref={canvasRef} className={className} style={style} />
 }

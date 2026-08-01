@@ -531,6 +531,7 @@ function MusicView({
           themePrimary={themePrimary}
           peakColor={us.state.theme.peak}
           glowColor={us.state.theme.glow}
+          shadowColor={us.state.theme.shadow}
           enabled={isActive}
           className="hu-viz-canvas"
         />

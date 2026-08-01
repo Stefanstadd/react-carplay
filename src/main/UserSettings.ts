@@ -17,25 +17,29 @@ import * as path from 'path'
 export interface ThemePreset {
   name: string
   primary: string     // --hu-primary (was --hu-green)
-  peak: string        // --hu-peak (visualizer peaks + gauge needles)
+  peak: string        // --hu-peak (visualizer peak markers + gauge needles)
   background: string  // --hu-bg-deep
   warn: string        // --hu-warn
   miss: string        // --hu-miss
-  glow: string        // --hu-glow (viz bar/peak shadow, call-popup pulse)
+  shadow: string      // --hu-shadow (box-shadow around viz bars, call-popup pulse)
+  glow: string        // --hu-glow (top of viz bar gradient — colour bars radiate at their peak height)
   builtin?: boolean
 }
 
-// Per-theme glow colour — normally similar to the primary but tuned for how
-// the shadow reads on the dark background (e.g. Amber's glow is pushed a
-// touch redder to feel warm, Ice Blue's is pushed cooler / more saturated).
+// Per-theme colours.
+//   shadow → drop-shadow around the viz bars + call-popup pulse.  Usually
+//     hugs the primary hue so the overall glow feels coherent.
+//   glow → the colour the tallest bars *bloom* to at their peak height
+//     (top of the gradient — was previously a hardcoded near-white).
+//     Bright / high-luminance to make loud beats pop against the mids.
 export const BUILTIN_THEMES: ThemePreset[] = [
-  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', glow: '#00ff0a', builtin: true },
-  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', glow: '#ffa000', builtin: true },
-  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', glow: '#33d0ff', builtin: true },
-  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', glow: '#ff3355', builtin: true },
-  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', glow: '#00f0d8', builtin: true },
-  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', glow: '#ff55b0', builtin: true },
-  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', glow: '#c8e0ff', builtin: true },
+  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', shadow: '#00ff0a', glow: '#c8ffb0', builtin: true },
+  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', shadow: '#ffa000', glow: '#fff2b0', builtin: true },
+  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', shadow: '#33d0ff', glow: '#e0f7ff', builtin: true },
+  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', shadow: '#ff3355', glow: '#ffd0a0', builtin: true },
+  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', shadow: '#00f0d8', glow: '#d8fff8', builtin: true },
+  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', shadow: '#ff55b0', glow: '#ffd0ec', builtin: true },
+  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', shadow: '#c8e0ff', glow: '#ffffff', builtin: true },
 ]
 
 export interface VizConfig {
@@ -97,6 +101,7 @@ export interface UserSettings {
     background: string
     warn: string
     miss: string
+    shadow: string
     glow: string
     activePreset: string
     customPresets: ThemePreset[]
@@ -112,6 +117,7 @@ const DEFAULT_SETTINGS: UserSettings = {
     background: BUILTIN_THEMES[0].background,
     warn:       BUILTIN_THEMES[0].warn,
     miss:       BUILTIN_THEMES[0].miss,
+    shadow:     BUILTIN_THEMES[0].shadow,
     glow:       BUILTIN_THEMES[0].glow,
     activePreset: BUILTIN_THEMES[0].name,
     customPresets: [],
@@ -171,7 +177,7 @@ export class UserSettingsManager {
       this.state.theme = { ...this.state.theme, ...t }
       // If any colour was tweaked manually (not via preset selection), drop
       // the active-preset name so the swatch UI shows "custom".
-      const colorTweaked = !!(t.primary || t.peak || t.background || t.warn || t.miss || t.glow)
+      const colorTweaked = !!(t.primary || t.peak || t.background || t.warn || t.miss || t.shadow || t.glow)
       if (colorTweaked && !t.activePreset) {
         const match = matchPreset(this.state.theme, this.allThemes())
         this.state.theme.activePreset = match ?? '—'
@@ -191,6 +197,7 @@ export class UserSettingsManager {
         background: this.state.theme.background,
         warn:       this.state.theme.warn,
         miss:       this.state.theme.miss,
+        shadow:     this.state.theme.shadow,
         glow:       this.state.theme.glow,
       })
       this.state.theme.customPresets = without
@@ -207,6 +214,7 @@ export class UserSettingsManager {
         this.state.theme.background = def.background
         this.state.theme.warn       = def.warn
         this.state.theme.miss       = def.miss
+        this.state.theme.shadow     = def.shadow
         this.state.theme.glow       = def.glow
         this.state.theme.activePreset = def.name
       }
@@ -267,22 +275,41 @@ function sanitize(raw: any): UserSettings {
     if (isHex(raw.theme.background)) out.theme.background = raw.theme.background
     if (isHex(raw.theme.warn))       out.theme.warn       = raw.theme.warn
     if (isHex(raw.theme.miss))       out.theme.miss       = raw.theme.miss
-    if (isHex(raw.theme.glow))       out.theme.glow       = raw.theme.glow
-    else                             out.theme.glow       = out.theme.primary  // legacy save: default glow → primary
+    // shadow was called `glow` in a previous release — migrate: if a saved
+    // file has `glow` but no `shadow`, treat that `glow` as the shadow value
+    // (since that's what it drove before).  Then `glow` gets its new
+    // "peak-of-bar" meaning from the default until the user overrides it.
+    if      (isHex(raw.theme.shadow)) out.theme.shadow = raw.theme.shadow
+    else if (isHex(raw.theme.glow))   out.theme.shadow = raw.theme.glow
+    else                              out.theme.shadow = out.theme.primary
+    if (isHex(raw.theme.glow) && isHex(raw.theme.shadow)) {
+      // Only trust `glow` as the new peak-colour if this save already has
+      // an explicit `shadow` (i.e. was written by the new code path).
+      out.theme.glow = raw.theme.glow
+    } else {
+      out.theme.glow = DEFAULT_SETTINGS.theme.glow
+    }
     if (typeof raw.theme.activePreset === 'string') out.theme.activePreset = raw.theme.activePreset
     if (Array.isArray(raw.theme.customPresets)) {
       out.theme.customPresets = raw.theme.customPresets
         .filter((p: any) => p && typeof p.name === 'string' && isHex(p.primary) && isHex(p.peak))
-        .map((p: any) => ({
-          name: p.name.slice(0, 24),
-          primary:    p.primary,
-          peak:       p.peak,
-          // Fill in sane defaults for fields that weren't in older saved files.
-          background: isHex(p.background) ? p.background : DEFAULT_SETTINGS.theme.background,
-          warn:       isHex(p.warn)       ? p.warn       : DEFAULT_SETTINGS.theme.warn,
-          miss:       isHex(p.miss)       ? p.miss       : DEFAULT_SETTINGS.theme.miss,
-          glow:       isHex(p.glow)       ? p.glow       : p.primary,
-        }))
+        .map((p: any) => {
+          const shadow = isHex(p.shadow) ? p.shadow
+                       : isHex(p.glow)   ? p.glow          // migrate old field
+                       : p.primary
+          const glow = (isHex(p.glow) && isHex(p.shadow)) ? p.glow : '#ffffff'
+          return {
+            name: p.name.slice(0, 24),
+            primary:    p.primary,
+            peak:       p.peak,
+            // Fill in sane defaults for fields that weren't in older saved files.
+            background: isHex(p.background) ? p.background : DEFAULT_SETTINGS.theme.background,
+            warn:       isHex(p.warn)       ? p.warn       : DEFAULT_SETTINGS.theme.warn,
+            miss:       isHex(p.miss)       ? p.miss       : DEFAULT_SETTINGS.theme.miss,
+            shadow,
+            glow,
+          }
+        })
     }
   }
   if (raw?.viz) out.viz = sanitizeViz({ ...DEFAULT_VIZ, ...raw.viz })
@@ -339,6 +366,7 @@ function matchPreset(t: UserSettings['theme'], presets: ThemePreset[]): string |
      && p.background.toLowerCase() === t.background.toLowerCase()
      && p.warn.toLowerCase()       === t.warn.toLowerCase()
      && p.miss.toLowerCase()       === t.miss.toLowerCase()
+     && p.shadow.toLowerCase()     === t.shadow.toLowerCase()
      && p.glow.toLowerCase()       === t.glow.toLowerCase()) return p.name
   }
   return undefined

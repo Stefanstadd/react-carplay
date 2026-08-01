@@ -14,18 +14,19 @@ export interface ThemePreset {
   background: string
   warn: string
   miss: string
+  shadow: string
   glow: string
   builtin?: boolean
 }
 
 export const BUILTIN_THEMES: ThemePreset[] = [
-  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', glow: '#00ff0a', builtin: true },
-  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', glow: '#ffa000', builtin: true },
-  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', glow: '#33d0ff', builtin: true },
-  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', glow: '#ff3355', builtin: true },
-  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', glow: '#00f0d8', builtin: true },
-  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', glow: '#ff55b0', builtin: true },
-  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', glow: '#c8e0ff', builtin: true },
+  { name: 'Saab Green',  primary: '#00ff0a', peak: '#00ff0a', background: '#001500', warn: '#ff6b1a', miss: '#ff4444', shadow: '#00ff0a', glow: '#c8ffb0', builtin: true },
+  { name: 'Amber',       primary: '#ffb000', peak: '#ffd900', background: '#1a0f00', warn: '#ff4400', miss: '#ff2244', shadow: '#ffa000', glow: '#fff2b0', builtin: true },
+  { name: 'Ice Blue',    primary: '#00b3ff', peak: '#7ad8ff', background: '#001022', warn: '#ff9933', miss: '#ff3355', shadow: '#33d0ff', glow: '#e0f7ff', builtin: true },
+  { name: 'Crimson',     primary: '#ff2244', peak: '#ffaa44', background: '#150000', warn: '#ffcc00', miss: '#ff8800', shadow: '#ff3355', glow: '#ffd0a0', builtin: true },
+  { name: 'Cyan',        primary: '#00e8d0', peak: '#a8fff5', background: '#001a18', warn: '#ffaa33', miss: '#ff3366', shadow: '#00f0d8', glow: '#d8fff8', builtin: true },
+  { name: 'Hot Pink',    primary: '#ff3aa0', peak: '#ff9ce0', background: '#180012', warn: '#ffaa00', miss: '#ff5544', shadow: '#ff55b0', glow: '#ffd0ec', builtin: true },
+  { name: 'White',       primary: '#dfe7f0', peak: '#ffffff', background: '#0a0e14', warn: '#ffaa33', miss: '#ff4444', shadow: '#c8e0ff', glow: '#ffffff', builtin: true },
 ]
 
 export interface VizConfig {
@@ -83,6 +84,7 @@ export interface UserSettings {
     background: string
     warn: string
     miss: string
+    shadow: string
     glow: string
     activePreset: string
     customPresets: ThemePreset[]
@@ -98,6 +100,7 @@ const DEFAULT_STATE: UserSettings = {
     background: BUILTIN_THEMES[0].background,
     warn:       BUILTIN_THEMES[0].warn,
     miss:       BUILTIN_THEMES[0].miss,
+    shadow:     BUILTIN_THEMES[0].shadow,
     glow:       BUILTIN_THEMES[0].glow,
     activePreset: BUILTIN_THEMES[0].name,
     customPresets: [],
@@ -139,6 +142,7 @@ export function applyTheme(
   background?: string,
   warn?: string,
   miss?: string,
+  shadow?: string,
   glow?: string,
 ) {
   const root = document.documentElement
@@ -155,12 +159,16 @@ export function applyTheme(
   root.style.setProperty('--hu-divider',  mix(primary, bg, 0.08))
   if (warn) root.style.setProperty('--hu-warn', warn)
   if (miss) root.style.setProperty('--hu-miss', miss)
-  // Glow: viz bar/peak canvas shadow + CSS glow pulses.  Also emits
-  // --hu-glow-rgb so CSS can compose `rgba(var(--hu-glow-rgb), 0.55)`.
-  const g = glow ?? primary
-  root.style.setProperty('--hu-glow', g)
-  const grgb = hexToRgb(g)
-  if (grgb) root.style.setProperty('--hu-glow-rgb', `${grgb[0]}, ${grgb[1]}, ${grgb[2]}`)
+  // Shadow: viz-bar box-shadow blur colour + call-popup pulse + text-shadow
+  // on the sticky letter separators.  Also emits --hu-shadow-rgb so CSS can
+  // compose `rgba(var(--hu-shadow-rgb), 0.55)`.
+  const sh = shadow ?? primary
+  root.style.setProperty('--hu-shadow', sh)
+  const shrgb = hexToRgb(sh)
+  if (shrgb) root.style.setProperty('--hu-shadow-rgb', `${shrgb[0]}, ${shrgb[1]}, ${shrgb[2]}`)
+  // Glow: colour the tallest viz bars *bloom* to at their peak height (top
+  // stop of the bar gradient).  Not used in CSS — VizCanvas reads it.
+  root.style.setProperty('--hu-glow', glow ?? '#ffffff')
 }
 
 /** Linearly blend two hex colours.  `t=0` returns a, `t=1` returns b. */
@@ -185,7 +193,7 @@ export function useUserSettings() {
     u.onState((_: any, s: UserSettings) => {
       const merged = mergeWithDefaults(s)
       setState(merged)
-      applyTheme(merged.theme.primary, merged.theme.peak, merged.theme.background, merged.theme.warn, merged.theme.miss, merged.theme.glow)
+      applyTheme(merged.theme.primary, merged.theme.peak, merged.theme.background, merged.theme.warn, merged.theme.miss, merged.theme.shadow, merged.theme.glow)
     })
     u.requestState()
   }, [])
@@ -195,7 +203,7 @@ export function useUserSettings() {
   const setTheme = useCallback((patch: Partial<UserSettings['theme']>) => {
     setState(prev => {
       const next: UserSettings = { ...prev, theme: { ...prev.theme, ...patch } }
-      applyTheme(next.theme.primary, next.theme.peak, next.theme.background, next.theme.warn, next.theme.miss, next.theme.glow)
+      applyTheme(next.theme.primary, next.theme.peak, next.theme.background, next.theme.warn, next.theme.miss, next.theme.shadow, next.theme.glow)
       return next
     })
     u?.setTheme?.(patch)
@@ -239,10 +247,15 @@ function mergeWithDefaults(s: UserSettings | undefined | null): UserSettings {
       background: s.theme?.background ?? DEFAULT_STATE.theme.background,
       warn:       s.theme?.warn       ?? DEFAULT_STATE.theme.warn,
       miss:       s.theme?.miss       ?? DEFAULT_STATE.theme.miss,
-      glow:       s.theme?.glow       ?? primary,
+      shadow:     s.theme?.shadow     ?? primary,
+      glow:       s.theme?.glow       ?? DEFAULT_STATE.theme.glow,
       activePreset:  s.theme?.activePreset  ?? DEFAULT_STATE.theme.activePreset,
       customPresets: Array.isArray(s.theme?.customPresets)
-        ? s.theme.customPresets.map((p) => ({ ...p, glow: p.glow ?? p.primary }))
+        ? s.theme.customPresets.map((p: any) => ({
+            ...p,
+            shadow: p.shadow ?? p.glow ?? p.primary,  // migrate legacy field
+            glow:   (p.shadow && p.glow) ? p.glow : '#ffffff',
+          }))
         : [],
     },
     viz: { ...DEFAULT_VIZ, ...(s.viz ?? {}) },

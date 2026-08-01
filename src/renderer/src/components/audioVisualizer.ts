@@ -493,8 +493,10 @@ const FALLBACK_STOPS: { t: number; rgb: RGB }[] = [
   { t: 1.0,  rgb: [150, 255, 130] },
 ]
 
-// One-entry cache: most renders pass the same primary 32 times in a row.
-let _cachedPrimary = ''
+// One-entry cache: most renders pass the same primary+glow 32-48 times in
+// a row (once per bar per frame).  Cache on the composite key so the
+// gradient only rebuilds when the theme changes.
+let _cachedKey = ''
 let _cachedStops: { t: number; rgb: RGB }[] = FALLBACK_STOPS
 
 function hexToRgb(hex: string): RGB | null {
@@ -504,35 +506,41 @@ function hexToRgb(hex: string): RGB | null {
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff] as RGB
 }
 
-function stopsFromPrimary(primary: string): { t: number; rgb: RGB }[] {
-  if (primary === _cachedPrimary) return _cachedStops
+function stopsFromTheme(primary: string, glow?: string): { t: number; rgb: RGB }[] {
+  const key = `${primary}|${glow ?? ''}`
+  if (key === _cachedKey) return _cachedStops
   const rgb = hexToRgb(primary)
   if (!rgb) return FALLBACK_STOPS
-  // Derive a dark → primary → near-white curve from the chosen hue.  Scaling
-  // toward black at the bottom keeps quiet bars subtle; blending toward white
-  // at the top gives transient highlights.
-  const dark  = (k: number): RGB => [Math.round(rgb[0] * k), Math.round(rgb[1] * k), Math.round(rgb[2] * k)]
-  const light = (k: number): RGB => [
-    Math.round(rgb[0] + (255 - rgb[0]) * k),
-    Math.round(rgb[1] + (255 - rgb[1]) * k),
-    Math.round(rgb[2] + (255 - rgb[2]) * k),
+  // Scale the primary toward black at the low end so quiet bars stay subtle.
+  const dark = (k: number): RGB => [Math.round(rgb[0] * k), Math.round(rgb[1] * k), Math.round(rgb[2] * k)]
+  // Top stop: prefer the theme's explicit glow colour so bars *bloom* to
+  // whatever the user picked at their peak height.  Fall back to
+  // primary-toward-white for legacy behaviour when no glow is provided.
+  const glowRgb = glow ? hexToRgb(glow) : null
+  const top: RGB = glowRgb ?? [
+    Math.round(rgb[0] + (255 - rgb[0]) * 0.45),
+    Math.round(rgb[1] + (255 - rgb[1]) * 0.45),
+    Math.round(rgb[2] + (255 - rgb[2]) * 0.45),
   ]
-  _cachedPrimary = primary
+  _cachedKey = key
   _cachedStops = [
     { t: 0.0,  rgb: dark(0.12) },
     { t: 0.25, rgb: dark(0.32) },
     { t: 0.55, rgb: dark(0.65) },
-    { t: 0.85, rgb: rgb },
-    { t: 1.0,  rgb: light(0.45) },
+    { t: 0.85, rgb: rgb },   // primary — solid mid-height colour
+    { t: 1.0,  rgb: top },   // glow — what the bar radiates at peak height
   ]
   return _cachedStops
 }
 
 /** Returns a CSS rgb() string for a bar height (0..1).  Exponential
  *  curve via cfg.colorCurve (>1 emphasises the bright/hot end).
- *  Pass the active theme primary hex to recolor the gradient. */
-export function barColor(h: number, colorCurve = 1.6, primary?: string): string {
-  const stops = primary ? stopsFromPrimary(primary) : FALLBACK_STOPS
+ *  - `primary`: mid-height colour (theme.primary).
+ *  - `glow`:    top-of-gradient colour (theme.glow) — what the tallest
+ *               bars bloom to.  Falls back to primary-blended-white so
+ *               callers that haven't wired up glow yet keep the old look. */
+export function barColor(h: number, colorCurve = 1.6, primary?: string, glow?: string): string {
+  const stops = primary ? stopsFromTheme(primary, glow) : FALLBACK_STOPS
   if (h <= 0) return `rgb(${stops[0].rgb.join(',')})`
   const t = Math.pow(Math.min(1, h), 1 / colorCurve)
   for (let i = 1; i < stops.length; i++) {

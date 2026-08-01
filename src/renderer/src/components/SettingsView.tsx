@@ -47,9 +47,14 @@ export default function SettingsView({
   // just a finger-drag with momentum that doesn't fight the global
   // `touch-action: none` on the App root.
   const scroll = useScrollContainer<HTMLDivElement>()
+  // Picker lives at the SettingsView level so the slide-in panel anchors
+  // to the settings screen only (right side of it — the sidebar stays
+  // visible and the phone nav bar / header don't get covered).  Starts
+  // closed on every mount so it "hides for next time" automatically.
+  const [picker, setPicker] = useState<{ key: ColorKey; label: string } | null>(null)
 
   return (
-    <div className="hu-screen">
+    <div className="hu-screen hu-settings-screen">
       <div className="hu-sidebar">
         <div className="hu-panel-label">SETTINGS</div>
         {PAGES.map((p) => (
@@ -67,28 +72,39 @@ export default function SettingsView({
       </div>
 
       <div className="hu-main-area hu-settings-scroll" ref={scroll.ref} {...scroll.handlers}>
-        {page === 'general' && <GeneralPage us={us} />}
+        {page === 'general' && <GeneralPage us={us} onOpenPicker={setPicker} />}
         {page === 'viz' && <VizPage us={us} vizActive={isActive} />}
         {page === 'eq' && <EqualizerPage onOpenEqualizer={onOpenEqualizer} />}
         {page === 'carplay' && <CarplayPage onOpen={onOpenCarplaySettings} />}
         {page === 'gauges' && <GaugesPage us={us} />}
       </div>
+
+      {picker && (
+        <ColorPickerPanel
+          label={picker.label}
+          value={us.state.theme[picker.key]}
+          onChange={(hex) => us.setTheme({ [picker.key]: hex } as any)}
+          onClose={() => setPicker(null)}
+        />
+      )}
     </div>
   )
 }
 
 // ─── General (colors) ───────────────────────────────────────────────────────
 
-type ColorKey = 'primary' | 'peak' | 'background' | 'warn' | 'miss' | 'glow'
+type ColorKey = 'primary' | 'peak' | 'background' | 'warn' | 'miss' | 'shadow' | 'glow'
 
-function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
+function GeneralPage({
+  us,
+  onOpenPicker,
+}: {
+  us: ReturnType<typeof useUserSettings>
+  onOpenPicker: (p: { key: ColorKey; label: string }) => void
+}) {
   const presets = allThemes(us.state)
   const [renaming, setRenaming] = useState(false)
   const [presetName, setPresetName] = useState('')
-  // Which colour row's picker is currently open (null = none).  Starts
-  // closed on every mount of the Settings screen so it "hides for next
-  // time" automatically.
-  const [picker, setPicker] = useState<{ key: ColorKey; label: string } | null>(null)
 
   const pickPreset = (name: string) => {
     const p = presets.find((x) => x.name === name)
@@ -99,6 +115,7 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
       background: p.background,
       warn: p.warn,
       miss: p.miss,
+      shadow: p.shadow,
       glow: p.glow,
       activePreset: name
     })
@@ -114,8 +131,9 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
 
   const COLORS: { key: ColorKey; label: string; hint: string }[] = [
     { key: 'primary',    label: 'PRIMARY',    hint: 'Text, borders, icons' },
-    { key: 'peak',       label: 'PEAK',       hint: 'Visualizer peaks & gauge needles' },
-    { key: 'glow',       label: 'GLOW',       hint: 'Bar/peak shadow + call-popup pulse' },
+    { key: 'peak',       label: 'PEAK',       hint: 'Visualizer peak markers & gauge needles' },
+    { key: 'glow',       label: 'GLOW',       hint: "Colour bars bloom to at their peak height" },
+    { key: 'shadow',     label: 'SHADOW',     hint: 'Drop-shadow behind bars + call-popup pulse' },
     { key: 'background', label: 'BACKGROUND', hint: 'Screen base color' },
     { key: 'warn',       label: 'WARN',       hint: 'Over-redline / temp warnings' },
     { key: 'miss',       label: 'MISS',       hint: 'Missed call indicator' },
@@ -130,13 +148,12 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
           <div className="hu-settings-row-label">{c.label}</div>
           <div className="hu-settings-row-body">
             {/* Head-unit-styled swatch — tap to open the slide-in picker
-             *  on the right side of the screen.  Replaces the browser's
-             *  native color input, which looked out of place. */}
+             *  on the right side of the settings screen. */}
             <button
               className="hu-color-swatch"
               style={{ background: us.state.theme[c.key] }}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => setPicker({ key: c.key, label: c.label })}
+              onClick={() => onOpenPicker({ key: c.key, label: c.label })}
               aria-label={`Pick ${c.label}`}
             />
             <div className="hu-hex-label">{us.state.theme[c.key].toUpperCase()}</div>
@@ -161,12 +178,14 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
                * crosses its 8 px threshold mid-tap. */
               onPointerDown={(e) => e.stopPropagation()}
             >
-              {/* Four-band preview: background, primary, peak, glow */}
+              {/* Five-band preview: background, primary, peak, glow, shadow —
+                  gives the user a real sense of what they'd get before applying. */}
               <div className="hu-theme-swatch-preview">
                 <div className="hu-theme-swatch-band" style={{ background: p.background }} />
                 <div className="hu-theme-swatch-band" style={{ background: p.primary }} />
                 <div className="hu-theme-swatch-band" style={{ background: p.peak }} />
-                <div className="hu-theme-swatch-band" style={{ background: p.glow ?? p.primary }} />
+                <div className="hu-theme-swatch-band" style={{ background: p.glow ?? '#ffffff' }} />
+                <div className="hu-theme-swatch-band" style={{ background: p.shadow ?? p.primary }} />
               </div>
               <div className="hu-theme-swatch-name">{p.name.toUpperCase()}</div>
               {!p.builtin && (
@@ -187,14 +206,9 @@ function GeneralPage({ us }: { us: ReturnType<typeof useUserSettings> }) {
         })}
       </div>
 
-      {picker && (
-        <ColorPickerPanel
-          label={picker.label}
-          value={us.state.theme[picker.key]}
-          onChange={(hex) => us.setTheme({ [picker.key]: hex } as any)}
-          onClose={() => setPicker(null)}
-        />
-      )}
+      {/* Picker moved up to SettingsView so it anchors to the settings
+       *  screen (right side, sidebar stays visible) instead of covering
+       *  the whole app. */}
 
       <div className="hu-settings-row" style={{ marginTop: 24 }}>
         {!renaming ? (
@@ -575,6 +589,7 @@ function VizPreview({ enabled }: { enabled: boolean }) {
         themePrimary={us.state.theme.primary}
         peakColor={us.state.theme.peak}
         glowColor={us.state.theme.glow}
+        shadowColor={us.state.theme.shadow}
         enabled={enabled}
         className="hu-viz-canvas"
         style={{ height: 260, width: '100%', display: 'block' }}
