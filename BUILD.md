@@ -1,115 +1,90 @@
 # Building + running the head unit
 
-All commands below run from the project root (`~/react-carplay` on the Pi).
-
-## First time / after a fresh git clone
+## Fresh Pi 5 — first time setup
 
 ```bash
-npm install
+git clone https://github.com/Stefanstadd/react-carplay.git
+cd react-carplay
+./setup-pi.sh
+sudo reboot
 ```
 
-This pulls the Node dependencies including `dbus-next` (pure JavaScript —
-installs on all platforms, only does anything at runtime on Linux).
+That one script installs everything: system packages (bluez, ofono,
+pipewire/wireplumber, parec), Node 20 via NodeSource, the udev rule
+for the Carlinkit dongle, the BlueZ + WirePlumber configs that make
+HFP calling actually work, user-level linger so services survive a
+kiosk boot, a `carplay.service` systemd user unit, `npm ci`, and a
+first build.
 
-## Development — hot-reload while editing
+After the reboot the app autostarts.  Pair your phone once from the
+Devices screen and calling / music / contacts work out of the box —
+see `BLUETOOTH.md` §5-7 for phone-side prompts (PBAP, HFP toggle).
+
+Re-running `./setup-pi.sh` any time is safe — it's idempotent.  Pass
+`--skip-build` if you just want to re-apply the OS/BT config without
+touching the app, or `--force-build` to rebuild regardless.
+
+## Iterating on code
+
+Stop the packaged app so it doesn't fight the dev server for the
+display, then run the Vite dev server:
 
 ```bash
+systemctl --user stop carplay
 npm run dev
 ```
 
-Starts the Vite dev server + opens the Electron window.  Saving any file
-under `src/` hot-updates the running app without a full restart.
+Editing anything under `src/` hot-reloads.  When you're done, either
+`systemctl --user start carplay` to bring the packaged version back, or
+just close the dev window (autostart resumes on next boot).
 
-If you're editing config knobs via `nano src/renderer/src/components/headunit.config.ts`
-and the change doesn't apply, kill (Ctrl+C) and re-run `npm run dev`.  Vite
-is configured for polling so atomic-write editors (nano) should work, but
-if it ever fails to pick up, restart is the escape hatch.
-
-## Production build — ARM Linux (Raspberry Pi 4/5)
+## Pulling latest + rebuilding
 
 ```bash
-npm run build:armLinux
+./update.sh
 ```
 
-This produces an AppImage under `dist/` that you can launch directly.
+This does `git pull`, runs `npm ci` only if `package-lock.json`
+changed, then kicks off `npm run build` **in the background** so you
+can immediately run `npm run dev` while the packaged build cooks.  When
+the background build succeeds it restarts `carplay.service`
+automatically so the packaged app picks up the new version.
 
-## Production build — generic Linux
+Flags:
+- `./update.sh --no-build` — pull + deps only, don't rebuild.
+- `./update.sh --fg` — rebuild in the foreground (blocking).
+
+Progress lives in `build.log`:
 
 ```bash
-npm run build:linux
+tail -f build.log
 ```
 
-## Type-check only
+## Autostart controls
 
 ```bash
-npm run typecheck
+systemctl --user status  carplay      # is it running?
+systemctl --user restart carplay      # after a manual edit
+systemctl --user disable carplay      # opt out of autostart
+systemctl --user enable  carplay      # opt back in
 ```
 
-## Lint + format
+## Manual build targets
+
+The one-shot `setup-pi.sh` and `update.sh` are enough for day-to-day
+use, but if you need something specific:
 
 ```bash
-npm run lint
-npm run format
+npm run build            # full: typecheck + electron-vite build
+npx electron-vite build  # renderer + main only, skip typecheck
+npm run build:armLinux   # produce an AppImage under dist/
+npm run typecheck        # tsc, no output
+npm run lint             # eslint --fix
 ```
 
-## Just the renderer build (skip electron-builder)
+## Troubleshooting
 
-```bash
-npx electron-vite build
-```
-
-Then `npm start` runs the built version (`electron-vite preview`).
-
-## Running on the Pi after a `git pull`
-
-```bash
-git pull
-npm install           # only if package.json / lockfile changed
-npm run dev           # for iteration
-# or
-npm run build:armLinux  # for the packaged AppImage
-```
-
-## Auto-start on boot (Raspberry Pi)
-
-After building the AppImage, register it as an XDG autostart entry so it
-launches automatically when the desktop session starts:
-
-```bash
-sudo bash -c 'cat > /etc/xdg/autostart/carplay.desktop' <<'EOF'
-[Desktop Entry]
-Name=Carplay
-Exec=/home/pi/react-carplay/dist/react-carplay-4.0.5-arm64.AppImage
-Type=Application
-EOF
-```
-
-Replace `pi` with your actual username if different, and update the version
-number (`4.0.5`) when `package.json` is bumped.  The filename pattern comes
-from `electron-builder.yml`: `${name}-${version}-${arch}.AppImage`.
-
-To disable autostart:
-
-```bash
-sudo rm /etc/xdg/autostart/carplay.desktop
-```
-
-The `.desktop` file is the same mechanism used by `setup-pi.sh` for the
-pre-built release AppImage — swap the `Exec=` path if you move the file.
-
----
-
-If `git pull` reports a merge conflict on a file you edited locally, the
-cleanest recovery is:
-
-```bash
-git checkout --theirs <file>
-git add <file>
-git stash drop        # if you'd previously stashed
-git pull
-```
-
-This takes the remote version and discards your local edits — re-apply
-them by hand afterward.  For `headunit.config.ts` specifically, the
-tunable values are isolated in one file so conflicts there are usually
-small to re-apply.
+- **`git pull` conflict on a locally-edited file**: `git checkout --theirs <file>` takes the remote version.  For tunable knobs, prefer editing them via the Settings screen so config lives in `localStorage` and doesn't collide with the repo.
+- **Build fails on typecheck**: pre-existing errors in `src/main/Canbus.ts` / worker files that are unrelated to app functionality.  `setup-pi.sh` and `update.sh` fall back to `npx electron-vite build` (skips typecheck) so the packaged app still ships.
+- **Calling doesn't work**: check `BLUETOOTH.md` §7 and the HFP-NOT-READY banner in the app for the exact reason.  Almost always ofono / WirePlumber / BlueZ handoff — `setup-pi.sh` configures all three but a Pi OS upgrade can revert them; re-run the script.
+- **Visualizer silent**: `pactl list sources short | grep monitor` should list at least one `.monitor` source that has audio flowing.  See `BLUETOOTH.md` §10.

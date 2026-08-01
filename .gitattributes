@@ -1,0 +1,4 @@
+# Shell scripts must be LF regardless of who edits them (Windows edits
+# would otherwise land as CRLF and break the `#!/usr/bin/env bash`
+# shebang on the Pi with "no such file or directory").
+*.sh    text eol=lf
