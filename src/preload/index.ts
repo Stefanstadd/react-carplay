@@ -6,12 +6,13 @@ import { Stream } from "socketmost/dist/modules/Messages";
 type ApiCallback = (event: IpcRendererEvent, ...args: any[]) => void
 
 export interface BtApi {
-  onPhone:    (cb: ApiCallback) => void
-  onMedia:    (cb: ApiCallback) => void
-  onCall:     (cb: ApiCallback) => void
-  onContacts: (cb: ApiCallback) => void
-  onRecents:  (cb: ApiCallback) => void
-  onDevices:  (cb: ApiCallback) => void
+  onPhone:     (cb: ApiCallback) => void
+  onMedia:     (cb: ApiCallback) => void
+  onCall:      (cb: ApiCallback) => void
+  onContacts:  (cb: ApiCallback) => void
+  onRecents:   (cb: ApiCallback) => void
+  onDevices:   (cb: ApiCallback) => void
+  onDialError: (cb: ApiCallback) => void
 
   requestState:  () => void
   mediaCmd:      (cmd: string) => void
@@ -64,12 +65,13 @@ export interface Api {
 }
 
 const bt: BtApi = {
-  onPhone:    (cb) => ipcRenderer.on('bt:phone',    cb),
-  onMedia:    (cb) => ipcRenderer.on('bt:media',    cb),
-  onCall:     (cb) => ipcRenderer.on('bt:call',     cb),
-  onContacts: (cb) => ipcRenderer.on('bt:contacts', cb),
-  onRecents:  (cb) => ipcRenderer.on('bt:recents',  cb),
-  onDevices:  (cb) => ipcRenderer.on('bt:devices',  cb),
+  onPhone:     (cb) => ipcRenderer.on('bt:phone',     cb),
+  onMedia:     (cb) => ipcRenderer.on('bt:media',     cb),
+  onCall:      (cb) => ipcRenderer.on('bt:call',      cb),
+  onContacts:  (cb) => ipcRenderer.on('bt:contacts',  cb),
+  onRecents:   (cb) => ipcRenderer.on('bt:recents',   cb),
+  onDevices:   (cb) => ipcRenderer.on('bt:devices',   cb),
+  onDialError: (cb) => ipcRenderer.on('bt:dialError', cb),
 
   requestState: ()         => ipcRenderer.send('bt:requestState'),
   mediaCmd:     (cmd)      => ipcRenderer.send('bt:mediaCmd', cmd),

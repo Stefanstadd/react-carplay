@@ -33,6 +33,10 @@ export interface PhoneState {
   name?: string
   batteryPct?: number
   charging?: boolean
+  /** ofono has an active modem and VCM is subscribed — HFP calls should work.
+   *  Renderer disables the call button when this is false so users get a
+   *  visible reason ("HFP not ready") instead of a silent no-op. */
+  hfpReady?: boolean
 }
 
 export interface MediaState {
@@ -397,12 +401,19 @@ export class BluetoothManager {
   }
 
   private phoneState(): PhoneState {
-    if (!this.activePhonePath) return { connected: false }
+    const hfpReady = this.activeModemPath !== null
+    if (!this.activePhonePath) return { connected: false, hfpReady }
     const d = this.devicePaths.get(this.activePhonePath)
-    if (!d) return { connected: false }
+    if (!d) return { connected: false, hfpReady }
     // Note: BlueZ Battery1 doesn't expose charging state for iOS — the
     // charging field stays undefined unless a future BlueZ version surfaces it.
-    return { connected: d.connected, address: d.address, name: d.name, batteryPct: d.batteryPct }
+    return {
+      connected: d.connected,
+      address: d.address,
+      name: d.name,
+      batteryPct: d.batteryPct,
+      hfpReady,
+    }
   }
 
   private deviceList(): BtDevice[] {
@@ -891,11 +902,13 @@ export class BluetoothManager {
         this.activeModemPath = String(modems[0][0])
         console.log('[bt] ofono modem:', this.activeModemPath)
         this.pollSubscribeVCM(this.activeModemPath)
+        this.pushPhone()
       }
       mgr.on('ModemAdded', (path: string) => {
         if (!this.activeModemPath) {
           this.activeModemPath = path
           this.pollSubscribeVCM(path)
+          this.pushPhone()
         }
       })
       mgr.on('ModemRemoved', (path: string) => {
@@ -905,6 +918,7 @@ export class BluetoothManager {
           if (this.vcmSubscribedModem === path) this.vcmSubscribedModem = null
           this.call = { status: 'idle', durationSec: 0, muted: false }
           this.pushCall()
+          this.pushPhone()
         }
       })
     } catch (err) {
@@ -1009,13 +1023,19 @@ export class BluetoothManager {
 
   private async dial(num: string) {
     if (!this.activeModemPath) {
-      console.warn('[bt] dial: no active modem — ofono running and HFP connected?')
+      const reason =
+        'HFP not ready — ofono has no active modem for this phone.\n' +
+        'Check: sudo systemctl status ofono, and confirm the phone advertises HFP.'
+      console.warn('[bt] dial:', reason)
+      this.pushDialError(reason)
       return
     }
     // ofono expects digits + optional leading '+'; strip everything else.
     const sanitized = num.replace(/[^\d+]/g, '')
     if (!sanitized) {
-      console.warn('[bt] dial: number empty after sanitization from', JSON.stringify(num))
+      const reason = `Empty number after sanitising ${JSON.stringify(num)}`
+      console.warn('[bt] dial:', reason)
+      this.pushDialError(reason)
       return
     }
     try {
@@ -1029,7 +1049,15 @@ export class BluetoothManager {
         this.call = { status: 'dialing', contact: { number: sanitized }, durationSec: 0, muted: false }
         this.pushCall()
       }
-    } catch (err) { console.warn('[bt] dial failed:', (err as Error).message ?? err) }
+    } catch (err) {
+      const msg = (err as Error).message ?? String(err)
+      console.warn('[bt] dial failed:', msg)
+      this.pushDialError(`ofono Dial() failed: ${msg}`)
+    }
+  }
+
+  private pushDialError(reason: string) {
+    this.getWindow()?.webContents?.send('bt:dialError', { reason })
   }
 
   private async answer() {

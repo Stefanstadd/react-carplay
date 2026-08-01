@@ -818,6 +818,31 @@ img.hu-numpad-call-icon {
   gap: 8px;
 }
 
+/* HFP-not-ready banner + transient dial-error toast on the phone screen.
+ * Uses --hu-warn so it reads as a warning against any theme. */
+.hu-hfp-banner {
+  border: 1.5px solid var(--hu-warn);
+  color: var(--hu-warn);
+  background: rgba(255, 107, 26, 0.08);
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  font-family: 'VT323', monospace;
+}
+.hu-hfp-banner code {
+  font-family: 'VT323', monospace;
+  background: rgba(255, 107, 26, 0.14);
+  padding: 0 6px;
+}
+.hu-hfp-banner-error {
+  cursor: pointer;
+  border-color: var(--hu-miss);
+  color: var(--hu-miss);
+  background: rgba(255, 68, 68, 0.10);
+}
+
 .hu-phone-content {
   flex: 1;
   overflow-y: auto;

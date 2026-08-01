@@ -1023,6 +1023,14 @@ function PhoneView({ bt }: { bt: ReturnType<typeof useBluetooth> }) {
     setSelectedRecentIdx(null)
   }, [tab])
 
+  // Auto-dismiss the dial-error banner so it doesn't stick around forever
+  // after a transient failure.
+  useEffect(() => {
+    if (!bt.dialError) return
+    const id = setTimeout(() => bt.clearDialError(), 6000)
+    return () => clearTimeout(id)
+  }, [bt.dialError])
+
   const onCallContact = (c: Contact) => {
     const num = c.numbers[0]?.number
     if (num) bt.dial(num)
@@ -1077,6 +1085,26 @@ function PhoneView({ bt }: { bt: ReturnType<typeof useBluetooth> }) {
               <div className="hu-empty-sub">
                 Pair a phone in the Devices screen to use the dialer + recent calls.
               </div>
+            </div>
+          )}
+
+          {/* Phone is paired but ofono hasn't attached an HFP modem — calls
+              will silently no-op.  Loud banner so the user has a real reason
+              instead of guessing why nothing happened. */}
+          {bt.phone.connected && bt.phone.hfpReady === false && (
+            <div className="hu-hfp-banner">
+              HFP NOT READY — calls disabled until ofono attaches a modem for this phone.
+              Check <code>sudo systemctl status ofono</code> and re-connect the phone.
+            </div>
+          )}
+
+          {/* Ephemeral dial-failure banner — dismisses on click or after 6 s. */}
+          {bt.dialError && (
+            <div
+              className="hu-hfp-banner hu-hfp-banner-error"
+              onClick={bt.clearDialError}
+            >
+              CALL FAILED — {bt.dialError.reason}
             </div>
           )}
 

@@ -4,7 +4,7 @@
 // window.api.bt.* and re-exposes them as a React hook.  On dev (Windows)
 // the IPC bridge is absent — the hook just returns the disconnected default.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -24,6 +24,10 @@ export interface PhoneState {
   name?: string
   batteryPct?: number
   charging?: boolean
+  /** ofono has an active modem for HFP.  If this is false while `connected`
+   *  is true, dialling won't work — usually means ofono isn't running or the
+   *  phone hasn't attached the HFP profile yet. */
+  hfpReady?: boolean
 }
 
 export interface MediaState {
@@ -92,6 +96,11 @@ const DEFAULT_RCS:   RecentCallsState = { synced: false, syncing: false, calls: 
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
+export interface DialError {
+  reason: string
+  ts: number
+}
+
 export function useBluetooth() {
   const [phone,    setPhone]    = useState<PhoneState>(DEFAULT_PHONE)
   const [media,    setMedia]    = useState<MediaState>(DEFAULT_MEDIA)
@@ -99,6 +108,13 @@ export function useBluetooth() {
   const [contacts, setContacts] = useState<ContactsState>(DEFAULT_CTS)
   const [recents,  setRecents]  = useState<RecentCallsState>(DEFAULT_RCS)
   const [devices,  setDevices]  = useState<BtDevice[]>([])
+  const [dialError, setDialError] = useState<DialError | null>(null)
+  // Wall-clock (perf.now) of the last local self-seek (prev/next/seek).  For
+  // ~2 s after a self-seek we ignore any wildly different position that main
+  // pushes — that push is almost always the stale AVRCP poll from just
+  // *before* the phone restarted the track.  Without this the bar bounces
+  // back to the pre-replay position for a second.
+  const lastSelfSeekRef = useRef(0)
 
   useEffect(() => {
     const bt = (window as any).api?.bt
@@ -118,9 +134,19 @@ export function useBluetooth() {
           // the progress bar jumps rather than sliding backward from the old track.
           return { ...next, snapCounter: prevSnap + 1 }
         }
+        // Just performed a local seek/prev/next?  Main's 1 Hz AVRCP poll is
+        // usually captured *before* the phone restarted the track, so its
+        // position push arrives 500 ms–1 s late and would bounce our bar
+        // back to the pre-restart position.  Ignore that push for ~2 s and
+        // trust the optimistic value we set locally.  Once the window
+        // closes, the normal delta > 3 s → snap path takes over.
+        const sinceSelfSeek = performance.now() - lastSelfSeekRef.current
+        if (sinceSelfSeek < 2000) {
+          return { ...next, positionSec: prev.positionSec, snapCounter: prevSnap }
+        }
         const delta = Math.abs(next.positionSec - prev.positionSec)
         if (delta > 3) {
-          // Big jump (seek, replay, big drift) — trust the server and snap.
+          // Big jump (external seek, big drift) — trust the server and snap.
           return { ...next, snapCounter: prevSnap + 1 }
         }
         // Small drift: local 10 Hz counter is authoritative. Never let BlueZ's
@@ -148,6 +174,10 @@ export function useBluetooth() {
     })
     bt.onRecents ((_: any, d: RecentCallsState)  => setRecents(d ?? DEFAULT_RCS))
     bt.onDevices ((_: any, d: BtDevice[])        => setDevices(d ?? []))
+    bt.onDialError?.((_: any, d: { reason: string }) => {
+      console.warn('[bt:dial] failed:', d?.reason)
+      setDialError({ reason: d?.reason ?? 'Call failed', ts: Date.now() })
+    })
 
     bt.requestState?.()
   }, [])
@@ -189,20 +219,28 @@ export function useBluetooth() {
   const bt = (window as any).api?.bt
 
   return {
-    phone, media, call, contacts, recents, devices,
+    phone, media, call, contacts, recents, devices, dialError,
+    clearDialError: () => setDialError(null),
 
     mediaPlay:    () => bt?.mediaCmd?.('play'),
     mediaPause:   () => bt?.mediaCmd?.('pause'),
     mediaToggle:  () => bt?.mediaCmd?.(media.playing ? 'pause' : 'play'),
-    // No optimistic position reset — let main push the real position so
-    // "replay track" doesn't briefly slam to 0 and then bounce back to the
-    // stale AVRCP poll that arrives ~200 ms later.
-    mediaNext: () => { bt?.mediaCmd?.('next') },
-    mediaPrev: () => { bt?.mediaCmd?.('previous') },
+    // prev/next/seek all move the position optimistically so the bar reflects
+    // the user's intent instantly.  `lastSelfSeekRef` gates the onMedia
+    // handler so it ignores the stale AVRCP poll main is about to send.
+    mediaNext: () => {
+      bt?.mediaCmd?.('next')
+      lastSelfSeekRef.current = performance.now()
+      setMedia((p) => ({ ...p, positionSec: 0, snapCounter: (p.snapCounter ?? 0) + 1 }))
+    },
+    mediaPrev: () => {
+      bt?.mediaCmd?.('previous')
+      lastSelfSeekRef.current = performance.now()
+      setMedia((p) => ({ ...p, positionSec: 0, snapCounter: (p.snapCounter ?? 0) + 1 }))
+    },
     mediaSeek: (sec: number) => {
       bt?.mediaCmd?.(`seek:${Math.max(0, Math.floor(sec))}`)
-      // User-driven seek → snap immediately.  The subsequent AVRCP poll's
-      // small drift is absorbed by the "delta < 3 s" branch above.
+      lastSelfSeekRef.current = performance.now()
       setMedia((p) => ({
         ...p,
         positionSec: Math.max(0, sec),
