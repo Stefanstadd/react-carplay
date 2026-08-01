@@ -133,6 +133,15 @@ export class Equalizer {
       // any value we changed while the app was offline shows up immediately.
       setTimeout(() => this.applyLive(BANDS.map((_, i) => i)).catch(() => undefined), 500)
     }
+    // Always re-assert `headunit_eq` as the default sink at startup — this
+    // used to only happen on first install, so any Pi session that ended
+    // up with a different default (USB DAC hot-plugged, wireplumber
+    // policy chose something else) left the EQ chain dangling with the
+    // phone linked directly to the hardware sink, bypassing the filter
+    // graph entirely.  Also moves any existing sink-inputs onto the EQ
+    // sink so already-connected phones start getting EQ'd without a
+    // disconnect/reconnect.
+    this.ensureDefaultSink()
     this.push()
   }
 
@@ -375,6 +384,42 @@ ${linkLines.join('\n')}
     } catch (err) {
       console.warn('[eq] failed to write pipewire config:', (err as Error).message)
     }
+  }
+
+  /** Force `headunit_eq` to be the pactl default sink and move every
+   *  currently-connected sink-input onto it.  Waits a moment so pipewire
+   *  has time to expose the filter-chain node before we address it.  Any
+   *  step that fails is logged but not fatal — the user can still fix it
+   *  by hand with `pactl set-default-sink headunit_eq`. */
+  private ensureDefaultSink(): void {
+    if (process.platform !== 'linux') return
+    setTimeout(() => {
+      // Only re-assert if headunit_eq actually exists — otherwise we'd
+      // clobber a working setup while the filter-chain is still coming
+      // up on first install.
+      exec(`pactl list short sinks`, (err, stdout) => {
+        if (err) { console.warn('[eq] pactl list sinks failed:', err.message); return }
+        const hasChain = stdout.split('\n').some(l => l.includes(CHAIN_NODE_NAME))
+        if (!hasChain) {
+          console.warn(`[eq] ${CHAIN_NODE_NAME} not present yet — skipping default-sink assertion`)
+          return
+        }
+        exec(`pactl set-default-sink ${CHAIN_NODE_NAME}`, (e1) => {
+          if (e1) { console.warn('[eq] set-default-sink failed:', e1.message); return }
+          console.log(`[eq] default sink → ${CHAIN_NODE_NAME}`)
+          // Move any active streams (esp. bluez A2DP) onto the chain so
+          // the user hears EQ'd audio without disconnecting the phone.
+          exec('pactl list short sink-inputs', (e2, out2) => {
+            if (e2) return
+            for (const line of out2.split('\n')) {
+              const id = line.split(/\s+/)[0]
+              if (!id) continue
+              exec(`pactl move-sink-input ${id} ${CHAIN_NODE_NAME}`, () => undefined)
+            }
+          })
+        })
+      })
+    }, 300)
   }
 
   /** One-time pipewire restart used ONLY on first install (filter-chain
