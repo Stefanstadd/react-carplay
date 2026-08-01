@@ -109,12 +109,14 @@ export function useBluetooth() {
   const [recents,  setRecents]  = useState<RecentCallsState>(DEFAULT_RCS)
   const [devices,  setDevices]  = useState<BtDevice[]>([])
   const [dialError, setDialError] = useState<DialError | null>(null)
-  // Wall-clock (perf.now) of the last local self-seek (prev/next/seek).  For
-  // ~2 s after a self-seek we ignore any wildly different position that main
-  // pushes — that push is almost always the stale AVRCP poll from just
-  // *before* the phone restarted the track.  Without this the bar bounces
-  // back to the pre-replay position for a second.
-  const lastSelfSeekRef = useRef(0)
+  // Wall-clock (perf.now) of the last EXPLICIT user seek — i.e. dragging the
+  // progress bar.  For ~1.5 s afterwards we ignore main's position pushes
+  // because BlueZ's 1 Hz AVRCP poll would otherwise yank the bar back to
+  // the pre-seek position.  prev/next intentionally do not stamp this: we
+  // want the bar to reflect whatever the phone is actually playing after a
+  // skip/replay, not a made-up 0 that then bounces if the phone didn't
+  // actually restart.
+  const lastExplicitSeekRef = useRef(0)
 
   useEffect(() => {
     const bt = (window as any).api?.bt
@@ -130,23 +132,24 @@ export function useBluetooth() {
         const trackChanged = next.title !== prev.title || next.artist !== prev.artist
         const prevSnap = prev.snapCounter ?? 0
         if (trackChanged) {
-          // New track — always trust the server position and mark a snap so
-          // the progress bar jumps rather than sliding backward from the old track.
+          // New track — always trust the server position and snap.
           return { ...next, snapCounter: prevSnap + 1 }
         }
-        // Just performed a local seek/prev/next?  Main's 1 Hz AVRCP poll is
-        // usually captured *before* the phone restarted the track, so its
-        // position push arrives 500 ms–1 s late and would bounce our bar
-        // back to the pre-restart position.  Ignore that push for ~2 s and
-        // trust the optimistic value we set locally.  Once the window
-        // closes, the normal delta > 3 s → snap path takes over.
-        const sinceSelfSeek = performance.now() - lastSelfSeekRef.current
-        if (sinceSelfSeek < 2000) {
+        // Just performed an explicit user seek (dragging the bar) — trust
+        // our optimistic set for ~1.5 s so main's stale AVRCP poll doesn't
+        // yank us back.  prev/next intentionally do NOT stamp this ref: the
+        // right way to reset the bar on a replay/skip is to trust whatever
+        // position main polls from the phone, so the bar shows what's
+        // actually playing rather than a made-up 0.
+        const sinceExplicitSeek = performance.now() - lastExplicitSeekRef.current
+        if (sinceExplicitSeek < 1500) {
           return { ...next, positionSec: prev.positionSec, snapCounter: prevSnap }
         }
         const delta = Math.abs(next.positionSec - prev.positionSec)
         if (delta > 3) {
-          // Big jump (external seek, big drift) — trust the server and snap.
+          // Big jump (replay-that-restarted, external seek, big drift) —
+          // trust the server and snap.  This is the path that resets the
+          // bar to 0 when the phone actually restarts on prev.
           return { ...next, snapCounter: prevSnap + 1 }
         }
         // Small drift: local 10 Hz counter is authoritative. Never let BlueZ's
@@ -225,22 +228,18 @@ export function useBluetooth() {
     mediaPlay:    () => bt?.mediaCmd?.('play'),
     mediaPause:   () => bt?.mediaCmd?.('pause'),
     mediaToggle:  () => bt?.mediaCmd?.(media.playing ? 'pause' : 'play'),
-    // prev/next/seek all move the position optimistically so the bar reflects
-    // the user's intent instantly.  `lastSelfSeekRef` gates the onMedia
-    // handler so it ignores the stale AVRCP poll main is about to send.
-    mediaNext: () => {
-      bt?.mediaCmd?.('next')
-      lastSelfSeekRef.current = performance.now()
-      setMedia((p) => ({ ...p, positionSec: 0, snapCounter: (p.snapCounter ?? 0) + 1 }))
-    },
-    mediaPrev: () => {
-      bt?.mediaCmd?.('previous')
-      lastSelfSeekRef.current = performance.now()
-      setMedia((p) => ({ ...p, positionSec: 0, snapCounter: (p.snapCounter ?? 0) + 1 }))
-    },
+    // prev/next: no optimistic reset.  The phone decides whether "previous"
+    // means "restart" or "go to previous track" (depends on where in the
+    // song you are).  Main polls AVRCP every second and the delta-snap
+    // above jumps the bar to the actual position once the phone confirms
+    // — no more made-up 0 that bounces back a second later.
+    mediaNext: () => { bt?.mediaCmd?.('next') },
+    mediaPrev: () => { bt?.mediaCmd?.('previous') },
+    // Explicit seek (user dragged the progress bar) → optimistic update
+    // is safe because we know exactly where the phone will land.
     mediaSeek: (sec: number) => {
       bt?.mediaCmd?.(`seek:${Math.max(0, Math.floor(sec))}`)
-      lastSelfSeekRef.current = performance.now()
+      lastExplicitSeekRef.current = performance.now()
       setMedia((p) => ({
         ...p,
         positionSec: Math.max(0, sec),

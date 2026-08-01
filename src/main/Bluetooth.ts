@@ -802,6 +802,20 @@ export class BluetoothManager {
         if (tgt > cur && typeof mp.FastForward === 'function') await mp.FastForward()
         if (tgt < cur && typeof mp.Rewind      === 'function') await mp.Rewind()
       }
+      // Force early AVRCP position + track refresh after any transport
+      // command so the renderer sees the new state within ~300 ms instead
+      // of waiting for the next 1 s poll.  Prev/next in particular need
+      // this — the phone often takes 100–300 ms to restart or advance, and
+      // we want the progress bar to snap to the actual new position rather
+      // than sit at the stale value.
+      if (['next', 'previous', 'play', 'pause'].includes(cmd)) {
+        setTimeout(() => {
+          this.refreshPlayerPosition().catch(() => undefined)
+        }, 300)
+        setTimeout(() => {
+          this.refreshPlayerPosition().catch(() => undefined)
+        }, 900)
+      }
     } catch (err) { console.warn('[bt] media cmd failed', cmd, err) }
   }
 

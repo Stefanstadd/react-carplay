@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { HashRouter as Router, Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import Settings from "./components/Settings";
 import './App.css'
@@ -59,6 +59,23 @@ function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounte
 
   const showNav = pathname !== '/' && pathname !== '/carplay'
 
+  // Global keyboard escape from /carplay — Escape / Backspace always send
+  // the user back to the head unit.  This is a hard safety net for when
+  // the Carplay component crashes or the video canvas locks up: no matter
+  // what the render layer is doing, this listener still fires and the
+  // user can get out.
+  useEffect(() => {
+    if (pathname !== '/carplay') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Backspace') {
+        e.preventDefault()
+        navigate('/')
+      }
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [pathname, navigate])
+
   return (
     <div
       style={{ height: '100%', touchAction: 'none' }}
@@ -68,16 +85,21 @@ function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounte
       {showNav && <Nav receivingVideo={receivingVideo} settings={settings}/>}
 
       {/* Persistent CarPlay layer — stays mounted across nav changes so that
-          returning to /carplay is seamless and the dongle doesn't re-init.   */}
+          returning to /carplay is seamless and the dongle doesn't re-init.
+          Wrapped in an error boundary so a worker/decoder crash inside
+          Carplay can't take the whole app down and strand the user with a
+          white screen. */}
       {settings && (
-        <Carplay
-          receivingVideo={receivingVideo}
-          setReceivingVideo={setReceivingVideo}
-          settings={settings}
-          command={keyCommand}
-          commandCounter={commandCounter}
-          onHostUIRequested={() => navigate('/')}
-        />
+        <CarplayErrorBoundary onExit={() => navigate('/')}>
+          <Carplay
+            receivingVideo={receivingVideo}
+            setReceivingVideo={setReceivingVideo}
+            settings={settings}
+            command={keyCommand}
+            commandCounter={commandCounter}
+            onHostUIRequested={() => navigate('/')}
+          />
+        </CarplayErrorBoundary>
       )}
 
       <Routes>
@@ -108,6 +130,56 @@ function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounte
       </Modal>
     </div>
   )
+}
+
+// Error boundary specifically for the Carplay layer.  When the dongle
+// worker or H.264 decoder throws, the persistent Carplay layer would
+// otherwise unmount and leave the /carplay route with nothing to render
+// (HeadUnit isn't rendered at that path).  The fallback UI shows an
+// EXIT button + the error message so the user is never stranded.
+class CarplayErrorBoundary extends React.Component<
+  { onExit: () => void; children: React.ReactNode },
+  { err: Error | null }
+> {
+  state: { err: Error | null } = { err: null }
+  static getDerivedStateFromError(err: Error) { return { err } }
+  componentDidCatch(err: Error, info: React.ErrorInfo) {
+    console.error('[Carplay] crashed:', err, info)
+  }
+  render() {
+    if (!this.state.err) return this.props.children
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 999,
+          background: 'var(--hu-bg-deep, #001500)',
+          color: 'var(--hu-primary, #00ff0a)',
+          fontFamily: "'VT323', monospace",
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 24, padding: 40, textAlign: 'center',
+        }}
+      >
+        <div style={{ fontSize: 56, letterSpacing: '0.18em' }}>CARPLAY CRASHED</div>
+        <div style={{ fontSize: 28, opacity: 0.75, maxWidth: 900 }}>
+          {this.state.err.message || String(this.state.err)}
+        </div>
+        <button
+          onClick={() => { this.setState({ err: null }); this.props.onExit() }}
+          style={{
+            fontSize: 32, padding: '14px 34px',
+            background: 'transparent',
+            border: '1.5px solid var(--hu-primary, #00ff0a)',
+            color: 'var(--hu-primary, #00ff0a)',
+            fontFamily: "'VT323', monospace",
+            cursor: 'pointer',
+          }}
+        >
+          ← BACK TO HEAD UNIT
+        </button>
+      </div>
+    )
+  }
 }
 
 function App() {
