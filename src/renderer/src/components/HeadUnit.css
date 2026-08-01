@@ -1898,7 +1898,7 @@ img.hu-numpad-call-icon {
  * across the full width of .hu-settings-page (which has 30/40 px padding). */
 .hu-viz-preview-sticky {
   position: sticky;
-  top: 0;
+  top: -29px;
   z-index: 5;
   background: var(--hu-bg-deep);
   margin: -30px -40px 12px -40px;
