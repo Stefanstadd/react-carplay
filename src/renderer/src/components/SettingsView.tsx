@@ -97,7 +97,7 @@ type ColorKey = 'primary' | 'peak' | 'background' | 'warn' | 'miss' | 'shadow' |
 
 function GeneralPage({
   us,
-  onOpenPicker,
+  onOpenPicker
 }: {
   us: ReturnType<typeof useUserSettings>
   onOpenPicker: (p: { key: ColorKey; label: string }) => void
@@ -130,13 +130,13 @@ function GeneralPage({
   }
 
   const COLORS: { key: ColorKey; label: string; hint: string }[] = [
-    { key: 'primary',    label: 'PRIMARY',    hint: 'Text, borders, icons' },
-    { key: 'peak',       label: 'PEAK',       hint: 'Visualizer peak markers & gauge needles' },
-    { key: 'glow',       label: 'GLOW',       hint: "Colour bars bloom to at their peak height" },
-    { key: 'shadow',     label: 'SHADOW',     hint: 'Drop-shadow behind bars + call-popup pulse' },
+    { key: 'primary', label: 'PRIMARY', hint: 'Text, borders, icons' },
+    { key: 'peak', label: 'PEAK', hint: 'Visualizer peak markers & gauge needles' },
+    { key: 'glow', label: 'GLOW', hint: 'Colour bars bloom to at their peak height' },
+    { key: 'shadow', label: 'SHADOW', hint: 'Drop-shadow behind bars + call-popup pulse' },
     { key: 'background', label: 'BACKGROUND', hint: 'Screen base color' },
-    { key: 'warn',       label: 'WARN',       hint: 'Over-redline / temp warnings' },
-    { key: 'miss',       label: 'MISS',       hint: 'Missed call indicator' },
+    { key: 'warn', label: 'WARN', hint: 'Over-redline / temp warnings' },
+    { key: 'miss', label: 'MISS', hint: 'Missed call indicator' }
   ]
 
   return (
@@ -185,7 +185,10 @@ function GeneralPage({
                 <div className="hu-theme-swatch-band" style={{ background: p.primary }} />
                 <div className="hu-theme-swatch-band" style={{ background: p.peak }} />
                 <div className="hu-theme-swatch-band" style={{ background: p.glow ?? '#ffffff' }} />
-                <div className="hu-theme-swatch-band" style={{ background: p.shadow ?? p.primary }} />
+                <div
+                  className="hu-theme-swatch-band"
+                  style={{ background: p.shadow ?? p.primary }}
+                />
               </div>
               <div className="hu-theme-swatch-name">{p.name.toUpperCase()}</div>
               {!p.builtin && (
@@ -256,17 +259,18 @@ function hexToHsl(hex: string): [number, number, number] {
   if (!m) return [0, 0, 50]
   const n = parseInt(m[1], 16)
   const r = ((n >> 16) & 0xff) / 255
-  const g = ((n >> 8)  & 0xff) / 255
-  const b = ( n        & 0xff) / 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  const g = ((n >> 8) & 0xff) / 255
+  const b = (n & 0xff) / 255
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b)
   const d = max - min
   let h = 0
   const l = (max + min) / 2
   const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
   if (d !== 0) {
-    if      (max === r) h = ((g - b) / d) % 6
+    if (max === r) h = ((g - b) / d) % 6
     else if (max === g) h = (b - r) / d + 2
-    else                h = (r - g) / d + 4
+    else h = (r - g) / d + 4
     h *= 60
     if (h < 0) h += 360
   }
@@ -280,30 +284,63 @@ function hslToHex(h: number, s: number, l: number): string {
   const c = (1 - Math.abs(2 * l - 1)) * s
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
   const m = l - c / 2
-  let r = 0, g = 0, b = 0
-  if      (h < 60)  { r = c; g = x }
-  else if (h < 120) { r = x; g = c }
-  else if (h < 180) { g = c; b = x }
-  else if (h < 240) { g = x; b = c }
-  else if (h < 300) { r = x; b = c }
-  else              { r = c; b = x }
-  const to255 = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0')
+  let r = 0,
+    g = 0,
+    b = 0
+  if (h < 60) {
+    r = c
+    g = x
+  } else if (h < 120) {
+    r = x
+    g = c
+  } else if (h < 180) {
+    g = c
+    b = x
+  } else if (h < 240) {
+    g = x
+    b = c
+  } else if (h < 300) {
+    r = x
+    b = c
+  } else {
+    r = c
+    b = x
+  }
+  const to255 = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0')
   return `#${to255(r)}${to255(g)}${to255(b)}`
 }
 
 // A small strip of built-in-theme colours the user can tap for a one-shot
 // pick.  Rendered inside the picker panel below the sliders.
 const QUICK_SWATCHES = [
-  '#00ff0a', '#00e8d0', '#00b3ff', '#7ad8ff', '#dfe7f0', '#ffffff',
-  '#ffb000', '#ffd900', '#ff6b1a', '#ff4400', '#ff2244', '#ff3aa0',
-  '#ff9ce0', '#ffaa33', '#005c04', '#001500', '#0a0e14', '#1a0f00',
+  '#00ff0a',
+  '#00e8d0',
+  '#00b3ff',
+  '#7ad8ff',
+  '#dfe7f0',
+  '#ffffff',
+  '#ffb000',
+  '#ffd900',
+  '#ff6b1a',
+  '#ff4400',
+  '#ff2244',
+  '#ff3aa0',
+  '#ff9ce0',
+  '#ffaa33',
+  '#005c04',
+  '#001500',
+  '#0a0e14',
+  '#1a0f00'
 ]
 
 function ColorPickerPanel({
   label,
   value,
   onChange,
-  onClose,
+  onClose
 }: {
   label: string
   value: string
@@ -315,7 +352,10 @@ function ColorPickerPanel({
   // Escape closes.  Traps the key so we don't fire other global handlers.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose() }
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
     }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
@@ -325,15 +365,14 @@ function ColorPickerPanel({
 
   return (
     <div className="hu-picker-overlay" onPointerDown={onClose}>
-      <div
-        className="hu-picker-panel"
-        onPointerDown={(e) => e.stopPropagation()}
-      >
+      <div className="hu-picker-panel" onPointerDown={(e) => e.stopPropagation()}>
         <div className="hu-picker-header">
           <div className="hu-panel-label" style={{ marginBottom: 0, borderBottom: 'none' }}>
             {label}
           </div>
-          <button className="hu-picker-close" onClick={onClose} aria-label="Close">✕</button>
+          <button className="hu-picker-close" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
         </div>
 
         <div className="hu-picker-preview" style={{ background: value }} />
@@ -342,10 +381,16 @@ function ColorPickerPanel({
         <div className="hu-picker-slider-row">
           <div className="hu-picker-slider-label">HUE</div>
           <input
-            type="range" min={0} max={359} step={1} value={h}
+            type="range"
+            min={0}
+            max={359}
+            step={1}
+            value={h}
             className="hu-picker-slider hu-picker-slider-hue"
             onChange={(e) => onChange(hslToHex(+e.target.value, s, l))}
-            onPointerDown={swallow} onPointerMove={swallow} onPointerUp={swallow}
+            onPointerDown={swallow}
+            onPointerMove={swallow}
+            onPointerUp={swallow}
             style={{ touchAction: 'pan-x' }}
           />
           <div className="hu-picker-value">{h}°</div>
@@ -354,14 +399,20 @@ function ColorPickerPanel({
         <div className="hu-picker-slider-row">
           <div className="hu-picker-slider-label">SAT</div>
           <input
-            type="range" min={0} max={100} step={1} value={s}
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={s}
             className="hu-picker-slider"
             style={{
               background: `linear-gradient(90deg, ${hslToHex(h, 0, l)}, ${hslToHex(h, 100, l)})`,
-              touchAction: 'pan-x',
+              touchAction: 'pan-x'
             }}
             onChange={(e) => onChange(hslToHex(h, +e.target.value, l))}
-            onPointerDown={swallow} onPointerMove={swallow} onPointerUp={swallow}
+            onPointerDown={swallow}
+            onPointerMove={swallow}
+            onPointerUp={swallow}
           />
           <div className="hu-picker-value">{s}%</div>
         </div>
@@ -369,19 +420,27 @@ function ColorPickerPanel({
         <div className="hu-picker-slider-row">
           <div className="hu-picker-slider-label">LIGHT</div>
           <input
-            type="range" min={0} max={100} step={1} value={l}
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={l}
             className="hu-picker-slider"
             style={{
               background: `linear-gradient(90deg, #000, ${hslToHex(h, s, 50)}, #fff)`,
-              touchAction: 'pan-x',
+              touchAction: 'pan-x'
             }}
             onChange={(e) => onChange(hslToHex(h, s, +e.target.value))}
-            onPointerDown={swallow} onPointerMove={swallow} onPointerUp={swallow}
+            onPointerDown={swallow}
+            onPointerMove={swallow}
+            onPointerUp={swallow}
           />
           <div className="hu-picker-value">{l}%</div>
         </div>
 
-        <div className="hu-panel-label" style={{ marginTop: 8 }}>QUICK PICKS</div>
+        <div className="hu-panel-label" style={{ marginTop: 8 }}>
+          QUICK PICKS
+        </div>
         <div className="hu-picker-quicks">
           {QUICK_SWATCHES.map((c) => (
             <button
@@ -389,7 +448,10 @@ function ColorPickerPanel({
               className="hu-picker-quick"
               style={{ background: c }}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => { onChange(c); onClose() }}
+              onClick={() => {
+                onChange(c)
+                onClose()
+              }}
               aria-label={c}
             />
           ))}
@@ -397,10 +459,7 @@ function ColorPickerPanel({
 
         <div style={{ flex: 1 }} />
 
-        <button
-          className="hu-eq-action hu-eq-action-large hu-picker-done"
-          onClick={onClose}
-        >
+        <button className="hu-eq-action hu-eq-action-large hu-picker-done" onClick={onClose}>
           DONE
         </button>
       </div>
@@ -447,7 +506,7 @@ function VizPage({
       <Slider
         label="GAIN"
         min={0.5}
-        max={3}
+        max={5}
         step={0.05}
         value={v.gain}
         format={(x) => x.toFixed(2)}
@@ -457,7 +516,7 @@ function VizPage({
       <Slider
         label="GAMMA"
         min={0.6}
-        max={2.5}
+        max={5}
         step={0.05}
         value={v.gamma}
         format={(x) => x.toFixed(2)}
@@ -515,7 +574,7 @@ function VizPage({
       />
 
       <Slider
-        label="GLOW"
+        label="SHADOW"
         min={0}
         max={1.5}
         step={0.05}
