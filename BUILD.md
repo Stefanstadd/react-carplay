@@ -14,7 +14,10 @@ pipewire/wireplumber, parec), Node 20 via NodeSource, the udev rule
 for the Carlinkit dongle, the BlueZ + WirePlumber configs that make
 HFP calling actually work, user-level linger so services survive a
 kiosk boot, a `carplay.service` systemd user unit, `npm ci`, and a
-first build.
+full ARM Linux AppImage build (packaged under
+`dist/react-carplay-*-arm64.AppImage`).  A stable symlink
+`dist/carplay-latest.AppImage` always points at the newest one so the
+systemd service doesn't need editing when the version bumps.
 
 After the reboot the app autostarts.  Pair your phone once from the
 Devices screen and calling / music / contacts work out of the box —
@@ -45,10 +48,12 @@ just close the dev window (autostart resumes on next boot).
 ```
 
 This does `git pull`, runs `npm ci` only if `package-lock.json`
-changed, then kicks off `npm run build` **in the background** so you
-can immediately run `npm run dev` while the packaged build cooks.  When
-the background build succeeds it restarts `carplay.service`
-automatically so the packaged app picks up the new version.
+changed, then kicks off `npm run build:armLinux` **in the background**
+so you can immediately run `npm run dev` while the packaged AppImage
+cooks (~5 min on a Pi 5).  When the background build succeeds it
+refreshes `dist/carplay-latest.AppImage` → the freshly-built versioned
+file and restarts `carplay.service` automatically so the packaged app
+picks up the new version.
 
 Flags:
 - `./update.sh --no-build` — pull + deps only, don't rebuild.

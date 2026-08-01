@@ -50,44 +50,52 @@ if [[ "$MODE" == "none" ]]; then
   exit 0
 fi
 
-BUILD_CMD="npm run build"
 LOG=build.log
+# Full ARM Linux AppImage build — matches setup-pi.sh so update.sh
+# refreshes the exact artifact carplay.service execs.  We wrap it in a
+# small shell fragment that, on success, updates the stable symlink
+# dist/carplay-latest.AppImage → the freshly-built versioned file so
+# run.sh keeps working across version bumps.
+BUILD_SCRIPT='
+set -o pipefail
+npm run build:armLinux
+code=$?
+if [[ $code -eq 0 ]]; then
+  APPIMAGE="$(ls -1 dist/react-carplay-*-arm64.AppImage 2>/dev/null | sort -V | tail -1 || true)"
+  if [[ -n "$APPIMAGE" ]]; then
+    chmod +x "$APPIMAGE"
+    ln -sf "$(basename "$APPIMAGE")" dist/carplay-latest.AppImage
+    echo "── new AppImage: $APPIMAGE ──"
+  fi
+  if systemctl --user is-enabled carplay.service >/dev/null 2>&1; then
+    echo "── restarting carplay.service ──"
+    systemctl --user restart carplay.service || true
+  fi
+else
+  echo "── build FAILED (exit $code) — carplay.service not touched ──"
+fi
+exit $code
+'
 
 if [[ "$MODE" == "fg" ]]; then
   echo
-  echo "▶ $BUILD_CMD (foreground)"
-  $BUILD_CMD 2>&1 | tee "$LOG"
-  restart_service_if_enabled
-  exit $?
+  echo "▶ npm run build:armLinux (foreground)"
+  bash -c "$BUILD_SCRIPT" 2>&1 | tee "$LOG"
+  exit "${PIPESTATUS[0]}"
 fi
 
-# Background build.  nohup + setsid so it survives the shell closing,
-# writes to build.log, and we print the PID so the user can kill it or
-# tail the log.
-if pgrep -f "electron-vite build" >/dev/null; then
+# Background build.  nohup + disown so it survives the shell closing,
+# writes to build.log, and we print the PID so the user can tail or kill.
+if pgrep -f "electron-vite build\|electron-builder" >/dev/null; then
   echo
   echo "A build is already running (see build.log).  Aborting to avoid clashes."
   exit 1
 fi
 
 echo
-echo "▶ $BUILD_CMD (background, logging to $LOG)"
+echo "▶ npm run build:armLinux (background, logging to $LOG)"
 : > "$LOG"
-
-nohup bash -c '
-  set -o pipefail
-  npm run build 2>&1
-  code=$?
-  if [[ $code -eq 0 ]] && systemctl --user is-enabled carplay.service >/dev/null 2>&1; then
-    echo ""
-    echo "── build succeeded, restarting carplay.service ──"
-    systemctl --user restart carplay.service || true
-  elif [[ $code -ne 0 ]]; then
-    echo ""
-    echo "── build FAILED (exit $code) — carplay.service not touched ──"
-  fi
-  exit $code
-' >>"$LOG" 2>&1 &
+nohup bash -c "$BUILD_SCRIPT" >>"$LOG" 2>&1 &
 BUILD_PID=$!
 disown "$BUILD_PID" || true
 
@@ -97,5 +105,5 @@ echo "  Tail progress:   tail -f $LOG"
 echo "  Kill it:         kill $BUILD_PID"
 echo
 echo "You can now run:   npm run dev"
-echo "The packaged app will restart automatically once the build finishes"
-echo "(if carplay.service is enabled)."
+echo "The packaged AppImage will replace itself + restart carplay.service"
+echo "automatically once the build finishes (if the service is enabled)."

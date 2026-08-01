@@ -166,6 +166,7 @@ systemctl --user enable --now pipewire pipewire-pulse wireplumber
 
 echo
 echo "[8/9] Installing carplay.service (systemd user unit)…"
+chmod +x "$REPO_DIR/run.sh"
 mkdir -p "$HOME/.config/systemd/user"
 tee "$HOME/.config/systemd/user/carplay.service" >/dev/null <<EOF
 [Unit]
@@ -177,7 +178,10 @@ Wants=wireplumber.service ofono.service
 Type=simple
 WorkingDirectory=$REPO_DIR
 Environment=DISPLAY=:0
-ExecStart=/usr/bin/env npm run start
+# run.sh execs the packaged AppImage at dist/carplay-latest.AppImage
+# when present, otherwise falls back to \`npm run start\` against out/
+# so the service works even if the AppImage build step failed.
+ExecStart=$REPO_DIR/run.sh
 Restart=on-failure
 RestartSec=5
 
@@ -195,15 +199,33 @@ if [[ $SKIP_BUILD -eq 1 ]]; then
   echo "[9/9] --skip-build passed, not installing npm deps or building."
 else
   echo
-  echo "[9/9] npm ci + electron-vite build…"
+  echo "[9/9] npm ci + electron-builder AppImage build…"
   npm ci
-  npm run build || {
+  # Full ARM Linux AppImage build.  Slower than plain electron-vite
+  # (~5 min on a Pi 5) but produces a standalone dist/*.AppImage that
+  # the systemd service execs directly — no node_modules dependency at
+  # runtime, and the AppImage can be copied to another Pi 1-for-1.
+  if npm run build:armLinux; then
+    APPIMAGE="$(ls -1 dist/react-carplay-*-arm64.AppImage 2>/dev/null | sort -V | tail -1 || true)"
+    if [[ -n "$APPIMAGE" ]]; then
+      chmod +x "$APPIMAGE"
+      ln -sf "$(basename "$APPIMAGE")" dist/carplay-latest.AppImage
+      echo "  → AppImage: $APPIMAGE"
+      echo "  → Stable symlink: dist/carplay-latest.AppImage → $(basename "$APPIMAGE")"
+    else
+      echo "WARNING: electron-builder finished but no AppImage under dist/"
+      echo "  Service will fall back to 'npm run start' via run.sh."
+    fi
+  else
     echo
-    echo "WARNING: full 'npm run build' failed (probably a pre-existing"
-    echo "  typecheck error).  Falling back to electron-vite build only —"
-    echo "  the app itself will still work with 'npm run dev' + 'npm run start'."
-    npx electron-vite build
-  }
+    echo "WARNING: 'npm run build:armLinux' failed.  Trying a plain"
+    echo "  electron-vite build so the app still works via out/."
+    npx electron-vite build || {
+      echo "  Even electron-vite build failed — check the logs above."
+      exit 1
+    }
+    echo "  Service will run 'npm run start' via run.sh (no AppImage)."
+  fi
 fi
 
 echo
