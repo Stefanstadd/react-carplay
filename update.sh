@@ -77,9 +77,40 @@ fi
 exit $code
 '
 
+ensure_service() {
+  # Write (or rewrite) the service unit so that a plain `./update.sh` on an
+  # existing Pi installation also fixes a broken/missing service — no need to
+  # re-run the full setup-pi.sh just to get autostart working.
+  local repo_dir
+  repo_dir="$(cd "$(dirname "$0")" && pwd)"
+  mkdir -p "$HOME/.config/systemd/user"
+  cat > "$HOME/.config/systemd/user/carplay.service" <<EOF
+[Unit]
+Description=React-Carplay head unit (Electron)
+After=network.target wireplumber.service ofono.service
+Wants=wireplumber.service ofono.service
+
+[Service]
+Type=simple
+WorkingDirectory=$repo_dir
+Environment=DISPLAY=:0
+ExecStart=$repo_dir/run.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+  systemctl --user daemon-reload
+  systemctl --user enable carplay.service
+  # Ensure linger is on so user services survive without a login session.
+  sudo loginctl enable-linger "$(whoami)" 2>/dev/null || true
+}
+
 if [[ "$MODE" == "fg" ]]; then
   echo
   echo "▶ npm run build:armLinux (foreground)"
+  ensure_service
   bash -c "$BUILD_SCRIPT" 2>&1 | tee "$LOG"
   exit "${PIPESTATUS[0]}"
 fi
@@ -91,6 +122,10 @@ if pgrep -f "electron-vite build\|electron-builder" >/dev/null; then
   echo "A build is already running (see build.log).  Aborting to avoid clashes."
   exit 1
 fi
+
+echo
+echo "▶ ensuring carplay.service is installed and enabled…"
+ensure_service
 
 echo
 echo "▶ npm run build:armLinux (background, logging to $LOG)"

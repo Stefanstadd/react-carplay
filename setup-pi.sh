@@ -171,7 +171,7 @@ mkdir -p "$HOME/.config/systemd/user"
 tee "$HOME/.config/systemd/user/carplay.service" >/dev/null <<EOF
 [Unit]
 Description=React-Carplay head unit (Electron)
-After=graphical-session.target wireplumber.service ofono.service
+After=network.target wireplumber.service ofono.service
 Wants=wireplumber.service ofono.service
 
 [Service]
