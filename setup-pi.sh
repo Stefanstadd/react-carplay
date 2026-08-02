@@ -181,6 +181,7 @@ Environment=DISPLAY=:0
 # run.sh execs the packaged AppImage at dist/carplay-latest.AppImage
 # when present, otherwise falls back to \`npm run start\` against out/
 # so the service works even if the AppImage build step failed.
+ExecStartPre=/usr/bin/xsetroot -solid black
 ExecStart=$REPO_DIR/run.sh
 Restart=on-failure
 RestartSec=5

@@ -94,6 +94,7 @@ Wants=wireplumber.service ofono.service
 Type=simple
 WorkingDirectory=$repo_dir
 Environment=DISPLAY=:0
+ExecStartPre=/usr/bin/xsetroot -solid black
 ExecStart=$repo_dir/run.sh
 Restart=on-failure
 RestartSec=5
