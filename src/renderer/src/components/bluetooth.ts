@@ -88,6 +88,14 @@ export interface RecentCallsState {
   lastError?: string
 }
 
+/** Themed pairing prompt shown when BlueZ asks us to confirm a passkey. */
+export interface PairingRequest {
+  passkey: string
+  deviceName?: string
+  deviceAddress?: string
+  kind: 'confirm' | 'display' | 'pin'
+}
+
 const DEFAULT_PHONE: PhoneState   = { connected: false }
 const DEFAULT_MEDIA: MediaState   = { hasMetadata: false, durationSec: 0, positionSec: 0, playing: false, snapCounter: 0 }
 const DEFAULT_CALL:  CallState    = { status: 'idle', durationSec: 0, muted: false }
@@ -109,6 +117,7 @@ export function useBluetooth() {
   const [recents,  setRecents]  = useState<RecentCallsState>(DEFAULT_RCS)
   const [devices,  setDevices]  = useState<BtDevice[]>([])
   const [dialError, setDialError] = useState<DialError | null>(null)
+  const [pairing,   setPairing]   = useState<PairingRequest | null>(null)
   // Wall-clock (perf.now) of the last EXPLICIT user seek — i.e. dragging the
   // progress bar.  For ~1.5 s afterwards we ignore main's position pushes
   // because BlueZ's 1 Hz AVRCP poll would otherwise yank the bar back to
@@ -181,6 +190,7 @@ export function useBluetooth() {
       console.warn('[bt:dial] failed:', d?.reason)
       setDialError({ reason: d?.reason ?? 'Call failed', ts: Date.now() })
     })
+    bt.onPairing?.((_: any, d: PairingRequest | null) => setPairing(d ?? null))
 
     bt.requestState?.()
   }, [])
@@ -222,8 +232,12 @@ export function useBluetooth() {
   const bt = (window as any).api?.bt
 
   return {
-    phone, media, call, contacts, recents, devices, dialError,
+    phone, media, call, contacts, recents, devices, dialError, pairing,
     clearDialError: () => setDialError(null),
+
+    // Pairing (on-screen agent modal)
+    acceptPairing: () => bt?.pairingAccept?.(),
+    rejectPairing: () => bt?.pairingReject?.(),
 
     mediaPlay:    () => bt?.mediaCmd?.('play'),
     mediaPause:   () => bt?.mediaCmd?.('pause'),

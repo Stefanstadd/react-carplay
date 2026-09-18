@@ -1,10 +1,10 @@
 // Full settings panel.  Lives as an overlay over the music carousel; the
-// HeadUnit header + nav-bar stay visible above/below.  Five sub-pages live
-// inside a sidebar (same pattern as PhoneView):
+// HeadUnit header + nav-bar stay visible above/below.  Sub-pages live in
+// a sidebar (same pattern as PhoneView):
 //   • General   — theme colours, swatches, picker, presets
 //   • Visualizer — viz config sliders with a live preview
-//   • Equalizer — shortcut into the existing EQ overlay
-//   • CarPlay   — launches Rhys' original /settings route
+//   • Equalizer — sidebar shortcut — opens the EQView overlay directly
+//   • CarPlay   — themed dongle config; SAVE reloads only the renderer
 //   • Gauges    — define gauges for the dash (CAN-key, min, max, label)
 
 import { useEffect, useState } from 'react'
@@ -19,27 +19,35 @@ import {
 } from './userSettings'
 import VizCanvas from './VizCanvas'
 import { useScrollContainer } from './HeadUnit'
+import NameKeyboard from './NameKeyboard'
+import { useCarplayStore } from '../store/store'
+import type { ExtraConfig } from '../../../main/Globals'
 
-type SubPage = 'general' | 'viz' | 'eq' | 'carplay' | 'gauges'
+type SubPage = 'general' | 'viz' | 'carplay' | 'gauges'
 
-const PAGES: { id: SubPage; label: string }[] = [
-  { id: 'general', label: 'GENERAL' },
-  { id: 'viz', label: 'VISUALIZER' },
-  { id: 'eq', label: 'EQUALIZER' },
-  { id: 'carplay', label: 'CARPLAY' },
-  { id: 'gauges', label: 'GAUGES' }
+// EQUALIZER is a shortcut, not a page — tapping it in the sidebar opens the
+// EQ overlay directly instead of showing a landing sub-page with a redundant
+// "Open equalizer" button.
+type SidebarItem =
+  | { kind: 'page'; id: SubPage; label: string }
+  | { kind: 'action'; id: 'eq'; label: string }
+
+const PAGES: SidebarItem[] = [
+  { kind: 'page', id: 'general', label: 'GENERAL' },
+  { kind: 'page', id: 'viz', label: 'VISUALIZER' },
+  { kind: 'action', id: 'eq', label: 'EQUALIZER' },
+  { kind: 'page', id: 'carplay', label: 'CARPLAY' },
+  { kind: 'page', id: 'gauges', label: 'GAUGES' }
 ]
 
 interface SettingsViewProps {
   isActive: boolean
   onOpenEqualizer: () => void
-  onOpenCarplaySettings: () => void
 }
 
 export default function SettingsView({
   isActive,
-  onOpenEqualizer,
-  onOpenCarplaySettings
+  onOpenEqualizer
 }: SettingsViewProps) {
   const us = useUserSettings()
   const [page, setPage] = useState<SubPage>('general')
@@ -57,25 +65,33 @@ export default function SettingsView({
     <div className="hu-screen hu-settings-screen">
       <div className="hu-sidebar">
         <div className="hu-panel-label">SETTINGS</div>
-        {PAGES.map((p) => (
-          <button
-            key={p.id}
-            className={`hu-list-btn${page === p.id ? ' hu-list-btn-active' : ''}`}
-            onClick={() => {
-              setPage(p.id)
-              if (scroll.ref.current) scroll.ref.current.scrollTop = 0
-            }}
-          >
-            <span>{p.label}</span>
-          </button>
-        ))}
+        {PAGES.map((p) => {
+          const active = p.kind === 'page' && page === p.id
+          return (
+            <button
+              key={p.id}
+              className={`hu-list-btn${active ? ' hu-list-btn-active' : ''}`}
+              onClick={() => {
+                if (p.kind === 'action' && p.id === 'eq') {
+                  onOpenEqualizer()
+                  return
+                }
+                if (p.kind === 'page') {
+                  setPage(p.id)
+                  if (scroll.ref.current) scroll.ref.current.scrollTop = 0
+                }
+              }}
+            >
+              <span>{p.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       <div className="hu-main-area hu-settings-scroll" ref={scroll.ref} {...scroll.handlers}>
         {page === 'general' && <GeneralPage us={us} onOpenPicker={setPicker} />}
         {page === 'viz' && <VizPage us={us} vizActive={isActive} />}
-        {page === 'eq' && <EqualizerPage onOpenEqualizer={onOpenEqualizer} />}
-        {page === 'carplay' && <CarplayPage onOpen={onOpenCarplaySettings} />}
+        {page === 'carplay' && <CarplayPage />}
         {page === 'gauges' && <GaugesPage us={us} />}
       </div>
 
@@ -103,8 +119,7 @@ function GeneralPage({
   onOpenPicker: (p: { key: ColorKey; label: string }) => void
 }) {
   const presets = allThemes(us.state)
-  const [renaming, setRenaming] = useState(false)
-  const [presetName, setPresetName] = useState('')
+  const [kbOpen, setKbOpen] = useState(false)
 
   const pickPreset = (name: string) => {
     const p = presets.find((x) => x.name === name)
@@ -121,12 +136,11 @@ function GeneralPage({
     })
   }
 
-  const onSavePreset = () => {
-    const clean = presetName.trim()
-    if (!clean) return
-    us.saveThemePreset(clean)
-    setRenaming(false)
-    setPresetName('')
+  const defaultThemeName = () => {
+    let i = 1
+    const taken = new Set(us.state.theme.customPresets.map(p => p.name.toLowerCase()))
+    while (taken.has(`custom ${i}`)) i++
+    return `Custom ${i}`
   }
 
   const COLORS: { key: ColorKey; label: string; hint: string }[] = [
@@ -147,8 +161,9 @@ function GeneralPage({
         <div key={c.key} className="hu-settings-row">
           <div className="hu-settings-row-label">{c.label}</div>
           <div className="hu-settings-row-body">
-            {/* Head-unit-styled swatch — tap to open the slide-in picker
-             *  on the right side of the settings screen. */}
+            {/* Head-unit-styled swatch — tap to open the centered picker
+             *  overlay.  Hex code is intentionally omitted here so the
+             *  row stays clean on the small screen. */}
             <button
               className="hu-color-swatch"
               style={{ background: us.state.theme[c.key] }}
@@ -156,7 +171,6 @@ function GeneralPage({
               onClick={() => onOpenPicker({ key: c.key, label: c.label })}
               aria-label={`Pick ${c.label}`}
             />
-            <div className="hu-hex-label">{us.state.theme[c.key].toUpperCase()}</div>
             <div className="hu-settings-hint">{c.hint}</div>
           </div>
         </div>
@@ -214,35 +228,22 @@ function GeneralPage({
        *  the whole app. */}
 
       <div className="hu-settings-row" style={{ marginTop: 24 }}>
-        {!renaming ? (
-          <button className="hu-eq-action" onClick={() => setRenaming(true)}>
-            Save current as preset
-          </button>
-        ) : (
-          <>
-            <input
-              className="hu-text-input"
-              autoFocus
-              placeholder="Preset name"
-              value={presetName}
-              maxLength={24}
-              onChange={(e) => setPresetName(e.target.value)}
-            />
-            <button className="hu-eq-action" onClick={onSavePreset} disabled={!presetName.trim()}>
-              SAVE
-            </button>
-            <button
-              className="hu-eq-action"
-              onClick={() => {
-                setRenaming(false)
-                setPresetName('')
-              }}
-            >
-              CANCEL
-            </button>
-          </>
-        )}
+        <button className="hu-eq-action" onClick={() => setKbOpen(true)}>
+          Save current as preset
+        </button>
       </div>
+
+      {kbOpen && (
+        <NameKeyboard
+          prompt="THEME NAME"
+          initial={defaultThemeName()}
+          onCancel={() => setKbOpen(false)}
+          onAccept={(name) => {
+            us.saveThemePreset(name)
+            setKbOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -376,7 +377,6 @@ function ColorPickerPanel({
         </div>
 
         <div className="hu-picker-preview" style={{ background: value }} />
-        <div className="hu-picker-hex">{value.toUpperCase()}</div>
 
         <div className="hu-picker-slider-row">
           <div className="hu-picker-slider-label">HUE</div>
@@ -657,35 +657,209 @@ function VizPreview({ enabled }: { enabled: boolean }) {
   )
 }
 
-// ─── Equalizer page ─────────────────────────────────────────────────────────
+// ─── CarPlay page ───────────────────────────────────────────────────────────
+// Themed replacement for the legacy Rhys settings screen.  Same underlying
+// config fields (ExtraConfig / DongleConfig) but in ICM2 style, and saving
+// no longer relaunches the app — main-process saveSettings reloads only the
+// renderer so BT / audio / EQ state stays intact.
 
-function EqualizerPage({ onOpenEqualizer }: { onOpenEqualizer: () => void }) {
+function CarplayPage() {
+  const settings = useCarplayStore((s) => s.settings)
+  const saveSettings = useCarplayStore((s) => s.saveSettings)
+  const [draft, setDraft] = useState<ExtraConfig | null>(settings)
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([])
+
+  // Keep the draft in sync when the store's settings change (e.g. on
+  // startup or after a save round-trip).
+  useEffect(() => {
+    if (settings) setDraft(settings)
+  }, [settings])
+
+  useEffect(() => {
+    if (!navigator.mediaDevices?.enumerateDevices) return
+    navigator.mediaDevices.enumerateDevices().then((devs) => {
+      setCameras(devs.filter((d) => d.kind === 'videoinput'))
+      setMics(devs.filter((d) => d.kind === 'audioinput'))
+    })
+  }, [])
+
+  if (!draft) {
+    return (
+      <div className="hu-settings-page">
+        <div className="hu-panel-label">CARPLAY</div>
+        <div className="hu-settings-hint">Loading dongle settings…</div>
+      </div>
+    )
+  }
+
+  const patch = <K extends keyof ExtraConfig>(k: K, v: ExtraConfig[K]) =>
+    setDraft((d) => (d ? { ...d, [k]: v } : d))
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
+
   return (
     <div className="hu-settings-page">
-      <div className="hu-panel-label">EQUALIZER</div>
-      <div className="hu-settings-hint" style={{ margin: '12px 0 24px' }}>
-        Same screen as the gear shortcut on the music view.
+      <div className="hu-panel-label">CARPLAY</div>
+      <div className="hu-settings-hint" style={{ margin: '12px 0 20px', maxWidth: 900 }}>
+        Dongle-specific settings.  SAVE reloads the head unit UI only —
+        the app itself, your Bluetooth pairing and equalizer state stay
+        connected.
       </div>
-      <button className="hu-eq-action hu-eq-action-large" onClick={onOpenEqualizer}>
-        Open Equalizer
-      </button>
+
+      <div className="hu-settings-row">
+        <NumberField label="WIDTH"  value={draft.width}  onChange={(v) => patch('width',  v)} />
+        <NumberField label="HEIGHT" value={draft.height} onChange={(v) => patch('height', v)} />
+        <NumberField label="FPS"    value={draft.fps}    onChange={(v) => patch('fps',    v)} />
+      </div>
+      <div className="hu-settings-row">
+        <NumberField label="DPI"    value={draft.dpi}    onChange={(v) => patch('dpi',    v)} />
+        <NumberField label="FORMAT" value={draft.format} onChange={(v) => patch('format', v)} />
+        <NumberField label="IBOX"   value={draft.iBoxVersion} onChange={(v) => patch('iBoxVersion', v)} />
+      </div>
+      <div className="hu-settings-row">
+        <NumberField label="MEDIA DELAY" value={draft.mediaDelay} onChange={(v) => patch('mediaDelay', v)} />
+        <NumberField label="PHONE MODE"  value={draft.phoneWorkMode} onChange={(v) => patch('phoneWorkMode', v)} />
+      </div>
+
+      <div className="hu-panel-label" style={{ marginTop: 20 }}>MODE</div>
+      <div className="hu-settings-row">
+        <ToggleField label="KIOSK"      value={draft.kiosk}          onChange={(v) => patch('kiosk',  v)} />
+        <ToggleField label="CAN BUS"    value={!!draft.canbus}       onChange={(v) => patch('canbus', v)} />
+      </div>
+
+      <div className="hu-panel-label" style={{ marginTop: 20 }}>RADIO</div>
+      <div className="hu-settings-row">
+        <ChoiceField
+          label="WIFI"
+          value={draft.wifiType}
+          options={[{ value: '2.4ghz', label: '2.4 GHz' }, { value: '5ghz', label: '5 GHz' }]}
+          onChange={(v) => patch('wifiType', v as any)}
+        />
+        <ChoiceField
+          label="MIC"
+          value={draft.micType}
+          options={[{ value: 'os', label: 'OS' }, { value: 'box', label: 'BOX' }]}
+          onChange={(v) => patch('micType', v as any)}
+        />
+      </div>
+
+      {(cameras.length > 0 || mics.length > 0) && (
+        <>
+          <div className="hu-panel-label" style={{ marginTop: 20 }}>DEVICES</div>
+          {cameras.length > 0 && (
+            <ChoiceField
+              label="CAMERA"
+              value={draft.camera}
+              options={[{ value: '', label: '(none)' }, ...cameras.map((c) => ({ value: c.deviceId, label: c.label || c.deviceId }))]}
+              onChange={(v) => patch('camera', v)}
+            />
+          )}
+          {mics.length > 0 && (
+            <ChoiceField
+              label="MICROPHONE"
+              value={draft.microphone}
+              options={[{ value: '', label: '(none)' }, ...mics.map((m) => ({ value: m.deviceId, label: m.label || m.deviceId }))]}
+              onChange={(v) => patch('microphone', v)}
+            />
+          )}
+        </>
+      )}
+
+      <div className="hu-settings-row" style={{ marginTop: 30 }}>
+        <button
+          className="hu-eq-action hu-eq-action-large"
+          onClick={() => saveSettings(draft)}
+          disabled={!dirty}
+        >
+          SAVE
+        </button>
+        <button
+          className="hu-eq-action"
+          onClick={() => setDraft(settings)}
+          disabled={!dirty}
+        >
+          REVERT
+        </button>
+        {dirty && (
+          <div className="hu-settings-hint" style={{ color: 'var(--hu-warn)' }}>
+            Unsaved changes — SAVE reloads the head unit.
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
-// ─── CarPlay page ───────────────────────────────────────────────────────────
-
-function CarplayPage({ onOpen }: { onOpen: () => void }) {
+function NumberField({
+  label,
+  value,
+  onChange
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+}) {
   return (
-    <div className="hu-settings-page">
-      <div className="hu-panel-label">CARPLAY</div>
-      <div className="hu-settings-hint" style={{ margin: '12px 0 24px', maxWidth: 720 }}>
-        Dongle-specific settings (resolution, FPS, key bindings, CAN-bus, cameras, microphone) live
-        in Rhys' original settings panel. Tap below to open it.
+    <div className="hu-settings-row-inline">
+      <div className="hu-settings-row-label">{label}</div>
+      <input
+        className="hu-text-input hu-text-input-narrow"
+        type="number"
+        value={Number.isFinite(value) ? value : ''}
+        onChange={(e) => {
+          const n = Number(e.target.value)
+          onChange(Number.isFinite(n) ? n : 0)
+        }}
+      />
+    </div>
+  )
+}
+
+function ToggleField({
+  label,
+  value,
+  onChange
+}: {
+  label: string
+  value: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <button
+      className={`hu-eq-action${value ? ' hu-eq-action-on' : ''}`}
+      onClick={() => onChange(!value)}
+    >
+      {label}: {value ? 'ON' : 'OFF'}
+    </button>
+  )
+}
+
+function ChoiceField({
+  label,
+  value,
+  options,
+  onChange
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="hu-settings-row-inline">
+      <div className="hu-settings-row-label">{label}</div>
+      <div className="hu-choice-row">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            className={`hu-eq-action${value === o.value ? ' hu-eq-action-on' : ''}`}
+            onClick={() => onChange(o.value)}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
-      <button className="hu-eq-action hu-eq-action-large" onClick={onOpen}>
-        Open CarPlay Settings
-      </button>
     </div>
   )
 }

@@ -26,8 +26,8 @@ export const EQ_BANDS: BandSpec[] = [
 ]
 
 export const BAND_COUNT = EQ_BANDS.length
-export const GAIN_MIN  = -12
-export const GAIN_MAX  =  12
+export const GAIN_MIN  = -8
+export const GAIN_MAX  =  8
 export const GAIN_STEP = 0.2
 
 export interface EQPreset {

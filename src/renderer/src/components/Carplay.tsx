@@ -246,13 +246,12 @@ function Carplay({
       className="App"
       ref={mainElem}
     >
-      {/* Escape hatch: while /carplay is showing, always keep an EXIT button
-       *  reachable — even after a successful `plugged` handshake — because
-       *  the worker can silently die (H.264 decoder crash, USB reset,
-       *  dongle firmware panic) and we then have no other way back to the
-       *  head unit.  It's a small overlay in the corner; taps go through
-       *  to the video canvas everywhere else. */}
-      {active && (
+      {/* Show EXIT only while CarPlay hasn't fully started (waiting for
+       *  dongle / phone).  Once the phone handshake completes and the video
+       *  stream is live the button gets in the way of the CarPlay UI, so
+       *  we hide it.  Global Escape / Backspace still bail out (App.tsx),
+       *  so a crashed worker isn't a hard lock even without the button. */}
+      {active && (isLoading || !deviceFound) && (
         <button
           className="cp-exit-btn"
           onClick={() => onHostUIRequested?.()}

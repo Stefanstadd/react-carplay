@@ -108,7 +108,6 @@ function AppInner({ receivingVideo, setReceivingVideo, keyCommand, commandCounte
           element={
             <HeadUnit
               onLaunchCarplay={() => navigate('/carplay')}
-              onOpenSettings={() => navigate('/settings')}
               vehicleData={vehicleData}
             />
           }

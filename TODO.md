@@ -5,6 +5,29 @@ Legend: `[x]` done · `[ ]` pending · `[~]` in progress · `[!]` user action ne
 ---
 
 ## Done (most recent first)
+- [x] Desktop AppImage shortcut on the Pi: update.sh + setup-pi.sh now
+       write `~/Desktop/head-unit.desktop` pointing at `run.sh` (which
+       prefers `dist/carplay-latest.AppImage`).  Double-click to relaunch.
+- [x] Windows dev — CarPlay via USB dongle works; Bluetooth mock available
+       via `CARPLAY_BT_MOCK=1` env var.  See BUILD.md.
+- [x] Color picker: centered modal (was right-slide-in), bigger HSL sliders,
+       hex codes removed from settings + picker.
+- [x] Bluetooth pairing modal on head unit — spawns a `bluetoothctl` agent
+       in DisplayYesNo mode, parses the 6-digit passkey, shows a themed
+       full-screen prompt with ACCEPT / REJECT.
+- [x] Equalizer sidebar entry opens EQView directly (no landing sub-page).
+- [x] Equalizer clamped to ±8 dB.  Back arrow moved to top-left with a
+       left-pointing icon.  Preset name truncates with ellipsis, no layout
+       shift.  Bars tween to new values.  Preset carousel slide-animates.
+- [x] Larger shared NameKeyboard component with CLR button — used by both
+       equalizer preset save and theme preset save.
+- [x] CarPlay settings restyled inline in the head unit (was legacy MUI).
+       SAVE reloads only the renderer instead of relaunching the app.
+- [x] CarPlay exit button hidden while CarPlay is actively running.
+- [x] Settings label colours lightened (was `--hu-primary-mid`, now
+       `--hu-primary`) so PRIMARY / PEAK / BARS / GAIN / GAMMA are legible.
+- [x] Gauges empty state: shows "NO GAUGES AVAILABLE" instead of the
+       hardcoded OIL TEMP / SPEED / RPM placeholders.
 - [x] **Functional Bluetooth integration** — main-process `BluetoothManager` talks
        to BlueZ (devices, battery, AVRCP metadata + transport), ofono (HFP calls,
        mute), and obex/PBAP (contact sync) over D-Bus on Linux; stub mode on
@@ -104,6 +127,26 @@ Legend: `[x]` done · `[ ]` pending · `[~]` in progress · `[!]` user action ne
 ---
 
 ## Future Ideas
+- [ ] **Android Auto support** — the current stack is CarPlay-only.  The
+       CPC200-CCPA on the Pi is Carlinkit's wireless CarPlay adapter and
+       ships CarPlay-only firmware — it cannot speak the AA protocol at
+       either the hardware or firmware level.  Paths for AA:
+         a) Swap the dongle for a 2-in-1 model (e.g. CPC200-CP2A, U2W Plus,
+            Carlinkit 5.0) AND add AA framing to node-carplay — no Node.js
+            AA implementation exists yet, so this is a substantial fork.
+         b) Native Android Auto Head Unit protocol (aasdk / openauto) via
+            a C++ N-API addon or a bridge subprocess — hardcoded in the
+            openauto codebase; heavy port.
+         c) Plug the Android phone straight into the Pi via USB and use
+            aasdk / openauto — no Carlinkit in the loop; needs a
+            desktop-class AA implementation on the Pi.
+         d) External AAWireless-style gateway that exposes AA over HDMI-in
+            — no code change, only hardware; largest hardware footprint.
+- [ ] CarPlay dongle config already lives in Settings → CarPlay (fps,
+       width, height, dpi, iBoxVersion, phoneWorkMode, wifi/mic).  The
+       CarPlay *UI itself* (number of icons per page, widget order) is
+       controlled by iOS Settings → General → CarPlay → [Head Unit] →
+       Customize; the head unit can only forward touches, not change it.
 - [ ] Animated boot/splash screen in ICM2 style (horizontal scan line wipe)
 - [ ] Climate control screen (temperature, fan speed, seat heat — via CAN)
 - [ ] Trip computer screen (odometer, avg speed, fuel economy — via CAN/OBD)

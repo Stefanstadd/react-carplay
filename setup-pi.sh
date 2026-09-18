@@ -213,6 +213,30 @@ else
       ln -sf "$(basename "$APPIMAGE")" dist/carplay-latest.AppImage
       echo "  → AppImage: $APPIMAGE"
       echo "  → Stable symlink: dist/carplay-latest.AppImage → $(basename "$APPIMAGE")"
+      # Desktop shortcut so the user can relaunch the head unit from the Pi
+      # desktop if kiosk mode exits — points at run.sh which prefers the
+      # packaged AppImage, so this stays valid across future rebuilds.
+      for DESK in "$HOME/Desktop" "$HOME/desktop"; do
+        if [[ -d "$DESK" ]]; then
+          FILE="$DESK/head-unit.desktop"
+          cat > "$FILE" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Head Unit
+Comment=Launch the react-carplay head unit
+Exec=$REPO_DIR/run.sh
+Icon=$REPO_DIR/build/icon.png
+Terminal=false
+Categories=AudioVideo;Utility;
+StartupNotify=false
+EOF
+          chmod +x "$FILE"
+          gio set "$FILE" metadata::trusted true 2>/dev/null || true
+          echo "  → Desktop shortcut: $FILE"
+          break
+        fi
+      done
     else
       echo "WARNING: electron-builder finished but no AppImage under dist/"
       echo "  Service will fall back to 'npm run start' via run.sh."

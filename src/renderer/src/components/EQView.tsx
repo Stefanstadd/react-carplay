@@ -17,12 +17,14 @@ import {
   GAIN_STEP,
   allPresets,
   useEqualizer,
-  type EQPreset,
 } from './equalizer'
+import NameKeyboard from './NameKeyboard'
 
 // ─── Canvas bar graph ────────────────────────────────────────────────────────
 
-const Y_TICKS = [-12, -8, -4, 0, 4, 8, 12]
+// dB grid ticks — clamp matches GAIN_MIN/GAIN_MAX (±8) so the ±12 zones are
+// gone from the plot entirely.
+const Y_TICKS = [-8, -4, 0, 4, 8]
 
 // Canvas plot padding constants used by both the draw() function and the
 // drag handler so they stay in sync.
@@ -35,11 +37,12 @@ function readVar(name: string, fallback: string): string {
   return v || fallback
 }
 
+/** Draw `bands` on the canvas, but tween each height toward its target on
+ *  every rAF tick.  When the preset switches the bars slide from their
+ *  previous values to the new ones instead of snapping. */
 function EQCanvas({ bands }: { bands: number[] }) {
   const ref = useRef<HTMLCanvasElement>(null)
   // Tracks the active theme so we redraw the canvas when colours change.
-  // applyTheme() in userSettings.ts toggles a data attribute on <html> we
-  // can subscribe to via MutationObserver.
   const [themeTick, setThemeTick] = useState(0)
   useEffect(() => {
     const obs = new MutationObserver(() => setThemeTick(t => t + 1))
@@ -47,16 +50,53 @@ function EQCanvas({ bands }: { bands: number[] }) {
     return () => obs.disconnect()
   }, [])
 
+  // Displayed heights — start at the incoming values so the first render
+  // isn't a slide from 0.  Kept in a ref so the rAF loop can mutate without
+  // triggering re-renders.
+  const displayed = useRef<number[]>(bands.slice())
+  const target    = useRef<number[]>(bands.slice())
+  const rafId     = useRef<number | null>(null)
+
+  useEffect(() => { target.current = bands.slice() }, [bands])
+
   useEffect(() => {
     const cvs = ref.current
     if (!cvs) return
-    const rect = cvs.getBoundingClientRect()
-    if (rect.width > 0 && rect.height > 0) {
-      cvs.width  = Math.floor(rect.width)
-      cvs.height = Math.floor(rect.height)
+    const resize = () => {
+      const rect = cvs.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        cvs.width  = Math.floor(rect.width)
+        cvs.height = Math.floor(rect.height)
+      }
     }
-    draw(cvs, bands)
-  }, [bands, themeTick])
+    resize()
+    const ro = new ResizeObserver(resize)
+    ro.observe(cvs)
+
+    // Ease displayed → target every frame.  ~15% per tick converges in
+    // ~200 ms without visible over-smoothing on 60 Hz.
+    const tick = () => {
+      let dirty = false
+      const d = displayed.current
+      const t = target.current
+      for (let i = 0; i < d.length; i++) {
+        const diff = (t[i] ?? 0) - (d[i] ?? 0)
+        if (Math.abs(diff) < 0.01) {
+          if (d[i] !== t[i]) { d[i] = t[i]; dirty = true }
+        } else {
+          d[i] = (d[i] ?? 0) + diff * 0.15
+          dirty = true
+        }
+      }
+      if (dirty) draw(cvs, d)
+      rafId.current = requestAnimationFrame(tick)
+    }
+    rafId.current = requestAnimationFrame(tick)
+    return () => {
+      ro.disconnect()
+      if (rafId.current !== null) cancelAnimationFrame(rafId.current)
+    }
+  }, [themeTick])
 
   return <canvas ref={ref} className="hu-eq-canvas" />
 }
@@ -163,53 +203,6 @@ function HoldButton({
   )
 }
 
-// ─── On-screen QWERTY keyboard (for naming custom presets) ──────────────────
-
-const KB_ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM']
-
-function NameKeyboard({
-  initial,
-  onCancel,
-  onAccept,
-}: {
-  initial: string
-  onCancel: () => void
-  onAccept: (name: string) => void
-}) {
-  const [value, setValue] = useState(initial)
-  const append = (ch: string) => setValue(v => (v + ch).slice(0, 16))
-  const back   = () => setValue(v => v.slice(0, -1))
-
-  return (
-    <div className="hu-eq-kb-overlay" onPointerDown={onCancel}>
-      <div className="hu-eq-kb-panel" onPointerDown={(e) => e.stopPropagation()}>
-        <div className="hu-eq-kb-prompt">PRESET NAME</div>
-        <div className="hu-eq-kb-display">{value || <span className="hu-eq-kb-placeholder">—</span>}</div>
-
-        {KB_ROWS.map((row, ri) => (
-          <div key={ri} className="hu-eq-kb-row" style={{ paddingLeft: ri * 26 }}>
-            {row.split('').map(k => (
-              <button key={k} className="hu-eq-kb-key" onClick={() => append(k)}>{k}</button>
-            ))}
-          </div>
-        ))}
-        <div className="hu-eq-kb-row">
-          <button className="hu-eq-kb-key hu-eq-kb-key-wide" onClick={() => append(' ')}>SPACE</button>
-          <button className="hu-eq-kb-key" onClick={back}>⌫</button>
-          <button className="hu-eq-kb-key hu-eq-kb-key-wide" onClick={onCancel}>CANCEL</button>
-          <button
-            className="hu-eq-kb-key hu-eq-kb-key-wide hu-eq-kb-key-accept"
-            onClick={() => value.trim() && onAccept(value.trim())}
-            disabled={!value.trim()}
-          >
-            SAVE
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Main EQ overlay ────────────────────────────────────────────────────────
 
 interface EQViewProps {
@@ -219,6 +212,11 @@ interface EQViewProps {
 export default function EQView({ onClose }: EQViewProps) {
   const { state, bumpBand, setBand, setActivePreset, savePreset } = useEqualizer()
   const [kbOpen, setKbOpen] = useState(false)
+  // Direction of the last preset switch (-1 = left, +1 = right).  Drives the
+  // slide-in/out animation on the preset strip.  Bumping the key on every
+  // switch re-triggers the CSS animation.
+  const [slideDir, setSlideDir] = useState<-1 | 0 | 1>(0)
+  const [slideKey, setSlideKey] = useState(0)
 
   // ── Drag handling ──
   // Touch any band and slide up/down — the bar follows the finger.  Pointer
@@ -277,6 +275,8 @@ export default function EQView({ onClose }: EQViewProps) {
     if (presets.length === 0) return
     const next = (activeIdx + dir + presets.length) % presets.length
     setActivePreset(presets[next].name)
+    setSlideDir(dir)
+    setSlideKey(k => k + 1)
   }
 
   // "Reset" restores the currently-active preset's band values (not flat).
@@ -295,6 +295,32 @@ export default function EQView({ onClose }: EQViewProps) {
 
   return (
     <div className="hu-eq-overlay">
+      {/* Back arrow — top-left, rendered as a left-pointing arrow.
+       *  Global Escape/Backspace also close the overlay via App.tsx. */}
+      <button className="hu-eq-back-btn hu-eq-back-btn-tl" onClick={onClose} aria-label="Back">
+        <BackArrow />
+      </button>
+
+      {/* Preset strip — moved up so it sits between the back button and the
+       *  plot.  The strip is a carousel: switching preset animates the name
+       *  in from the direction of the button the user pressed. */}
+      <div className="hu-eq-preset-strip">
+        <button className="hu-eq-preset-arrow" onClick={() => cyclePreset(-1)} aria-label="Previous preset">◄</button>
+        <div className="hu-eq-preset-name-wrap">
+          <div
+            key={slideKey}
+            className={`hu-eq-preset-name${
+              slideDir === -1 ? ' hu-eq-preset-slide-left' :
+              slideDir ===  1 ? ' hu-eq-preset-slide-right' : ''
+            }`}
+            title={presets[activeIdx]?.name}
+          >
+            {presets[activeIdx]?.name ?? 'Custom'}
+          </div>
+        </div>
+        <button className="hu-eq-preset-arrow" onClick={() => cyclePreset(+1)} aria-label="Next preset">►</button>
+      </div>
+
       {/* Plot area — draggable bars */}
       <div
         ref={plotRef}
@@ -307,7 +333,8 @@ export default function EQView({ onClose }: EQViewProps) {
         <EQCanvas bands={state.bands} />
       </div>
 
-      {/* Per-band ▲ / dB / ▼ controls */}
+      {/* Per-band ▲ / dB / ▼ controls — arrows nudged up (marginTop:-6) so
+       *  they sit closer to the top of the value strip. */}
       <div className="hu-eq-bands-row">
         {EQ_BANDS.map((b, i) => (
           <div key={b.frequency} className="hu-eq-band-col">
@@ -330,24 +357,12 @@ export default function EQView({ onClose }: EQViewProps) {
         ))}
       </div>
 
-      {/* Bottom bar — presets, save, reset, back */}
+      {/* Bottom bar — save + reset (back moved to top-left) */}
       <div className="hu-eq-bottom">
         <div className="hu-eq-bottom-left">
           <button className="hu-eq-action" onClick={() => setKbOpen(true)}>Save preset</button>
           <button className="hu-eq-action" onClick={resetToPreset}>Reset</button>
         </div>
-
-        <div className="hu-eq-preset-strip">
-          <PresetGhost preset={presets[(activeIdx - 2 + presets.length) % presets.length]} dim={2} />
-          <PresetGhost preset={presets[(activeIdx - 1 + presets.length) % presets.length]} dim={1} />
-          <button className="hu-eq-preset-arrow" onClick={() => cyclePreset(-1)} aria-label="Previous preset">◄</button>
-          <div className="hu-eq-preset-name">{presets[activeIdx]?.name ?? 'Custom'}</div>
-          <button className="hu-eq-preset-arrow" onClick={() => cyclePreset(+1)} aria-label="Next preset">►</button>
-          <PresetGhost preset={presets[(activeIdx + 1) % presets.length]} dim={1} />
-          <PresetGhost preset={presets[(activeIdx + 2) % presets.length]} dim={2} />
-        </div>
-
-        <button className="hu-eq-back-btn" onClick={onClose} aria-label="Back">↺</button>
       </div>
 
       {kbOpen && (
@@ -358,6 +373,14 @@ export default function EQView({ onClose }: EQViewProps) {
         />
       )}
     </div>
+  )
+}
+
+function BackArrow() {
+  return (
+    <svg viewBox="0 0 32 24" width="46" height="34" aria-hidden="true">
+      <polygon points="12,0 12,8 32,8 32,16 12,16 12,24 0,12" fill="currentColor" />
+    </svg>
   )
 }
 
@@ -377,9 +400,3 @@ function Triangle({ direction }: { direction: 'up' | 'down' }) {
     : <svg viewBox="0 0 16 12" width="32" height="24"><polygon points="0,0 16,0 8,12" fill="currentColor" /></svg>
 }
 
-function PresetGhost({ preset, dim }: { preset: EQPreset | undefined; dim: 1 | 2 }) {
-  if (!preset) return <div className="hu-eq-preset-ghost" style={{ visibility: 'hidden' }}>—</div>
-  return (
-    <div className={`hu-eq-preset-ghost hu-eq-preset-ghost-${dim}`}>{preset.name}</div>
-  )
-}

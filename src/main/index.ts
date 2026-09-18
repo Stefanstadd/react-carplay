@@ -258,8 +258,23 @@ app.whenReady().then(() => {
 const saveSettings = (settings: ExtraConfig) => {
   console.log("saving settings", settings)
   fs.writeFileSync(configPath, JSON.stringify(settings))
-  app.relaunch()
-  app.exit()
+  // Update the in-memory copy so anything reading `config` after this
+  // sees the new values.
+  config = settings
+  // Push the new config to the renderer so React state reflects it.
+  mainWindow?.webContents?.send('settings', settings)
+  // Reload the renderer window instead of relaunching the whole app.
+  // Keeps the main-process Bluetooth / audio / EQ / user-settings alive
+  // (so the phone stays paired, EQ presets don't re-load, etc.) while
+  // still forcing the CarPlay worker + React tree to pick up the new
+  // fps / width / height / bindings.  The old `app.relaunch(); app.exit()`
+  // killed the whole electron process — from the user's perspective the
+  // window disappeared and the app "closed".
+  try {
+    mainWindow?.webContents?.reload()
+  } catch (err) {
+    console.warn('[settings] reload failed', err)
+  }
 }
 
 // const startMostStream = (_: IpcMainEvent, most: Stream) => {

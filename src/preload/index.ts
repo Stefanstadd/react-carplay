@@ -13,6 +13,7 @@ export interface BtApi {
   onRecents:   (cb: ApiCallback) => void
   onDevices:   (cb: ApiCallback) => void
   onDialError: (cb: ApiCallback) => void
+  onPairing:   (cb: ApiCallback) => void
 
   requestState:  () => void
   mediaCmd:      (cmd: string) => void
@@ -27,6 +28,8 @@ export interface BtApi {
   connect:       (address: string) => void
   disconnect:    (address: string) => void
   forget:        (address: string) => void
+  pairingAccept: () => void
+  pairingReject: () => void
 }
 
 export interface EqApi {
@@ -72,6 +75,7 @@ const bt: BtApi = {
   onRecents:   (cb) => ipcRenderer.on('bt:recents',   cb),
   onDevices:   (cb) => ipcRenderer.on('bt:devices',   cb),
   onDialError: (cb) => ipcRenderer.on('bt:dialError', cb),
+  onPairing:   (cb) => ipcRenderer.on('bt:pairing',   cb),
 
   requestState: ()         => ipcRenderer.send('bt:requestState'),
   mediaCmd:     (cmd)      => ipcRenderer.send('bt:mediaCmd', cmd),
@@ -86,6 +90,8 @@ const bt: BtApi = {
   connect:      (address)  => ipcRenderer.send('bt:connect', address),
   disconnect:   (address)  => ipcRenderer.send('bt:disconnect', address),
   forget:       (address)  => ipcRenderer.send('bt:forget', address),
+  pairingAccept: ()        => ipcRenderer.send('bt:pairingAccept'),
+  pairingReject: ()        => ipcRenderer.send('bt:pairingReject'),
 }
 
 const eq: EqApi = {

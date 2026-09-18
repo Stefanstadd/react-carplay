@@ -51,8 +51,8 @@ export const BANDS: BandSpec[] = [
 ]
 
 export const BAND_COUNT = BANDS.length
-export const GAIN_MIN = -12
-export const GAIN_MAX =  12
+export const GAIN_MIN = -8
+export const GAIN_MAX =  8
 
 const CHAIN_NODE_NAME = 'headunit_eq'    // node.name of the filter-chain sink
 

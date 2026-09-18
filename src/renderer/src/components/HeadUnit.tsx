@@ -17,7 +17,8 @@ import {
   type RecentCall,
   type PhoneState,
   type CallState,
-  type BtDevice
+  type BtDevice,
+  type PairingRequest
 } from './bluetooth'
 import EQView from './EQView'
 import SettingsView from './SettingsView'
@@ -87,7 +88,6 @@ export interface VehicleData {
 
 interface HeadUnitProps {
   onLaunchCarplay: () => void
-  onOpenSettings?: () => void
   vehicleData?: VehicleData
 }
 
@@ -918,45 +918,13 @@ function GaugesView({ vehicleData }: { vehicleData?: VehicleData }) {
 
   return (
     <div className="hu-screen">
-      <div className="hu-sidebar hu-sidebar-slim">
-        <div className="hu-panel-label">SENSORS</div>
-        <div className="hu-gauge-sidebar">
-          <div className="hu-gauge-text-row">
-            <span className="hu-gauge-text-label">OIL PRESS</span>
-            <span className="hu-gauge-text-value">
-              {vd.oilPressurePsi ?? 45}
-              <small className="hu-gauge-text-unit">PSI</small>
-            </span>
+      <div className="hu-main-area hu-gauges-empty-area">
+        <div className="hu-empty-state">
+          <div className="hu-empty-title">NO GAUGES AVAILABLE</div>
+          <div className="hu-empty-sub">
+            Define your first gauge in Settings → Gauges.<br />
+            Values will appear here once the CAN bus is wired up.
           </div>
-          <div className="hu-gauge-text-row">
-            <span className="hu-gauge-text-label">BATTERY</span>
-            <span className="hu-gauge-text-value">
-              {vd.batteryV ?? 12.6}
-              <small className="hu-gauge-text-unit">V</small>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="hu-main-area">
-        <div className="hu-gauges">
-          <GaugeWidget
-            label="OIL TEMP"
-            value={vd.oilTempC ?? 90}
-            min={40}
-            max={150}
-            unit="°C"
-            warnAbove={120}
-          />
-          <GaugeWidget label="SPEED" value={vd.speedKmh ?? 0} min={0} max={260} unit="km/h" />
-          <GaugeWidget
-            label="RPM"
-            value={vd.rpm ?? 800}
-            min={0}
-            max={8000}
-            unit="RPM"
-            warnAbove={6500}
-          />
         </div>
       </div>
     </div>
@@ -1638,11 +1606,15 @@ function CallPopup({
 
 // ─── HeadUnit root ────────────────────────────────────────────────────────────
 
-export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData }: HeadUnitProps) {
+export default function HeadUnit({ onLaunchCarplay, vehicleData }: HeadUnitProps) {
   const bt = useBluetooth()
   const [activeView, setActiveView] = useState<ViewName>('music')
   const [ss, setSS] = useState(getScaleState)
-  const [recents, setRecents] = useState<RecentEntry[]>(loadRecents)
+  // Local recents log — kept in sync with localStorage.  bt.recents (from
+  // the phone via PBAP) is the source of truth the UI reads; this is a
+  // write-side cache used by pushRecent for legacy replay.  Prefixed with
+  // underscore because it's write-only from React's perspective.
+  const [, setRecents] = useState<RecentEntry[]>(loadRecents)
   // Whether the in-call full screen is showing (vs. the small popup).
   // Auto-opens when a call becomes active, can be minimised back.
   const [callFull, setCallFull] = useState(false)
@@ -1756,13 +1728,12 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
       case 'gauges':
         return <GaugesView vehicleData={vehicleData} />
       case 'phone':
-        return <PhoneView bt={bt} recents={recents} />
+        return <PhoneView bt={bt} />
       case 'settings':
         return (
           <SettingsView
             isActive={isActive}
             onOpenEqualizer={() => setEqOpen(true)}
-            onOpenCarplaySettings={() => onOpenSettings?.()}
           />
         )
     }
@@ -1814,7 +1785,70 @@ export default function HeadUnit({ onLaunchCarplay, onOpenSettings, vehicleData 
           {showPopup && <CallPopup call={bt.call} bt={bt} onOpen={() => setCallFull(true)} />}
 
           {eqOpen && <EQView onClose={() => setEqOpen(false)} />}
+
+          {bt.pairing && (
+            <PairingPrompt
+              request={bt.pairing}
+              onAccept={() => bt.acceptPairing()}
+              onReject={() => bt.rejectPairing()}
+            />
+          )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Bluetooth pairing modal ────────────────────────────────────────────────
+// Themed replacement for the tiny bluez-simple-agent tray popup that shows
+// the pairing passkey.  Kind:
+//   • confirm — passkey is shown, user taps ACCEPT / REJECT
+//   • display — phone-initiated; we show the code, user confirms on phone
+//   • pin     — legacy PIN; we auto-send "0000" and just show the code
+function PairingPrompt({
+  request,
+  onAccept,
+  onReject
+}: {
+  request: PairingRequest
+  onAccept: () => void
+  onReject: () => void
+}) {
+  const digits = request.passkey.padStart(6, '0').split('')
+  const isConfirm = request.kind === 'confirm'
+  return (
+    <div className="hu-pair-overlay">
+      <div className="hu-pair-panel">
+        <div className="hu-panel-label">BLUETOOTH PAIRING</div>
+        <div className="hu-pair-device">
+          {request.deviceName || request.deviceAddress || 'New Device'}
+        </div>
+        <div className="hu-pair-instructions">
+          {isConfirm
+            ? 'Check that the code below matches the one on your phone, then tap ACCEPT.'
+            : 'Enter or confirm this code on your phone.'}
+        </div>
+        <div className="hu-pair-code">
+          {digits.map((d, i) => (
+            <span key={i} className="hu-pair-code-digit">{d}</span>
+          ))}
+        </div>
+        {isConfirm ? (
+          <div className="hu-pair-actions">
+            <button className="hu-eq-action hu-pair-btn-reject" onClick={onReject}>
+              REJECT
+            </button>
+            <button className="hu-eq-action hu-eq-action-large hu-pair-btn-accept" onClick={onAccept}>
+              ACCEPT
+            </button>
+          </div>
+        ) : (
+          <div className="hu-pair-actions">
+            <button className="hu-eq-action" onClick={onReject}>
+              CANCEL
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

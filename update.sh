@@ -66,6 +66,35 @@ if [[ $code -eq 0 ]]; then
     chmod +x "$APPIMAGE"
     ln -sf "$(basename "$APPIMAGE")" dist/carplay-latest.AppImage
     echo "── new AppImage: $APPIMAGE ──"
+    # Desktop shortcut so the user can restart the head unit from the Pi
+    # desktop if the kiosk exits.  Idempotent: rewriting the .desktop file
+    # every build keeps it pointed at whatever versioned AppImage was just
+    # built (via the stable dist/carplay-latest.AppImage symlink).
+    REPO_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || pwd)"
+    ICON="$REPO_DIR/build/icon.png"
+    LAUNCH="$REPO_DIR/run.sh"
+    for DESK in "$HOME/Desktop" "$HOME/desktop"; do
+      if [[ -d "$DESK" ]]; then
+        FILE="$DESK/head-unit.desktop"
+        cat > "$FILE" <<EOF2
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Head Unit
+Comment=Launch the react-carplay head unit
+Exec=$LAUNCH
+Icon=$ICON
+Terminal=false
+Categories=AudioVideo;Utility;
+StartupNotify=false
+EOF2
+        chmod +x "$FILE"
+        # Trust the launcher on GNOME/Nautilus so it can double-click.
+        gio set "$FILE" metadata::trusted true 2>/dev/null || true
+        echo "── desktop shortcut refreshed: $FILE ──"
+        break
+      fi
+    done
   fi
   if systemctl --user is-enabled carplay.service >/dev/null 2>&1; then
     echo "── restarting carplay.service ──"

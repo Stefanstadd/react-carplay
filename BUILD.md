@@ -87,6 +87,42 @@ npm run typecheck        # tsc, no output
 npm run lint             # eslint --fix
 ```
 
+## Testing on a Windows / macOS laptop
+
+Bluetooth (calls, contacts, AVRCP metadata) is Linux-only — the head unit
+talks to BlueZ / ofono / obex over D-Bus, which only exists on Linux.  On
+Windows or macOS the Bluetooth manager falls back to a no-op stub so the
+app still runs, but the phone / call / contacts screens show empty
+states.
+
+CarPlay itself does work off-Pi — it's a WebUSB dongle, no OS-specific
+plumbing:
+
+```powershell
+# Windows
+npm install
+npm run dev
+```
+
+If the Carlinkit dongle doesn't show up under `navigator.usb`, install a
+WinUSB driver with Zadig (https://zadig.akeo.ie/) for the CarPlay device:
+VID `0x1314`, PID `0x1520`-`0x1529`.  After that CarPlay works exactly
+like on the Pi — video, audio, touch.
+
+### Simulating a paired phone on Windows
+
+To exercise the phone / call / contacts UI without real Bluetooth, set
+`CARPLAY_BT_MOCK=1` before starting dev:
+
+```powershell
+$env:CARPLAY_BT_MOCK = "1"
+npm run dev
+```
+
+That surfaces a dev "Dev iPhone" as connected, seeds two dummy contacts,
+and drives the media progress bar so the header + music view populate.
+No real calls of course — dial() is a no-op without ofono.
+
 ## Troubleshooting
 
 - **`git pull` conflict on a locally-edited file**: `git checkout --theirs <file>` takes the remote version.  For tunable knobs, prefer editing them via the Settings screen so config lives in `localStorage` and doesn't collide with the repo.

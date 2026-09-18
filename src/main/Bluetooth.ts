@@ -10,7 +10,7 @@
 // drive things from the user (Connect, Dial, MediaPlayer1.Play, etc.).
 
 import { ipcMain, BrowserWindow } from 'electron'
-import { exec } from 'child_process'
+import { exec, spawn, ChildProcessWithoutNullStreams } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -89,6 +89,24 @@ export interface RecentCallsState {
   lastError?: string
 }
 
+/** Pairing prompt surfaced from bluetoothctl to the renderer.  Displayed as
+ *  a themed modal so the user reads the code on the 5.5" head-unit screen
+ *  instead of squinting at the tiny system-tray popup. */
+export interface PairingRequest {
+  /** Six-digit numeric passkey the phone displays (may include leading zeros). */
+  passkey: string
+  /** Device name reported by bluetoothctl (falls back to MAC). */
+  deviceName?: string
+  /** Device MAC address if bluetoothctl surfaced it. */
+  deviceAddress?: string
+  /** Kind of pairing prompt.
+   *   • 'confirm'    — Just Works / SSP confirmation (accept / reject)
+   *   • 'display'    — Phone-initiated pairing; we display code, user just
+   *                    accepts on the phone.  No response required.
+   *   • 'pin'        — Legacy PIN entry (rare — keeps a text field open). */
+  kind: 'confirm' | 'display' | 'pin'
+}
+
 // ─── D-Bus constants ─────────────────────────────────────────────────────────
 
 const BLUEZ_BUS         = 'org.bluez'
@@ -159,6 +177,17 @@ export class BluetoothManager {
   // periodic media-position refresh from the player
   private positionTimer: NodeJS.Timeout | null = null
 
+  // ── Pairing agent (subprocess) ────────────────────────────────────────
+  // Persistent `bluetoothctl` interactive session that acts as the pairing
+  // agent.  We parse its stdout for confirmation prompts, forward the
+  // passkey to the renderer for a themed on-screen modal, and pipe the
+  // user's decision back on stdin.  Without this the pairing UI comes from
+  // whatever desktop-tray agent BlueZ finds — on the kiosk Pi that's the
+  // tiny bluez-simple-agent popup that inspired this feature.
+  private btctl: ChildProcessWithoutNullStreams | null = null
+  private btctlBuf = ''
+  private pendingPairing: PairingRequest | null = null
+
   constructor(getWindow: () => BrowserWindow | undefined) {
     this.getWindow = getWindow
   }
@@ -182,7 +211,17 @@ export class BluetoothManager {
     this.registerIpc()
 
     if (process.platform !== 'linux') {
-      console.log('[bt] non-linux platform — running in stub mode (no real Bluetooth)')
+      // Non-Linux dev: no real BlueZ.  When the dev env var CARPLAY_BT_MOCK
+      // is set (e.g. `set CARPLAY_BT_MOCK=1` on Windows before `npm run
+      // dev`), pretend an iPhone is connected so the phone/call/media UI is
+      // testable without real Bluetooth.  Otherwise fall back to the plain
+      // disconnected stub — CarPlay via USB dongle still works either way.
+      if (process.env.CARPLAY_BT_MOCK) {
+        console.log('[bt] non-linux dev mock enabled — simulating connected phone')
+        this.installDevMock()
+      } else {
+        console.log('[bt] non-linux platform — running in stub mode (no real Bluetooth)')
+      }
       this.pushAll()
       return
     }
@@ -216,6 +255,7 @@ export class BluetoothManager {
 
     await this.initBlueZ()
     await this.initOFono()
+    this.startPairingAgent()
 
     // Disconnect anything BlueZ auto-connected during boot — we'll re-Connect
     // once the renderer signals ready so the head unit isn't running behind
@@ -264,8 +304,62 @@ export class BluetoothManager {
   stop() {
     if (this.positionTimer) clearInterval(this.positionTimer)
     this.positionTimer = null
+    try { this.btctl?.kill() } catch { /* */ }
+    this.btctl = null
     try { this.systemBus?.disconnect?.() } catch { /* */ }
     try { this.sessionBus?.disconnect?.() } catch { /* */ }
+  }
+
+  /** Windows / macOS dev mock: pretend a phone is paired + connected so
+   *  the phone / contacts / call UI is exercisable without BlueZ.  Media
+   *  metadata + battery slowly tick so the header updates.  Enabled by
+   *  the CARPLAY_BT_MOCK env var (see start()). */
+  private installDevMock() {
+    const address = 'AA:BB:CC:DD:EE:FF'
+    const mockPhone: BtDevice = {
+      address,
+      name: 'Dev iPhone',
+      paired: true,
+      connected: true,
+      trusted: true,
+      batteryPct: 78,
+      isPhone: true,
+    }
+    this.devicePaths.set('/dev-mock/phone', mockPhone)
+    this.activePhonePath = '/dev-mock/phone'
+    this.media = {
+      hasMetadata: true,
+      title: 'Test Track',
+      artist: 'Dev Mock',
+      album: 'Windows Dev',
+      durationSec: 180,
+      positionSec: 12,
+      playing: true,
+    }
+    // Simulate battery drain + position tick.
+    setInterval(() => {
+      if (this.media.playing) {
+        this.media.positionSec = Math.min(this.media.durationSec, this.media.positionSec + 1)
+        this.pushMedia()
+      }
+    }, 1000)
+    // Provide a couple of dummy contacts so contact search + call flows
+    // are exercisable end-to-end.
+    this.contacts = {
+      synced: true,
+      syncing: false,
+      contacts: [
+        { id: '1', name: 'Alice Dev', numbers: [{ type: 'mobile', number: '+31612345678' }] },
+        { id: '2', name: 'Bob Test',  numbers: [{ type: 'mobile', number: '+31687654321' }] },
+      ],
+    }
+    this.recents = {
+      synced: true,
+      syncing: false,
+      calls: [
+        { name: 'Alice Dev', number: '+31612345678', time: Date.now() - 60_000, dir: 'out' },
+      ],
+    }
   }
 
   // ─── IPC wiring (renderer → main) ──────────────────────────────────────────
@@ -287,6 +381,152 @@ export class BluetoothManager {
     ipcMain.on('bt:connect',    (_e, a: string) => this.connectDevice(a))
     ipcMain.on('bt:disconnect', (_e, a: string) => this.disconnectDevice(a))
     ipcMain.on('bt:forget',     (_e, a: string) => this.forgetDevice(a))
+    ipcMain.on('bt:pairingAccept', () => this.respondPairing(true))
+    ipcMain.on('bt:pairingReject', () => this.respondPairing(false))
+  }
+
+  // ─── Pairing agent (bluetoothctl subprocess) ────────────────────────────
+  //
+  // Why bluetoothctl and not a native D-Bus Agent1?
+  //   The pairing prompts BlueZ dispatches (DisplayPasskey, RequestConfirmation,
+  //   etc.) need a client-registered Agent1 D-Bus interface.  dbus-next's
+  //   server-side Interface API works but requires TypeScript decorators
+  //   we don't have configured — bluetoothctl already implements a fully
+  //   spec-compliant Agent1 that prints prompts on stdout and takes "yes"/"no"
+  //   on stdin, so we let it do the D-Bus dance for us.
+  //
+  //   We set the mode to `DisplayYesNo`: the phone displays a 6-digit code,
+  //   BlueZ prints "Confirm passkey <NNNNNN> (yes/no):" on bluetoothctl's
+  //   stdout, we surface that as a themed on-screen modal, and the user's
+  //   tap → `yes\n` / `no\n` back to stdin.
+
+  private startPairingAgent() {
+    // Only spawn on Linux — bluetoothctl doesn't exist elsewhere.  Guarded
+    // even though start() short-circuits on non-Linux; safe if refactored later.
+    if (process.platform !== 'linux') return
+    try {
+      const p = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] })
+      this.btctl = p
+      p.stdout.setEncoding('utf8')
+      p.stderr.setEncoding('utf8')
+      // Boot the agent: DisplayYesNo lets BlueZ ask us to confirm 6-digit codes.
+      // pairable + discoverable so phones can find + pair with the Pi without
+      // needing a scan initiated by the head unit UI.
+      const init = [
+        'agent off',
+        'agent DisplayYesNo',
+        'default-agent',
+        'pairable on',
+        'discoverable on',
+        ''
+      ].join('\n') + '\n'
+      p.stdin.write(init)
+
+      const handleChunk = (chunk: string) => {
+        this.btctlBuf += chunk
+        // Look for line-based agent messages.
+        //   "Confirm passkey 123456 (yes/no):"
+        //   "[agent] Confirm passkey 123456 (yes/no):"
+        //   "Request confirmation"
+        //   "Passkey: 123456"
+        //   "PIN code: 123456"
+        //   "Authorize service <uuid> (yes/no):"
+        //   "Request PIN code"
+        const lines = this.btctlBuf.split(/\r?\n/)
+        this.btctlBuf = lines.pop() ?? ''
+        for (const raw of lines) this.parseAgentLine(raw)
+
+        // Handle prompts that don't end in a newline (bluetoothctl leaves
+        // the "(yes/no):" trailing on the buffer waiting for input).
+        const buf = this.btctlBuf
+        const confirmMatch = /Confirm passkey (\d{4,6})\s*\(yes\/no\)/i.exec(buf)
+        if (confirmMatch) {
+          this.emitPairing({ kind: 'confirm', passkey: confirmMatch[1] })
+          // Consume the prompt so it doesn't re-emit on the next chunk.
+          this.btctlBuf = ''
+        }
+        const authMatch = /Authorize service .* \(yes\/no\)/i.exec(buf)
+        if (authMatch && !confirmMatch) {
+          // Auto-authorise service requests silently (bluez wants a yes/no on
+          // every UUID the phone advertises; on a headless kiosk we always
+          // allow the paired phone's services).
+          try { this.btctl?.stdin.write('yes\n') } catch { /* */ }
+          this.btctlBuf = ''
+        }
+      }
+      p.stdout.on('data', handleChunk)
+      p.stderr.on('data', handleChunk)
+      p.on('close', (code) => {
+        console.warn('[bt] bluetoothctl agent exited', code)
+        this.btctl = null
+        // Restart after a short delay so a hiccup doesn't leave the head unit
+        // agent-less forever.
+        setTimeout(() => this.startPairingAgent(), 5000)
+      })
+      p.on('error', (err) => console.warn('[bt] bluetoothctl spawn failed', err))
+      console.log('[bt] pairing agent ready — mode: DisplayYesNo')
+    } catch (err) {
+      console.warn('[bt] pairing agent could not start:', err)
+    }
+  }
+
+  private parseAgentLine(line: string) {
+    // Passive display-only prompts — surface the code so the user knows what
+    // the phone should be showing.  bluetoothctl doesn't require a reply here.
+    let m: RegExpExecArray | null
+    if ((m = /Passkey:\s*(\d{4,6})/i.exec(line))) {
+      this.emitPairing({ kind: 'display', passkey: m[1] })
+    } else if ((m = /PIN code:\s*(\d{4,6})/i.exec(line))) {
+      this.emitPairing({ kind: 'display', passkey: m[1] })
+    } else if (/Request PIN code/i.test(line)) {
+      // Rare on modern phones — respond with "0000" which is the historical
+      // BT-classic default; still surface it in case the user needs to know.
+      this.emitPairing({ kind: 'pin', passkey: '0000' })
+      try { this.btctl?.stdin.write('0000\n') } catch { /* */ }
+    }
+    // Enrich the pending prompt with device name/address when we see them.
+    if ((m = /Device (\S{17})\s*(.*)/.exec(line))) {
+      if (this.pendingPairing) {
+        this.pendingPairing.deviceAddress = m[1]
+        if (m[2]) this.pendingPairing.deviceName = m[2].trim()
+        this.pushPairing()
+      }
+    }
+  }
+
+  private emitPairing(req: Omit<PairingRequest, 'deviceName' | 'deviceAddress'>) {
+    this.pendingPairing = { ...req }
+    // Look for the most recently-seen active device that isn't yet paired —
+    // gives us a name for the modal without waiting for a "Device" line.
+    for (const d of Array.from(this.devicePaths.values())) {
+      if (!d.paired) {
+        this.pendingPairing.deviceAddress = d.address
+        this.pendingPairing.deviceName = d.name
+        break
+      }
+    }
+    this.pushPairing()
+    // 'display' prompts auto-clear after a while — the phone shows the code
+    // and the pairing completes on its end.  Nothing to accept/reject here.
+    if (req.kind === 'display') {
+      setTimeout(() => {
+        if (this.pendingPairing?.kind === 'display') {
+          this.pendingPairing = null
+          this.pushPairing()
+        }
+      }, 30_000)
+    }
+  }
+
+  private pushPairing() {
+    this.getWindow()?.webContents?.send('bt:pairing', this.pendingPairing)
+  }
+
+  private respondPairing(accept: boolean) {
+    if (!this.pendingPairing) return
+    try { this.btctl?.stdin.write(accept ? 'yes\n' : 'no\n') } catch { /* */ }
+    this.pendingPairing = null
+    this.pushPairing()
   }
 
   // ─── State push ────────────────────────────────────────────────────────────
@@ -301,6 +541,7 @@ export class BluetoothManager {
       w.webContents.send('bt:contacts', this.contacts)
       w.webContents.send('bt:recents',  this.recents)
       w.webContents.send('bt:devices',  this.deviceList())
+      w.webContents.send('bt:pairing',  this.pendingPairing)
     } catch (err) {
       // window may be closing — ignore
     }
